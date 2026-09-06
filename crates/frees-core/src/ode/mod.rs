@@ -20,6 +20,7 @@ pub mod analysis;
 pub mod deadline;
 pub mod dynamic;
 pub mod events;
+pub(crate) mod hermite_root;
 pub mod integrator;
 pub mod methods;
 pub mod problem;
