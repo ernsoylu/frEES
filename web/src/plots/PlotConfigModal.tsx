@@ -28,6 +28,7 @@ import {
 } from './types'
 import { defaultUnitId, unitIdsFor } from './units'
 import { StateTableDto } from '../api'
+import type { TableSpec } from '../tables'
 import { displayVar, varOptions } from '../varDisplay'
 
 interface Props {
@@ -38,9 +39,10 @@ interface Props {
   defaultName: string
   fluids: string[]
   tableVars: string[]
+  tables?: TableSpec[]
   /** Seed for a new X-Y plot (e.g. opened from a table's column selection):
    * pre-fills the x-axis variable and y-axis variables. */
-  initialXy?: { xVar: string; yVars: string[] }
+  initialXy?: { xVar: string; yVars: string[]; tableId?: string }
   hasStates: boolean
   /** Declared STATE TABLE blocks, so property/psychro plots can overlay one
    * specific circuit's states (and adopt its fluid). */
@@ -617,6 +619,7 @@ export default function PlotConfigModal({
   fluids,
   tableVars,
   initialXy,
+  tables = [],
   hasStates,
   stateTables = [],
   onSave,
@@ -627,7 +630,7 @@ export default function PlotConfigModal({
     const base = newPlotSpec(allowedKinds[0], defaultName)
     // Seed a fresh X-Y plot from a table column selection: x = time, y = picks.
     if (initialXy && base.kind === 'xy') {
-      return { ...base, xy: { ...base.xy, xVar: initialXy.xVar, yVars: initialXy.yVars } }
+      return { ...base, source: initialXy.tableId ? { kind: 'table', tableId: initialXy.tableId, data: 'inputs' } : undefined, xy: { ...base.xy, xVar: initialXy.xVar, yVars: initialXy.yVars } }
     }
     return base
   })
@@ -665,10 +668,17 @@ export default function PlotConfigModal({
           )}
         </Group>
 
+        {draft.kind === 'xy' && <>
+          <Select label="Data source" placeholder="Select a source" data={[{ value: 'arrays', label: 'Solved arrays' }, ...tables.filter((t) => t.kind === 'parametric').map((t) => ({ value: t.id, label: t.name }))]}
+            value={draft.source?.kind === 'arrays' ? 'arrays' : draft.source?.tableId ?? null}
+            onChange={(value) => setDraft({ ...draft, source: value === 'arrays' ? { kind: 'arrays' } : value ? { kind: 'table', tableId: value, data: 'solved' } : undefined })} />
+          {draft.source?.kind === 'table' && <SegmentedControl value={draft.source.data} data={[{ value: 'inputs', label: 'Raw inputs / trajectory' }, { value: 'solved', label: 'Successful solved rows' }]}
+            onChange={(data) => setDraft((d) => d.source?.kind === 'table' ? { ...d, source: { ...d.source, data: data as 'inputs' | 'solved' } } : d)} />}
+        </>}
         {draft.kind === 'xy' && (
           <XYSection
             config={draft.xy}
-            tableVars={tableVars}
+            tableVars={draft.source?.kind === 'table' ? (tables.find((t) => t.id === (draft.source?.kind === 'table' ? draft.source.tableId : '')) as import('../tables').ParamTableSpec | undefined)?.vars ?? [] : tableVars}
             onChange={(xy) => setDraft({ ...draft, xy })}
           />
         )}

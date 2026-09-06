@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Button, Stack, Tabs, Text } from '@mantine/core'
 import { StateTableDto, TableRowResult, VariableResult, getFluids } from './api'
-import { ParamRow } from './tables'
+import { ParamRow, TableSpec } from './tables'
 import { PlotKind, PlotSpec } from './plots/types'
 import { detectStates } from './plots/stateTable'
+import { resolvePlotSource } from './plots/sources'
 import PlotCard from './plots/PlotCard'
 import PlotConfigModal from './plots/PlotConfigModal'
 
@@ -12,6 +13,7 @@ interface Props {
    * shared, so the Plots and Thermodynamics windows each see their slice. */
   kinds: PlotKind[]
   emptyHint: string
+  tables?: TableSpec[]
   plots: PlotSpec[]
   onPlotsChange: (plots: PlotSpec[]) => void
   solvedVariables: VariableResult[]
@@ -38,6 +40,7 @@ interface Props {
  */
 export default function PlotTab({
   kinds,
+  tables = [],
   emptyHint,
   plots,
   onPlotsChange,
@@ -105,6 +108,11 @@ export default function PlotTab({
     ? (visible.find((p) => p.id === singlePlotId) ?? null)
     : (visible.find((p) => p.id === activePlot) ?? visible[0] ?? null)
 
+  const source = current ? resolvePlotSource(current, tables, solvedVariables) : undefined
+  const sourceTable = source?.kind === 'table' ? tables.find((t) => t.id === source.tableId) : undefined
+  const boundTable = sourceTable?.kind === 'parametric' ? sourceTable : undefined
+  const boundSpec = current && { ...current, source: source?.kind === 'table' && !boundTable ? undefined : source }
+
   return (
     <Stack gap="sm" style={{ flex: 1, minHeight: 0 }}>
       {(adding || editing) && (
@@ -113,6 +121,7 @@ export default function PlotTab({
           allowedKinds={kinds}
           defaultName={editing ? editing.name : `Plot ${visible.length + 1}`}
           fluids={fluids}
+          tables={tables}
           tableVars={tableVars}
           hasStates={states.indices.length > 0}
           stateTables={stateTableDefs}
@@ -138,15 +147,15 @@ export default function PlotTab({
       {current !== null && (
         <PlotCard
           key={current.id}
-          spec={current}
+          spec={boundSpec!}
           states={states}
           cyclePath={cyclePath}
-          tableRows={rows}
-          tableResults={results}
+          tableRows={boundTable?.rows ?? []}
+          tableResults={boundTable?.results ?? []}
           variables={solvedVariables}
-          tableUnits={tableUnits}
+          tableUnits={boundTable?.columnUnits}
           stateTableDefs={stateTableDefs}
-          onConfigure={() => setEditing(current)}
+          onConfigure={() => setEditing(boundSpec)}
           onRemove={() => removePlot(current.id)}
           hideHeader={hideHeader}
           exportTrigger={exportTrigger}

@@ -1,3 +1,4 @@
+import { resolvePlotSource } from './plots/sources'
 import { flushSync } from 'react-dom'
 import { helpUrl } from './helpUrl'
 import { ChangeEvent, lazy, startTransition, Suspense, useCallback, useEffect, useMemo, useState, useRef, type ReactNode } from 'react'
@@ -722,7 +723,7 @@ export default function App() {
   const [newPlotKind, setNewPlotKind] = useState<PlotKind | null>(null)
   // Seed for a new X-Y plot opened from a table's column selection (x + y vars),
   // applied as the modal's initial XY config.
-  const [plotSeed, setPlotSeed] = useState<{ xVar: string; yVars: string[] } | null>(null)
+  const [plotSeed, setPlotSeed] = useState<{ xVar: string; yVars: string[]; tableId?: string } | null>(null)
   // D10: the spreadsheet feature is removed. A loaded project's spreadsheets
   // array is carried INERT — held here, written back on save, never shown and
   // never destroyed (docs/decisions/0010-remove-spreadsheet.md, compatibility
@@ -1741,14 +1742,14 @@ export default function App() {
         if (t.kind !== 'parametric') return t
         if (t.results.length === 0 && !t.stats && !t.checkResult && !t.checkMessage) return t
         changed = true
-        return { ...t, results: [], stats: null, checkResult: null, checkMessage: '', runStatus: 'stale' }
+        return { ...t, results: [], stats: null, checkResult: null, checkMessage: '', runStatus: 'stale' as const }
       })
       return changed ? next : all
     })
   }
 
   function invalidateActiveParam(t: ParamTableSpec): ParamTableSpec {
-    return { ...t, results: [], stats: null, checkResult: null, checkMessage: '', runStatus: 'stale' }
+    return { ...t, results: [], stats: null, checkResult: null, checkMessage: '', runStatus: 'stale' as const }
   }
 
   // Fresh hosted spec for a table run (contract b's pre-run scrape): flush
@@ -1871,6 +1872,7 @@ export default function App() {
       }
       updateParamTable(tableId, (t) => ({
         ...t,
+        resultRevision: solveTableRevision,
         results: response.results,
         stats: response.stats,
         runStatus: response.results.some((r) => r.status === 'cancelled') ? 'cancelled' : 'completed',
@@ -1948,7 +1950,7 @@ export default function App() {
       if (!modelRevisionRef.current.isCurrent(solveRevision)) {
         return false
       }
-      setResult(response)
+      setResult({ ...response, resultRevision: solveRevision })
       // REPL overrides persist across solves (the terminal keeps priority over the
       // editor); they're dropped only by the `clear` command, not by solving.
       // The Variable Explorer lives in the right edge group (expanded by default)
@@ -2089,8 +2091,8 @@ export default function App() {
 
   // From a read-only table's column selection: open the New X-Y plot modal
   // pre-filled with the time column as x and the selected columns as y.
-  const handlePlotColumns = (xVar: string, yVars: string[]) => {
-    setPlotSeed({ xVar, yVars })
+  const handlePlotColumns = (xVar: string, yVars: string[], tableId?: string) => {
+    setPlotSeed({ xVar, yVars, tableId })
     setNewPlotKind('xy')
   }
 
@@ -2178,6 +2180,21 @@ export default function App() {
     const dtos = result?.definedPlots ?? checkResult?.definedPlots ?? []
     return dtos.map(plotDefToSpec)
   }, [result?.definedPlots, checkResult?.definedPlots])
+
+  useEffect(() => {
+    setPlots((previous) => {
+      let changed = false
+      const next = previous.map((plot) => {
+        const source = resolvePlotSource(plot, tables, result?.variables ?? [])
+        const sourceTable = source?.kind === 'table' ? tables.find((t) => t.id === source.tableId) : undefined
+        const revision = source?.kind === 'arrays' ? result?.resultRevision : sourceTable?.kind === 'parametric' ? sourceTable.resultRevision : undefined
+        if (source === plot.source && revision === plot.resultRevision) return plot
+        changed = true
+        return { ...plot, source, resultRevision: revision }
+      })
+      return changed ? next : previous
+    })
+  }, [tables, result])
 
   const mergedPlots = useMemo<PlotSpec[]>(() => {
     const userNames = new Set(plots.map((p) => p.name.toLowerCase()))
@@ -2771,6 +2788,7 @@ export default function App() {
           singlePlotId={pl.id}
           emptyHint="This plot was removed."
           plots={mergedPlots}
+          tables={tables}
           onPlotsChange={handlePlotsChange}
           solvedVariables={result?.variables ?? []}
           stateTableDefs={declaredStateDefs}
@@ -2857,7 +2875,7 @@ export default function App() {
             tables={tables}
             singleTableId={t.id}
             varDrafts={varDrafts}
-            onPlotColumns={handlePlotColumns}
+            onPlotColumns={(x, ys) => handlePlotColumns(x, ys, t.id)}
             onCopyToEditable={(copy) => {
               setTables((prev) => [...prev, copy])
               setActiveTableId(copy.id)
@@ -3364,6 +3382,7 @@ export default function App() {
             allowedKinds={[newPlotKind]}
             defaultName={`${PLOT_KIND_LABEL[newPlotKind]} ${mergedPlots.filter((p) => p.kind === newPlotKind).length + 1}`}
             fluids={fluids}
+            tables={tables}
             tableVars={tableVars}
             initialXy={newPlotKind === 'xy' ? (plotSeed ?? undefined) : undefined}
             hasStates={detectStates(result?.variables ?? []).indices.length > 0}

@@ -106,6 +106,7 @@ export interface VariableUncertaintyResult {
 }
 
 export interface SolveResponse {
+  resultRevision?: number
   success: boolean
   variables: VariableResult[]
   blocks: BlockResult[]

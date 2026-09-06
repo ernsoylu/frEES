@@ -255,6 +255,7 @@ export function buildFigure(spec: PlotSpec, inputs: FigureInputs): PlotlyFigure 
   if (spec.kind === 'psychro' && psychart) {
     return buildPsychroFigure(psychart, spec.psychro, spec.format, overlayStates(spec.psychro.stateTable), theme, cyclePath)
   }
+  if (spec.kind === 'xy' && !spec.source) return null
   if (spec.kind === 'xy' && (spec.xy.xVar || spec.xy.chartType === 'histogram') && spec.xy.yVars.length > 0 && (spec.xy.chartType !== 'surface3d' || spec.xy.zVar)) {
     return buildXyFigureFromSpec(spec, inputs, spec.xy.chartType === 'histogram' ? '' : spec.xy.xVar!)
   }
@@ -301,19 +302,17 @@ function buildXyFigureFromSpec(spec: PlotSpec, inputs: FigureInputs, xVar: strin
   // the rows already carry the requested series data even though there are no
   // run results, which is the case for read-only code PARAMETRIC tables and
   // DYNAMIC/ODE trajectories (their values live in the rows, not in `results`).
-  const yAll = [...spec.xy.yVars, ...(spec.xy.y2Vars ?? [])]
-  const rowsCarrySeries =
-    tableRows.length > 0 &&
-    yAll.some((y) => tableRows.some((r) => (r.values[y] ?? '').trim() !== ''))
-  const useArrays = (tableRows.length === 0 || tableResults.length === 0) && !rowsCarrySeries
+  const outcomes = spec.source?.kind === 'table' && spec.source.data === 'solved'
+    ? tableRows.map((_, i) => tableResults[i] ?? { success: false, values: {}, error: null }) : []
+  const useArrays = spec.source?.kind === 'arrays'
   const series = useArrays
     ? buildArrayXYSeries(variables, xVar, spec.xy.yVars, 'y', spec.xy.zVar, spec.xy.sizeVar)
-    : buildXYSeries(tableRows, tableResults, xVar, spec.xy.yVars, spec.xy.zVar, spec.xy.sizeVar)
+    : buildXYSeries(tableRows, outcomes, xVar, spec.xy.yVars, spec.xy.zVar, spec.xy.sizeVar)
   if (spec.xy.y2Vars && spec.xy.y2Vars.length > 0) {
     series.push(
       ...(useArrays
         ? buildArrayXYSeries(variables, xVar, spec.xy.y2Vars, 'y2')
-        : buildXYSeries(tableRows, tableResults, xVar, spec.xy.y2Vars, null, null, 'y2')),
+        : buildXYSeries(tableRows, outcomes, xVar, spec.xy.y2Vars, null, null, 'y2')),
     )
   }
   // Append each axis variable's unit (from the solved variables — same unit a
@@ -461,7 +460,7 @@ export default function PlotCard({
       {!loading && !error && figure === null && (
         <Text size="sm" c="dimmed">
           {spec.kind === 'xy'
-            ? 'Choose an X variable and at least one Y variable in Configure, then solve the parametric table.'
+            ? 'Choose an explicit data source and the required channels in Configure. Missing or ambiguous sources are never replaced by the active table.'
             : 'No data yet.'}
         </Text>
       )}

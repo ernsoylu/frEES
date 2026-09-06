@@ -109,7 +109,11 @@ export interface ControlConfig {
   zi: string | null
 }
 
+export type PlotSource = { kind: 'arrays' } | { kind: 'table'; tableId: string; data: 'inputs' | 'solved' }
+
 export interface PlotSpec {
+  source?: PlotSource
+  resultRevision?: number
   id: string
   name: string
   kind: PlotKind
