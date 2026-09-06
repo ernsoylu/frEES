@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Button, Stack, Tabs, Text } from '@mantine/core'
 import { StateTableDto, TableRowResult, VariableResult, getFluids } from './api'
 import { ParamRow, TableSpec } from './tables'
-import { PlotKind, PlotSpec } from './plots/types'
+import { editablePlotCopy, PlotKind, PlotSpec } from './plots/types'
 import { detectStates } from './plots/stateTable'
 import { resolvePlotSource } from './plots/sources'
 import PlotCard from './plots/PlotCard'
@@ -48,9 +48,6 @@ export default function PlotTab({
   stateTableDefs,
   cyclePath,
   tableVars,
-  rows,
-  results,
-  tableUnits,
   activePlotId,
   onActivePlotIdChange,
   hideHeader = false,
@@ -121,6 +118,7 @@ export default function PlotTab({
           allowedKinds={kinds}
           defaultName={editing ? editing.name : `Plot ${visible.length + 1}`}
           fluids={fluids}
+          occupiedNames={plots.filter((p) => p.id !== editing?.id).map((p) => p.name)}
           tables={tables}
           tableVars={tableVars}
           hasStates={states.indices.length > 0}
@@ -156,6 +154,7 @@ export default function PlotTab({
           tableUnits={boundTable?.columnUnits}
           stateTableDefs={stateTableDefs}
           onConfigure={() => setEditing(boundSpec)}
+          onDuplicate={() => addPlot(editablePlotCopy(boundSpec!, plots))}
           onRemove={() => removePlot(current.id)}
           hideHeader={hideHeader}
           exportTrigger={exportTrigger}

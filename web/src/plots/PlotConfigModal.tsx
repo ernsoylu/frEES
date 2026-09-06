@@ -40,6 +40,7 @@ interface Props {
   fluids: string[]
   tableVars: string[]
   tables?: TableSpec[]
+  occupiedNames?: string[]
   /** Seed for a new X-Y plot (e.g. opened from a table's column selection):
    * pre-fills the x-axis variable and y-axis variables. */
   initialXy?: { xVar: string; yVars: string[]; tableId?: string }
@@ -620,6 +621,7 @@ export default function PlotConfigModal({
   tableVars,
   initialXy,
   tables = [],
+  occupiedNames = [],
   hasStates,
   stateTables = [],
   onSave,
@@ -634,6 +636,7 @@ export default function PlotConfigModal({
     }
     return base
   })
+  const nameError = !draft.name.trim() ? 'A name is required.' : occupiedNames.some((n) => n.toLowerCase() === draft.name.trim().toLowerCase()) ? 'This plot name is already in use.' : undefined
   const creating = spec === null
   const kindOptions = KIND_OPTIONS.filter((o) =>
     allowedKinds.includes(o.value as PlotKind),
@@ -654,6 +657,7 @@ export default function PlotConfigModal({
         <Group grow align="flex-end">
           <TextInput
             label="Plot name"
+            error={nameError}
             size="xs"
             value={draft.name}
             onChange={(e) => setDraft({ ...draft, name: e.currentTarget.value })}
@@ -719,7 +723,7 @@ export default function PlotConfigModal({
           <Button variant="default" size="xs" onClick={onClose}>
             Cancel
           </Button>
-          <Button size="xs" onClick={() => onSave(draft)}>
+          <Button size="xs" disabled={!!nameError} onClick={() => onSave({ ...draft, name: draft.name.trim() })}>
             {creating ? 'Add plot' : 'Apply'}
           </Button>
         </Group>

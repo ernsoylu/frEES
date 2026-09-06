@@ -193,3 +193,12 @@ export function newPlotSpec(kind: PlotKind, name: string): PlotSpec {
     format: defaultFormat(kind),
   }
 }
+
+/** A GUI snapshot of a code plot, with a collision-free name. */
+export function editablePlotCopy(spec: PlotSpec, plots: PlotSpec[]): PlotSpec {
+  const occupied = new Set(plots.map((p) => p.name.toLowerCase()))
+  const base = `${spec.name}_copy`
+  let name = base
+  for (let i = 2; occupied.has(name.toLowerCase()); i++) name = `${base}${i}`
+  return { ...spec, id: crypto.randomUUID(), name, fromCode: false }
+}

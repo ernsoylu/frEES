@@ -2100,6 +2100,11 @@ export default function App() {
     // Code-defined plots are derived from the solve response, not persisted, so
     // strip them before saving — they are re-merged on the next solve/check.
     const userPlots = nextPlots.filter((p) => !p.fromCode)
+    const names = [...userPlots, ...codePlots].map((p) => p.name.trim().toLowerCase())
+    if (names.some((n) => !n) || new Set(names).size !== names.length) {
+      setLoadNotice('Plot names must be nonempty and unique, including code-owned plots.')
+      return
+    }
     setPlots(userPlots)
     const needMissing = userPlots.some((p) => p.kind === 'property' && p.property.overlayStates)
     if (needMissing && result?.success && !lastSolvedWithFillMissing && !solving && solvable) {
@@ -2197,8 +2202,8 @@ export default function App() {
   }, [tables, result])
 
   const mergedPlots = useMemo<PlotSpec[]>(() => {
-    const userNames = new Set(plots.map((p) => p.name.toLowerCase()))
-    return [...plots, ...codePlots.filter((c) => !userNames.has(c.name.toLowerCase()))]
+    const codeNames = new Set(codePlots.map((p) => p.name.toLowerCase()))
+    return [...plots.filter((p) => !codeNames.has(p.name.toLowerCase())), ...codePlots]
   }, [plots, codePlots])
 
   // Auto-close dock windows whose backing instance no longer exists — e.g. a
@@ -3383,6 +3388,7 @@ export default function App() {
             defaultName={`${PLOT_KIND_LABEL[newPlotKind]} ${mergedPlots.filter((p) => p.kind === newPlotKind).length + 1}`}
             fluids={fluids}
             tables={tables}
+            occupiedNames={mergedPlots.map((p) => p.name)}
             tableVars={tableVars}
             initialXy={newPlotKind === 'xy' ? (plotSeed ?? undefined) : undefined}
             hasStates={detectStates(result?.variables ?? []).indices.length > 0}

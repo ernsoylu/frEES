@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Alert, Button, Group, Loader, Menu, Text } from '@mantine/core'
+import { Alert, Badge, Button, Group, Loader, Menu, Text } from '@mantine/core'
 import type { PlotlyFigure } from 'plotly.js/lib/core'
 import {
   DiagramResponse,
@@ -43,6 +43,7 @@ interface Props {
   tableUnits?: Record<string, string>
   /** Declared STATE TABLE blocks, for overlaying a single circuit's states. */
   stateTableDefs?: StateTableDto[]
+  onDuplicate?: () => void
   onConfigure: () => void
   onRemove: () => void
   leftSection?: React.ReactNode
@@ -349,6 +350,7 @@ export default function PlotCard({
   tableUnits,
   stateTableDefs,
   onConfigure,
+  onDuplicate,
   onRemove,
   leftSection,
   rightSection,
@@ -405,9 +407,10 @@ export default function PlotCard({
         <Group justify="space-between" mb="xs" wrap="nowrap" align="center">
           <Group gap="xs" style={{ flex: 1 }} wrap="nowrap">
             {leftSection}
-            <Button variant="default" size="xs" onClick={onConfigure}>
-              Configure
-            </Button>
+            {spec.fromCode ? <>
+              <Badge size="xs">Code-owned</Badge>
+              <Button variant="default" size="xs" onClick={onDuplicate}>Duplicate as editable</Button>
+            </> : <Button variant="default" size="xs" onClick={onConfigure}>Configure</Button>}
             <Menu shadow="md">
               <Menu.Target>
                 <Button variant="default" size="xs" loading={exporting}>
@@ -431,9 +434,7 @@ export default function PlotCard({
             </Menu>
           </Group>
           <Group gap="xs" wrap="nowrap">
-            <Button variant="subtle" color="red" size="xs" onClick={onRemove}>
-              Remove
-            </Button>
+            {!spec.fromCode && <Button variant="subtle" color="red" size="xs" onClick={onRemove}>Remove</Button>}
             {rightSection}
           </Group>
         </Group>
