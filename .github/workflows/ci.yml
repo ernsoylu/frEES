@@ -276,6 +276,23 @@ jobs:
         # The version comes from the lockfile npm ci just installed.
         run: npx --no-install vitest run
 
+      - name: WASM perturbation detection gate
+        run: |
+          set +e
+          node web/scripts/wasm-parity.mjs --fixture canonical --verify-perturbation
+          if [[ $? -eq 0 ]]; then
+            echo "::error::WASM perturbation gate failed to detect deliberate perturbation"
+            exit 1
+          fi
+          echo "WASM perturbation detection verified"
+
+      - name: WASM golden corpus replay gate
+        run: |
+          node web/scripts/wasm-parity.mjs --shard 0/4
+          node web/scripts/wasm-parity.mjs --shard 1/4
+          node web/scripts/wasm-parity.mjs --shard 2/4
+          node web/scripts/wasm-parity.mjs --shard 3/4
+
       - name: Build frontend
         working-directory: web
         run: npm run build

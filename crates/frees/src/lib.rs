@@ -131,12 +131,15 @@ pub(crate) struct FunctionTableDto {
 }
 
 /// `SolveDtos.FunctionCurveDto`: family-parameter value (`null` for a lone
-/// curve) and `[x, y]` sample pairs, each pair and each member nullable.
+/// curve) and `[x, y]` sample pairs, each pair and each member nullable, or
+/// separate `xs`/`ys` arrays from fixture sidecars.
 #[derive(Debug, Default, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub(crate) struct FunctionCurveDto {
     param: Option<f64>,
     points: Option<Vec<Option<Vec<Option<f64>>>>>,
+    xs: Option<Vec<f64>>,
+    ys: Option<Vec<f64>>,
 }
 
 /// `SolveDtos.functionDefsOf`, transcribed: convert the request's Function
@@ -201,19 +204,22 @@ pub(crate) fn function_table_defs_of(
 fn curves_of(table: &FunctionTableDto) -> Vec<frees_core::parser::defs::Curve> {
     let mut curves = Vec::new();
     for curve in table.curves.as_deref().unwrap_or_default() {
-        let mut valid: Vec<(f64, f64)> = curve
-            .points
-            .as_deref()
-            .unwrap_or_default()
-            .iter()
-            .filter_map(|point| {
-                let point = point.as_ref()?;
-                if point.len() < 2 {
-                    return None;
-                }
-                Some((point[0]?, point[1]?))
-            })
-            .collect();
+        let mut valid: Vec<(f64, f64)> = if let Some(points) = &curve.points {
+            points
+                .iter()
+                .filter_map(|point| {
+                    let point = point.as_ref()?;
+                    if point.len() < 2 {
+                        return None;
+                    }
+                    Some((point[0]?, point[1]?))
+                })
+                .collect()
+        } else if let (Some(xs), Some(ys)) = (&curve.xs, &curve.ys) {
+            xs.iter().copied().zip(ys.iter().copied()).collect()
+        } else {
+            Vec::new()
+        };
         valid.sort_by(|a, b| a.0.total_cmp(&b.0));
         if valid.is_empty() {
             continue;

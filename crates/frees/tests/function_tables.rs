@@ -510,3 +510,29 @@ fn find_all_solutions_returns_multiple_solutions() {
     // Check backwards compatibility: solutions[0].variables agrees with variables
     assert_eq!(sols[0]["variables"], out["variables"]);
 }
+
+#[test]
+fn sidecar_xs_ys_format_is_supported_in_solve() {
+    let out = solve(
+        "y = test_fn(2.0)\n",
+        &json!({
+            "functionTables": [
+                {
+                    "name": "test_fn",
+                    "argNames": ["x"],
+                    "curves": [
+                        {
+                            "param": null,
+                            "xs": [1.0, 2.0, 3.0],
+                            "ys": [10.0, 20.0, 30.0]
+                        }
+                    ]
+                }
+            ]
+        }),
+    );
+    assert_eq!(out["success"], true, "{out}");
+    let vars = out["variables"].as_array().unwrap();
+    let y = vars.iter().find(|v| v["name"] == "y").unwrap();
+    assert_eq!(y["value"], 20.0);
+}

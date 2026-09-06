@@ -1,0 +1,11 @@
+{
+  "_comment": "Recorded native-versus-WASM browser divergences for the WASM parity gate. Each entry must state the fixture, the mechanism, the measured magnitude, and a tight bound so differences cannot silently grow.",
+  "fixtures": {
+    "components_i_cabinzone_dynamic": {
+      "relative": 1e-8,
+      "measured": 6.66e-9,
+      "mechanism": "rustprop-transcendentals-glibc-vs-wasm32-libm",
+      "reason": "ode23s transient with MoistAirSource/CabinZone evaluating HAPropsSI in the loop. rustprop uses std::f64::exp/ln/powf which resolves to glibc natively and compiler-rt/libm on wasm32; 1-ulp property variations integrate to a 6.66e-9 trajectory difference against the JDK/native baseline."
+    }
+  }
+}
