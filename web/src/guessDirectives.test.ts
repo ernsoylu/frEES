@@ -23,6 +23,11 @@ describe('readGuessDirectives', () => {
   it('ignores equations that merely mention the word', () => {
     expect(readGuessDirectives('guess_count = 3\nx = 2')).toEqual([])
   })
+
+  it('reads a public member path', () => {
+    const out = readGuessDirectives('GUESS HX.in.P = 200000 [1e5, 5e5]\n')
+    expect(out[0]).toMatchObject({ name: 'HX.in.P', guess: 200000, lower: 1e5, upper: 5e5 })
+  })
 })
 
 describe('formatGuessDirective', () => {
@@ -64,6 +69,15 @@ describe('writeGuessDirectives', () => {
       { name: 'eta', guess: 0.9, lower: null, upper: null },
     ])
     expect(out).toBe('GUESS eta = 0.9\n')
+  })
+
+  it('round-trips a member path with Variable Information', () => {
+    const entries = [{ name: 'HX.in.P', guess: 200000, lower: 1e5, upper: 5e5 }]
+    const doc = writeGuessDirectives('LiquidWallHX HX(fluid$=Water, UA=10)\n', entries)
+    expect(doc).toContain('GUESS HX.in.P = 200000 [100000, 500000]')
+    const read = readGuessDirectives(doc)
+    expect(read[0].name).toBe('HX.in.P')
+    expect(read[0].guess).toBe(200000)
   })
 
   it('round-trips: what is written reads back identically', () => {

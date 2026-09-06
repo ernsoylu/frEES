@@ -795,6 +795,7 @@ fn flatten_instance<'d>(
                 port_args: sub_ports,
                 params: sub_params,
                 source_text: sub.source_text.clone(),
+                line: sub.line,
             },
             defs,
             out_insts,
@@ -1906,6 +1907,7 @@ mod tests {
             port_args: ports.iter().map(|p| p.to_ascii_lowercase()).collect(),
             params: overrides,
             source_text: format!("{type_name} {name}(…)"),
+            line: 0,
         }
     }
 
@@ -5159,6 +5161,7 @@ mod tests {
                 port_args: vec![],
                 params: ParamOverrides::new(),
                 source_text: format!("{name} U1()"),
+                line: 0,
             }];
             let mut display = BTreeMap::new();
             let result = (|| -> Result<usize> {

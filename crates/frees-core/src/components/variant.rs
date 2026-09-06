@@ -266,6 +266,7 @@ mod tests {
             port_args: vec![],
             params,
             source_text: format!("{type_name} {name}()"),
+            line: 0,
         }
     }
 

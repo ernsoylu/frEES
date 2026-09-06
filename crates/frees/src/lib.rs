@@ -1238,6 +1238,24 @@ fn check_response(report: &CheckReport) -> String {
         // `App.tsx`'s `result?.definedPlots ?? checkResult?.definedPlots`.
         "definedPlots": plot_defs(&report.plots),
         "connections": connection_defs(&report.connections),
+        "instances": report
+            .instances
+            .iter()
+            .map(|i| {
+                json!({
+                    "name": i.name,
+                    "label": i.label,
+                    "type": i.type_name,
+                    "line": i.line,
+                    "localType": i.local_type,
+                })
+            })
+            .collect::<Vec<_>>(),
+        "definitions": report
+            .definitions
+            .iter()
+            .map(|d| json!({ "name": d.name, "line": d.line }))
+            .collect::<Vec<_>>(),
     })
     .to_string()
 }
@@ -1257,6 +1275,8 @@ fn check_failure(message: String) -> String {
         "errors": [],
         "definedPlots": [],
         "connections": [],
+        "instances": [],
+        "definitions": [],
     })
     .to_string()
 }

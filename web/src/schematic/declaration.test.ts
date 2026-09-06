@@ -3,6 +3,7 @@ import {
   declaredComponentTypes,
   declaredInstances,
   declarationLine,
+  declarationLineFromCheck,
   instanceTypes,
   stripComments,
 } from './declaration'
@@ -41,6 +42,20 @@ describe('declarationLine', () => {
 
   it('does not treat a name that merely prefixes another as a match', () => {
     expect(declarationLine('Pump P10(eta=0.7)', 'P1')).toBeNull()
+  })
+})
+
+describe('declarationLineFromCheck', () => {
+  const instances = [
+    { name: 'a', label: 'A', line: 6 },
+    { name: 'a.inner', label: 'inner', line: 6 },
+    { name: 'b', label: 'B', line: 7 },
+    { name: 'b.inner', label: 'inner', line: 7 },
+  ]
+
+  it('navigates a repeated child name to the correct parent scope', () => {
+    expect(declarationLineFromCheck(instances, 'a.inner')).toBe(6)
+    expect(declarationLineFromCheck(instances, 'b.inner')).toBe(7)
   })
 })
 

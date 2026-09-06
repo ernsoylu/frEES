@@ -19,7 +19,7 @@ export interface GuessDirective {
 
 const NUM = String.raw`[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?`
 const GUESS_LINE = new RegExp(
-  String.raw`^\s*GUESS\s+([A-Za-z_]\w*)\s*(?:=\s*(` + NUM + String.raw`))?` +
+  String.raw`^\s*GUESS\s+([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)\s*(?:=\s*(` + NUM + String.raw`))?` +
     String.raw`\s*(?:\[\s*(` + NUM + String.raw`)\s*,\s*(` + NUM + String.raw`)\s*\])?\s*$`,
   'i',
 )

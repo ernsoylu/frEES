@@ -8,7 +8,12 @@ import {
   IconZoomOut,
 } from '@tabler/icons-react'
 import type { CheckResponse, ComponentResult, VariableResult } from '../api'
-import { declarationLine, declaredComponentTypes, declaredInstances } from './declaration'
+import {
+  declarationLine,
+  declarationLineFromCheck,
+  declaredComponentTypes,
+  declaredInstances,
+} from './declaration'
 import { buildLineStyles, lineId, lineLabel, type LineStyle } from './palette'
 import {
   layoutSchematic,
@@ -104,15 +109,19 @@ export default function SchematicTab({
 
   const labels = useMemo(() => {
     const map = new Map<string, { label: string; type?: string }>()
-    // The document covers the un-solved case; a solve only refines it.
+    // The document covers the un-solved case; Check identity then a solve
+    // refine nested scopes the text scan cannot distinguish.
     for (const [instance, hit] of documentInstances(text)) {
       map.set(instance, hit)
+    }
+    for (const i of checkResult?.instances ?? []) {
+      map.set(i.name.toLowerCase(), { label: i.label, type: i.type })
     }
     for (const c of components ?? []) {
       map.set(c.name.toLowerCase(), { label: c.name, type: c.type })
     }
     return map
-  }, [components, text])
+  }, [checkResult, components, text])
 
   const declaredIds = useMemo(() => [...documentInstances(text).keys()], [text])
 
@@ -274,7 +283,10 @@ export default function SchematicTab({
     if (node.kind !== 'instance') {
       return
     }
-    const line = declarationLine(text, node.label)
+    const line =
+      declarationLineFromCheck(checkResult?.instances, node.id) ??
+      declarationLineFromCheck(checkResult?.instances, node.label) ??
+      declarationLine(text, node.label)
     if (line !== null) {
       onRevealLine(line)
     }
@@ -681,6 +693,10 @@ export default function SchematicTab({
           node={activeNode}
           readout={activeReadout}
           pinned={pinned === activeNode.id}
+          localType={
+            checkResult?.instances?.find((i) => i.name.toLowerCase() === activeNode.id)?.localType ??
+            false
+          }
           onReveal={() => revealInstance(activeNode)}
           onNudge={
             pinned === activeNode.id
@@ -857,12 +873,14 @@ function ReadoutCard({
   node,
   readout,
   pinned,
+  localType = false,
   onNudge,
   onReveal,
 }: Readonly<{
   node: SchematicNode
   readout: NodeReadout
   pinned: boolean
+  localType?: boolean
   onNudge?: (dx: number, dy: number) => void
   onReveal?: () => void
 }>) {
@@ -891,6 +909,11 @@ function ReadoutCard({
         <Text size="xs" c="dimmed">
           {node.type}
         </Text>
+        {localType && (
+          <Badge size="xs" variant="light" color="violet">
+            local definition
+          </Badge>
+        )}
         {pinned && (
           <Badge size="xs" variant="light" color="teal" ml="auto">
             pinned

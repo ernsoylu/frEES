@@ -101,6 +101,7 @@ pub struct ComponentInstMeta {
     pub name: String,
     pub source_text: String,
     pub params: Vec<(String, Expr)>,
+    pub line: usize,
 }
 
 impl From<&ComponentInst> for ComponentInstMeta {
@@ -122,6 +123,7 @@ impl From<&ComponentInst> for ComponentInstMeta {
                 .iter()
                 .map(|(name, value)| (name.to_string(), value.clone()))
                 .collect(),
+            line: inst.line,
         }
     }
 }
@@ -204,7 +206,7 @@ pub fn build(insts: &[ComponentInstMeta], vars: &[VariableRow]) -> Vec<Component
 /// name the run right after it, each trusted only when it matches the
 /// lowercased token — a guard against an unexpected source shape (e.g.
 /// hierarchical sub-instances) that falls back to the lowercased token.
-fn display_identity(inst: &ComponentInstMeta) -> (String, String) {
+pub(crate) fn display_identity(inst: &ComponentInstMeta) -> (String, String) {
     let src = inst.source_text.as_str();
     let (type_name, after_type) = match take_token(src, 0, inst.type_name.len()) {
         Some((slice, end)) if slice.eq_ignore_ascii_case(&inst.type_name) => {
@@ -487,6 +489,7 @@ mod tests {
                 .iter()
                 .map(|(k, v)| ((*k).to_string(), v.clone()))
                 .collect(),
+            line: 0,
         }
     }
 
@@ -590,6 +593,7 @@ mod tests {
             params,
             source_text: "TwoPhaseEvaporatorUA CHLR(s1, s2, fluid$=R1234yf, UA=UA_chl_r, SH=5)"
                 .into(),
+            line: 0,
         };
         let comps = build_from_instances(&[inst], &[VariableRow::new("UA_chl_r", 575.46, "W/K")]);
         assert_eq!(comps.len(), 1);

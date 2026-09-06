@@ -200,6 +200,19 @@ fn assert_check_envelope(v: &Value) {
         "errorLine must be number|null: {v}"
     );
     assert_key(v, "errors", Value::is_array);
+    assert_key(v, "instances", Value::is_array);
+    assert_key(v, "definitions", Value::is_array);
+    for inst in v["instances"].as_array().unwrap() {
+        assert_key(inst, "name", Value::is_string);
+        assert_key(inst, "label", Value::is_string);
+        assert_key(inst, "type", Value::is_string);
+        assert_key(inst, "line", Value::is_u64);
+        assert_key(inst, "localType", Value::is_boolean);
+    }
+    for def in v["definitions"].as_array().unwrap() {
+        assert_key(def, "name", Value::is_string);
+        assert_key(def, "line", Value::is_u64);
+    }
     for (name, unit) in v["inferredUnits"].as_object().unwrap() {
         assert!(unit.is_string(), "inferredUnits[{name:?}] must be a string");
     }

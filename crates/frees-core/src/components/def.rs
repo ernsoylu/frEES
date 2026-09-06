@@ -237,6 +237,8 @@ pub struct ComponentInst {
     pub params: ParamOverrides,
     /// The instantiation as the user wrote it, verbatim, for diagnostics.
     pub source_text: String,
+    /// 1-based source line of the instantiation, 0 when unknown (test fixtures).
+    pub line: usize,
 }
 
 /// One `connect(a.out, b.in, stream)` declaration.
@@ -395,6 +397,7 @@ mod tests {
                 port_args: vec!["s1".into(), "s2".into()],
                 params: ParamOverrides::new(),
                 source_text: "Pump P1(s1, s2)".into(),
+                line: 0,
             }],
             vec![],
         );

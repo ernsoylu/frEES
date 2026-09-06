@@ -175,6 +175,23 @@ export interface CheckResponse {
   /** Connection topology of the component network (domain + instance.port
    *  endpoints per node) — the rendered schematic's data layer. */
   connections?: ConnectionDto[]
+  /** Component instances with source lines, for schematic navigation. */
+  instances?: InstanceIdentityDto[]
+  /** User COMPONENT definitions in the document. */
+  definitions?: DefinitionIdentityDto[]
+}
+
+export interface InstanceIdentityDto {
+  name: string
+  label: string
+  type: string
+  line: number
+  localType: boolean
+}
+
+export interface DefinitionIdentityDto {
+  name: string
+  line: number
 }
 
 /** One connection-topology node of the component network. */
@@ -290,6 +307,8 @@ export async function check(
       parametricTables: [],
       stateTableDefs: [],
       connections: data.connections ?? [],
+      instances: data.instances ?? [],
+      definitions: data.definitions ?? [],
     }
   } catch (e) {
     // Only infrastructure can land here (worker died, wasm failed to load) —

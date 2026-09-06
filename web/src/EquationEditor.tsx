@@ -12,6 +12,13 @@ import { tags } from '@lezer/highlight'
 import { catalogFunctionNames, FUNCTION_CATEGORIES } from './functionCatalog'
 import { COMPONENT_NAMES } from './componentNames'
 import { activeCallAt, highlightArgIndex } from './signatureHelp'
+import {
+  completionsForPrefix,
+  localSignature,
+  localTypeCompletions,
+  namedArgsAlreadyPresent,
+  parameterCompletions,
+} from './editorCompletion'
 
 // Imperative handle the parent uses to drive the editor (insert at caret, jump
 // to a line) without reaching into the DOM, mirroring the old textareaRef ops.
@@ -140,7 +147,13 @@ const signatureField = StateField.define<Tooltip | null>({
     if (!state.selection.main.empty) return null
     const call = activeCallAt(state.sliceDoc(0, caret), caret)
     if (!call) return null
-    const sig = SIGNATURES.get(call.name.toLowerCase())
+    const local = localSignature(state.doc.toString(), call.name)
+    const lib = SIGNATURES.get(call.name.toLowerCase())
+    const sig = local
+      ? lib
+        ? { usage: local.usage, detail: `${local.detail} (overrides standard library)` }
+        : local
+      : lib
     if (!sig) return null
     return {
       pos: caret,
@@ -391,6 +404,25 @@ function makeCompletionSource(
   namesRef: React.MutableRefObject<{ functions: string[]; variables: string[] }>,
 ) {
   return (context: CompletionContext): CompletionResult | null => {
+    const doc = context.state.doc.toString()
+    const before = context.state.doc.sliceString(0, context.pos)
+    const dotted = /([A-Za-z_][\w]*(?:\.[A-Za-z_][\w]*)*)\.([A-Za-z_][\w]*)?$/.exec(before)
+    if (dotted) {
+      const items = completionsForPrefix(doc, dotted[0].endsWith('.') ? dotted[0] : `${dotted[1]}.`)
+      if (items && items.length) {
+        const from = dotted[2] ? context.pos - dotted[2].length : context.pos
+        return { from, options: items }
+      }
+    }
+    const call = activeCallAt(before, context.pos)
+    if (call) {
+      const open = before.lastIndexOf('(')
+      const items = parameterCompletions(doc, call.name, namedArgsAlreadyPresent(before.slice(open + 1)))
+      if (items.length) {
+        const word = context.matchBefore(/[A-Za-z_$][\w$]*$/)
+        return { from: word?.from ?? context.pos, options: items }
+      }
+    }
     const word = context.matchBefore(/[A-Za-z_](?=([A-Za-z0-9_]*))\1$/)
     if (!word || (word.from === word.to && !context.explicit)) return null
     const { functions, variables } = namesRef.current
@@ -398,6 +430,7 @@ function makeCompletionSource(
       ...functions.map((name) => ({ label: name, type: 'function', apply: `${name}(` })),
       ...variables.map((name) => ({ label: name, type: 'variable' })),
       ...COMPONENT_COMPLETIONS,
+      ...localTypeCompletions(doc),
     ]
     return { from: word.from, options }
   }
