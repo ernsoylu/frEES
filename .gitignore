@@ -25,3 +25,6 @@ web/tsconfig.tsbuildinfo
 # Written by the Pages deploy workflow (.github/workflows/deploy.yml) before
 # the Vite build, standing in for the nginx image's container-start entrypoint.
 web/public/build-info.js
+
+# Local scratch files and helper scripts
+/scratch/
