@@ -2331,6 +2331,7 @@ pub(crate) fn component_identities(
         0,
         &doc.components.defs,
         &local_types,
+        &mut Vec::new(),
         &mut instances,
     );
     let definitions = definition_identities(source);
@@ -2343,6 +2344,7 @@ fn collect_instances(
     parent_line: usize,
     user_defs: &[crate::components::def::ComponentDef],
     local_types: &BTreeSet<String>,
+    stack: &mut Vec<String>,
     out: &mut Vec<InstanceIdentity>,
 ) {
     for inst in insts {
@@ -2369,7 +2371,13 @@ fn collect_instances(
             line,
             local_type: local_types.contains(&inst.type_name),
         });
+        // Expansion refuses cycles; Check still walks identities first, so a
+        // self-instantiation must not recurse here (wasm/native abort).
+        if stack.contains(&inst.type_name) || stack.len() >= 64 {
+            continue;
+        }
         if let Some(def) = user_defs.iter().find(|d| d.name == inst.type_name) {
+            stack.push(inst.type_name.clone());
             collect_instances(
                 &def.sub_instances,
                 &name,
@@ -2380,8 +2388,10 @@ fn collect_instances(
                 },
                 user_defs,
                 local_types,
+                stack,
                 out,
             );
+            stack.pop();
         }
     }
 }
@@ -5207,6 +5217,22 @@ END
             "got {:?}",
             report.unit_warnings
         );
+    }
+
+    #[test]
+    fn a_self_instantiating_component_does_not_overflow_check() {
+        // Identities walk before expansion; a cycle must not abort the process.
+        let report = check(
+            "\
+COMPONENT SelfLoop(a, b)
+  SelfLoop again(a, b)
+END
+SelfLoop L(s1, s2)
+s1.sig = 1
+",
+        )
+        .expect("check must return, not overflow");
+        assert!(!report.solvable);
     }
 
     #[test]

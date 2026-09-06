@@ -7,20 +7,9 @@
 // not become `UA=conductance [W/K]` (which the parser reads as extra unknowns
 // `w` and `k` through array syntax).
 import type { ComponentSpec, ComponentParam } from './componentCatalog'
+import { IDENT, MEMBER_PATH, NUMERIC_LITERAL, UNIT_ANNOTATED_LITERAL } from './freesTokens'
 
 export type ParamValues = Record<string, string>
-
-/** Signed/scientific numeric literal the lexer accepts as a NUMBER token. */
-const NUMERIC_LITERAL = /^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/
-
-/** `10 [W/K]`, `-2.5e-3[degC]` — a numeric literal that already carries units. */
-const UNIT_ANNOTATED_LITERAL = /^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?\s*\[[^\]]+]$/
-
-/** Bare identifier, including a trailing `$` string name. */
-const IDENT = /^[A-Za-z_][A-Za-z0-9_]*\$?$/
-
-/** Dotted member path (`HX.in.P`, `conductance`). */
-const MEMBER_PATH = /^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*\$?$/
 
 /** The model$ variant currently in effect: the chosen value, else the engine's
  *  declared default, else the first documented variant. */
