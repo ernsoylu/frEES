@@ -387,6 +387,9 @@ where
     }
 
     for iteration in 0..settings.max_iterations {
+        if let Some(message) = crate::ode::deadline::strike() {
+            return Err(FreesError::solver(message));
+        }
         if within_tolerance(f, scale, settings) {
             return Ok(success(iteration, f));
         }

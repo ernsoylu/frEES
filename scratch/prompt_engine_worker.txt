@@ -1,3 +1,5 @@
+You are an expert typescript engineer. Output ONLY the following complete code file inside a ```typescript code block without repeating any functions, mocking components, or adding explanations:
+
 // Module worker hosting the frees WASM engine off the UI thread.
 //
 // Protocol (see engineClient.ts, the only sender):

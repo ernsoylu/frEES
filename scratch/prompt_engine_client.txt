@@ -1,3 +1,5 @@
+You are an expert typescript engineer. Output ONLY the following complete code file inside a ```typescript code block without repeating any functions, mocking components, or adding explanations:
+
 // Singleton client for the frees WASM engine worker.
 //
 // Lazily spawns engine.worker.ts on first use, correlates request/response

@@ -22,13 +22,24 @@ interface Field {
   key: StopCriteriaField
   label: string
   hint: string
+  /** Shown but not editable: the browser engine has no such stop rule yet. The
+   *  value still round-trips through projects and the request. */
+  disabled?: boolean
 }
 
 // Mirrors the Options > Preferences > Stop Crit tab.
 const FIELDS: Field[] = [
   { key: 'maxIterations', label: 'No. iterations', hint: 'Maximum Newton iterations per block' },
   { key: 'relativeResiduals', label: 'Relative residuals', hint: '|lhs − rhs| / |lhs| convergence tolerance' },
-  { key: 'changeInVariables', label: 'Change in variables', hint: 'Stop when the largest variable change is below this' },
+  {
+    key: 'changeInVariables',
+    label: 'Change in variables',
+    // The browser engine's per-block stop rule is the relative residual alone
+    // (`engine.rs`, which records the same gap against the Java record). An
+    // editable box here advertised a criterion nothing consulted.
+    hint: 'Not used by the browser engine — a block stops on the relative residual above. Kept so saved projects round-trip.',
+    disabled: true,
+  },
   { key: 'elapsedTimeSeconds', label: 'Elapsed time (sec)', hint: 'Abort the solve after this many seconds' },
 ]
 
@@ -128,6 +139,7 @@ export default function PreferencesModal({ criteria, unitSystem, fillMissing, on
             key={field.key}
             label={field.label}
             description={field.hint}
+            disabled={field.disabled}
             value={draft[field.key]}
             onChange={(e) => setField(field.key, e.currentTarget.value)}
             spellCheck={false}

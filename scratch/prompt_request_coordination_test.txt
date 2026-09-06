@@ -1,0 +1,69 @@
+You are an expert typescript engineer. Output ONLY the following complete code file inside a ```typescript code block without repeating any functions, mocking components, or adding explanations:
+
+import { describe, expect, it, vi, beforeEach } from 'vitest'
+
+vi.mock('./wasm/engineClient', () => ({
+  wasmSolve: vi.fn(),
+  wasmCheck: vi.fn(),
+  wasmSolveTable: vi.fn(),
+  wasmMonteCarlo: vi.fn(),
+  wasmOptimize: vi.fn(),
+  wasmOptimizeMulti: vi.fn(),
+  wasmCurveFit: vi.fn(),
+  wasmParameterFit: vi.fn(),
+  wasmPidTune: vi.fn(),
+  wasmExtractPlant: vi.fn(),
+  wasmReplEvaluate: vi.fn(),
+  wasmReplClear: vi.fn(),
+  wasmStop: vi.fn(),
+}))
+
+import { stopSolve } from './api'
+import { wasmStop } from './wasm/engineClient'
+import { ModelRevisionTracker } from './modelRevision'
+
+describe('Request coordination and cancellation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('stopSolve delegates to wasmStop', () => {
+    stopSolve()
+    expect(wasmStop).toHaveBeenCalledTimes(1)
+  })
+
+  it('discards results when revision advances during in-flight operations', () => {
+    const tracker = new ModelRevisionTracker()
+    const checkRev = tracker.startCheck()
+    expect(checkRev).toBe(1)
+
+    // User edits document while check is in flight:
+    tracker.bump() // now revision 2
+
+    // Check completes late:
+    const checkOutcome = tracker.finishCheck(checkRev, true)
+    expect(checkOutcome.isCurrent).toBe(false)
+    expect(checkOutcome.needsRecheck).toBe(true)
+    expect(tracker.isCheckValidAndSolvable()).toBe(false)
+
+    // Solve attempted without fresh check:
+    expect(tracker.isCheckValidAndSolvable()).toBe(false)
+  })
+
+  it('allows solve only when check result matches current revision', () => {
+    const tracker = new ModelRevisionTracker()
+    const checkRev = tracker.startCheck()
+    const checkOutcome = tracker.finishCheck(checkRev, true)
+    expect(checkOutcome.isCurrent).toBe(true)
+    expect(tracker.isCheckValidAndSolvable()).toBe(true)
+
+    // A solve started for this revision:
+    const solveRev = tracker.current
+    expect(tracker.isCurrent(solveRev)).toBe(true)
+
+    // User edits while solve is computing:
+    tracker.bump()
+    expect(tracker.isCurrent(solveRev)).toBe(false)
+    expect(tracker.isCheckValidAndSolvable()).toBe(false)
+  })
+})

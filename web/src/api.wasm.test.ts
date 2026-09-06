@@ -26,6 +26,7 @@ vi.mock('./wasm/engineClient', () => ({
   // must declare every export its importer names.
   wasmReplEvaluate: vi.fn(),
   wasmReplClear: vi.fn(),
+  wasmStop: vi.fn(),
 }))
 
 import { check, curveFit, optimize, runMonteCarlo, solve, solveTable, DEFAULT_STOP_CRITERIA } from './api'

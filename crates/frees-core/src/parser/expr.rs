@@ -1431,28 +1431,6 @@ mod tests {
         Expr::ArrayLiteral(elements)
     }
 
-    // `units::registry` is a sibling module that may still be an unimplemented
-    // `todo!()` while the port is in flight. The probe only tolerates a *panic*
-    // (an unimplemented stub); a registry that is present but wrong still fails
-    // these tests loudly.
-    fn units_ready() -> bool {
-        std::panic::catch_unwind(|| {
-            if let Ok(q) = UnitRegistry::parse_with_offset("kPa") {
-                let _ = UnitRegistry::si_display_name("kPa", &q.dims);
-            }
-        })
-        .is_ok()
-    }
-
-    macro_rules! require_units {
-        () => {
-            if !units_ready() {
-                eprintln!("skipped: units::registry is still a todo!() stub");
-                return;
-            }
-        };
-    }
-
     // ── addExpr / mulExpr precedence and associativity ──────────────────────
 
     #[test]
@@ -1931,7 +1909,6 @@ mod tests {
 
     #[test]
     fn a_unit_annotated_literal_is_converted_to_si_at_parse_time() {
-        require_units!();
         assert_eq!(
             ok("140 [kPa]"),
             Expr::Num {
@@ -1944,7 +1921,6 @@ mod tests {
 
     #[test]
     fn an_offset_scale_literal_uses_factor_then_offset() {
-        require_units!();
         match ok("25 [C]") {
             Expr::Num { value, unit, .. } => {
                 assert!((value - 298.15).abs() < 1e-9, "{value}");
@@ -1956,7 +1932,6 @@ mod tests {
 
     #[test]
     fn an_unknown_unit_keeps_the_original_value_and_text() {
-        require_units!();
         assert_eq!(
             ok("5 [flurbles]"),
             Expr::Num {
@@ -1969,7 +1944,6 @@ mod tests {
 
     #[test]
     fn imaginary_literals_convert_too() {
-        require_units!();
         match ok("2i [kPa]") {
             Expr::Num {
                 value,
@@ -1988,7 +1962,6 @@ mod tests {
 
     #[test]
     fn a_sign_folds_into_a_bare_offset_unit_literal() {
-        require_units!();
         // -10 °C is 263.15 K, never -(283.15 K).
         match ok("-10 [C]") {
             Expr::Num { value, unit, .. } => {
@@ -2001,7 +1974,6 @@ mod tests {
 
     #[test]
     fn a_double_sign_keeps_operator_semantics() {
-        require_units!();
         // `--10 [C]` is Neg(fold(-10 [C])) = -263.15, not 283.15.
         match ok("--10 [C]") {
             Expr::Neg(inner) => match *inner {
@@ -2014,7 +1986,6 @@ mod tests {
 
     #[test]
     fn an_exponent_defeats_the_fold() {
-        require_units!();
         // `-10 [C]^2` is -((283.15 K)^2): the literal converts normally.
         match ok("-10 [C]^2") {
             Expr::Neg(inner) => match *inner {
@@ -2036,7 +2007,6 @@ mod tests {
 
     #[test]
     fn a_transpose_defeats_the_fold() {
-        require_units!();
         match ok("-10 [C]'") {
             Expr::Neg(inner) => match *inner {
                 Expr::Call { ref function, .. } => assert_eq!(function, "transpose"),
@@ -2048,7 +2018,6 @@ mod tests {
 
     #[test]
     fn a_purely_multiplicative_unit_keeps_the_neg_path() {
-        require_units!();
         // Nothing to fold: negation commutes with a pure factor, so the Java
         // builder leaves the Neg in place.
         assert_eq!(
@@ -2063,7 +2032,6 @@ mod tests {
 
     #[test]
     fn an_unknown_unit_keeps_the_neg_path() {
-        require_units!();
         assert_eq!(
             ok("-10 [flurbles]"),
             neg(Expr::Num {
@@ -2076,7 +2044,6 @@ mod tests {
 
     #[test]
     fn the_fold_covers_exactly_the_literal() {
-        require_units!();
         // `* 2` belongs to mulExpr, not to the folded unaryExpr.
         match ok("-10 [C] * 2") {
             Expr::BinOp { op, left, right } => {
@@ -2269,7 +2236,6 @@ mod tests {
 
     #[test]
     fn convert_folds_to_a_scale_factor() {
-        require_units!();
         match ok("Convert(kJ, J)") {
             Expr::Num { value, unit, .. } => {
                 assert!((value - 1000.0).abs() < 1e-9, "{value}");
@@ -2283,7 +2249,6 @@ mod tests {
     fn convert_rejects_bad_arity_and_dimension_mismatches() {
         let arity = err("Convert(kJ)");
         assert!(arity.contains("exactly two unit arguments"), "{arity}");
-        require_units!();
         let mismatch = err("Convert(kJ, m)");
         assert!(mismatch.contains("different dimensions"), "{mismatch}");
     }

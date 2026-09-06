@@ -1,0 +1,72 @@
+You are an expert typescript engineer. Output ONLY the following complete code file inside a ```typescript code block without repeating any functions, mocking components, or adding explanations:
+
+import { describe, expect, it } from 'vitest'
+import { ModelRevisionTracker } from './modelRevision'
+
+describe('ModelRevisionTracker', () => {
+  it('starts at revision 1 without a valid check', () => {
+    const tracker = new ModelRevisionTracker()
+    expect(tracker.current).toBe(1)
+    expect(tracker.isCurrent(1)).toBe(true)
+    expect(tracker.isCurrent(0)).toBe(false)
+    expect(tracker.isCheckValidAndSolvable()).toBe(false)
+    expect(tracker.lastCheckedRevision).toBeNull()
+  })
+
+  it('bumps revision monotonically', () => {
+    const tracker = new ModelRevisionTracker()
+    const r2 = tracker.bump()
+    expect(r2).toBe(2)
+    expect(tracker.current).toBe(2)
+    expect(tracker.isCurrent(1)).toBe(false)
+    expect(tracker.isCurrent(2)).toBe(true)
+  })
+
+  it('records valid check for current revision', () => {
+    const tracker = new ModelRevisionTracker()
+    const rev = tracker.startCheck()
+    expect(rev).toBe(1)
+    const res = tracker.finishCheck(rev, true)
+    expect(res.isCurrent).toBe(true)
+    expect(res.needsRecheck).toBe(false)
+    expect(tracker.isCheckValidAndSolvable()).toBe(true)
+    expect(tracker.lastCheckedRevision).toBe(1)
+  })
+
+  it('invalidates check when revision is bumped', () => {
+    const tracker = new ModelRevisionTracker()
+    const rev = tracker.startCheck()
+    tracker.finishCheck(rev, true)
+    expect(tracker.isCheckValidAndSolvable()).toBe(true)
+
+    tracker.bump()
+    expect(tracker.isCheckValidAndSolvable()).toBe(false)
+    expect(tracker.lastCheckedRevision).toBe(1)
+  })
+
+  it('discards obsolete check results if edit happens while check was in flight', () => {
+    const tracker = new ModelRevisionTracker()
+    const rev = tracker.startCheck()
+    expect(rev).toBe(1)
+
+    // User edits document while check is in flight:
+    tracker.bump() // now revision 2
+
+    const res = tracker.finishCheck(rev, true)
+    expect(res.isCurrent).toBe(false)
+    expect(res.needsRecheck).toBe(true)
+    expect(tracker.isCheckValidAndSolvable()).toBe(false)
+    expect(tracker.lastCheckedRevision).toBeNull()
+  })
+
+  it('supports explicit check invalidation', () => {
+    const tracker = new ModelRevisionTracker()
+    const rev = tracker.startCheck()
+    tracker.finishCheck(rev, true)
+    expect(tracker.isCheckValidAndSolvable()).toBe(true)
+
+    tracker.invalidateCheck()
+    expect(tracker.isCheckValidAndSolvable()).toBe(false)
+    expect(tracker.lastCheckedRevision).toBeNull()
+  })
+})

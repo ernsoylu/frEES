@@ -1,12 +1,8 @@
-// solve(), check(), getReference() and the REPL run fully in the browser: a
-// Rust/WASM engine inside a Web Worker (src/wasm/) replaces POST /api/solve,
-// /api/check, /api/repl/evaluate, /api/repl/clear and GET /api/reference,
-// emitting the same REST wire shapes this module always parsed. Endpoints
-// whose engine features are not ported yet (optimize, curve fit, tables,
-// Monte Carlo, control) are stubbed — a neutral resolved value where the UI
-// consumes data at boot, otherwise a rejection naming the gap — so nothing in
-// this module hits the network anymore. runCompute/pollJob stay exported for
-// the day a hybrid remote path returns.
+// All engine operations (solve, check, REPL, optimization, curve fitting,
+// parametric tables, Monte Carlo, control, properties, diagrams) run fully in
+// the browser inside a Web Worker (src/wasm/), emitting the same typed data
+// structures this module has always exposed to the UI. Nothing in this module
+// hits the network.
 import {
   wasmCheck,
   wasmFluids,
@@ -16,6 +12,7 @@ import {
   wasmReplClear,
   wasmReplEvaluate,
   wasmSolve,
+  wasmStop,
   type ProgressListener,
   wasmCurveFit,
   wasmMonteCarlo,
@@ -27,6 +24,11 @@ import {
   wasmSolveTable,
 } from './wasm/engineClient'
 export type { ProgressListener } from './wasm/engineClient'
+
+/** Cancels the in-flight solve or analysis operation by stopping the engine worker. */
+export function stopSolve(): void {
+  wasmStop()
+}
 
 export interface VariableResult {
   name: string
@@ -242,163 +244,6 @@ export interface VariableInfo {
   uncertainty: number | null
 }
 
-const API_BASE = import.meta.env.VITE_API_BASE || '';
-
-// ── Asynchronous compute client (Epic 15) ────────────────────────────────
-// The 202-submit + poll machinery of the server stack. No longer wired to any
-// exported function (the browser engine replaced solve/check, and the rest are
-// stubbed), but kept — with its tests — for a future hybrid remote path.
-
-/** The message every not-yet-ported endpoint stub reports. */
-const NOT_IN_BROWSER_ENGINE = 'not yet available in the browser engine'
-
-interface JobState {
-  jobId: string
-  status: 'PENDING' | 'COMPLETED' | 'FAILED'
-  error: string | null
-  result: unknown
-}
-
-/** Normalized outcome of an async compute request: either the solver result
- *  DTO (COMPLETED) or an error message (FAILED / rejected / unreachable). */
-type ComputeOutcome =
-  | { kind: 'completed'; result: any }
-  | { kind: 'failed'; error: string }
-
-/** Extracts a human-readable error message from a non-ok response body. Reads the
- *  body exactly once (a Response body is a single-use stream) and prefers a JSON
- *  {@code error}/{@code message} field, falling back to the raw text, then {@code fallback}. */
-async function extractErrorMessage(response: Response, fallback: string): Promise<string> {
-  let body: string
-  try {
-    body = await response.text()
-  } catch {
-    return fallback
-  }
-  if (!body) return fallback
-  try {
-    const data = JSON.parse(body)
-    if (data && typeof data === 'object') {
-      const msg = (data as Record<string, unknown>).error ?? (data as Record<string, unknown>).message
-      if (typeof msg === 'string' && msg) return msg
-    }
-  } catch {
-    // Body is not JSON — fall through to the raw text.
-  }
-  return body
-}
-
-/** Polls GET /api/jobs/{jobId} until the job reaches a terminal state. */
-async function pollJob(jobId: string, timeoutMs = 120_000): Promise<JobState> {
-  const deadline = Date.now() + timeoutMs
-  const url = `${API_BASE}/api/jobs/${encodeURIComponent(jobId)}`
-
-  if (typeof EventSource !== 'undefined') {
-    try {
-      return await new Promise<JobState>((resolve, reject) => {
-        const sse = new EventSource(`${url}/stream`)
-        const timeout = setTimeout(() => {
-          sse.close()
-          reject(new Error('Job timed out waiting for completion via SSE'))
-        }, timeoutMs)
-
-        sse.onmessage = (event) => {
-          try {
-            const state = JSON.parse(event.data) as JobState
-            if (state.status === 'COMPLETED' || state.status === 'FAILED') {
-              clearTimeout(timeout)
-              sse.close()
-              resolve(state)
-            }
-          } catch (e) {
-            // ignore malformed
-          }
-        }
-
-        sse.onerror = () => {
-          clearTimeout(timeout)
-          sse.close()
-          reject(new Error('SSE connection failed'))
-        }
-      })
-    } catch (e) {
-      // Fall through to polling
-    }
-  }
-
-  // Fallback to polling
-  while (Date.now() < deadline) {
-    let response: Response
-    try {
-      response = await fetch(url)
-    } catch (e) {
-      throw new Error(`Could not reach the solver backend: ${String(e)}`, { cause: e })
-    }
-    if (response.status === 404) {
-      throw new Error('Job not found')
-    }
-    if (!response.ok) {
-      throw new Error(`Job poll failed (${response.status})`)
-    }
-    const state = await response.json() as JobState
-    if (state.status === 'COMPLETED' || state.status === 'FAILED') {
-      return state
-    }
-    // Only reached when SSE is unavailable/failed; 250 ms keeps latency low
-    // without hammering the API node (the SSE push is the primary path).
-    await new Promise(resolve => setTimeout(resolve, 250))
-  }
-  throw new Error('Job timed out waiting for completion')
-}
-
-/** Submits a compute request and, in async mode, polls for its result.
- *  Returns the terminal outcome (completed result DTO or failure message).
- *  @param endpoint the POST URL (e.g. "/api/solve")
- *  @param init the fetch init (method/body/headers) for the submit POST
- */
-export async function runCompute(endpoint: string, init: RequestInit,
-                                 timeoutMs = 120_000): Promise<ComputeOutcome> {
-  let response: Response
-  try {
-    response = await fetch(`${API_BASE}${endpoint}`, init)
-  } catch (e) {
-    return { kind: 'failed', error: `Could not reach the solver backend: ${String(e)}` }
-  }
-
-  // Synchronous validation rejection (4xx): the body carries the error.
-  if (!response.ok && response.status !== 202) {
-    return { kind: 'failed', error: await extractErrorMessage(response, `Server error (${response.status})`) }
-  }
-
-  // Asynchronous path: 202 + jobId, then poll.
-  if (response.status === 202) {
-    let ticket: { jobId?: string }
-    try {
-      ticket = await response.json()
-    } catch {
-      return { kind: 'failed', error: 'Malformed job submission response' }
-    }
-    const jobId = ticket?.jobId
-    if (!jobId) {
-      return { kind: 'failed', error: 'Job submission did not return a jobId' }
-    }
-    try {
-      const state = await pollJob(jobId, timeoutMs)
-      if (state.status === 'COMPLETED') {
-        return { kind: 'completed', result: state.result }
-      }
-      return { kind: 'failed', error: state.error ?? 'Job failed' }
-    } catch (e) {
-      return { kind: 'failed', error: e instanceof Error ? e.message : String(e) }
-    }
-  }
-
-  // Defensive: a 200 in async mode (e.g. a backend not yet switched over) —
-  // treat the body as the completed result DTO.
-  const data = await response.json().catch(() => null)
-  return { kind: 'completed', result: data }
-}
-
 /** A Function Table in solver wire format (Epic 8): the table name is the
  * function name callable from equations; argNames lists the column names
  * (lookup argument first, then the family parameter, if any). */
@@ -461,7 +306,7 @@ export async function check(
   }
 }
 
-/** The empty solve response returned on any failure (network, server, FAILED job). */
+/** The empty solve response returned on any infrastructure failure. */
 const SOLVE_FAILURE: Omit<SolveResponse, 'error'> = {
   success: false,
   variables: [],
@@ -472,8 +317,7 @@ const SOLVE_FAILURE: Omit<SolveResponse, 'error'> = {
   unitWarnings: [],
 }
 
-/** Maps a solve result DTO (from a sync 200 body or an async COMPLETED `result`)
- *  to the typed SolveResponse. */
+/** Maps a solve result DTO from the engine worker to the typed SolveResponse. */
 function mapSolveData(data: any): SolveResponse {
   return {
     success: data.success ?? false,
@@ -950,15 +794,6 @@ export async function getPsychrometricChart(
   return wasmPsychrometricChart(pressure, tMin, tMax)
 }
 
-/** Vector export used the backend's FOP transcoder — rejects; the PlotCard
- *  export catch shows the message (SVG/PNG export stays fully client-side). */
-export async function exportVector(
-  _svg: string,
-  _format: 'pdf' | 'eps',
-): Promise<Blob> {
-  throw new Error(NOT_IN_BROWSER_ENGINE)
-}
-
 export interface TableStats {
   runs: number
   solved: number
@@ -1107,8 +942,7 @@ export interface PidTuneResponse {
   phaseMargin: number
 }
 
-/** PID tuning (loop shaping + step metrics) is not ported yet — rejects; both
- *  PidTunerModal call sites catch and surface the message via setError. */
+/** PID tuning (loop shaping + step metrics) — served by wasm `pid_tune`. */
 export async function pidTune(request: PidTuneRequest): Promise<PidTuneResponse> {
   // Served by the wasm `pid_tune` export (Wave B4). Rejects on a refused
   // request or infrastructure failure — the PidTunerModal's catch handles it.
@@ -1140,8 +974,7 @@ export interface PlantRequest {
   kd: number
 }
 
-/** Plant linearization needs DYNAMIC solving + the CAS, not ported yet —
- *  rejects; the App.tsx catch degrades to "enter the plant manually". */
+/** Plant linearization for SigPID — served by wasm `extract_plant`. */
 export async function extractPlant(
   request: PlantRequest,
 ): Promise<{ num: number[]; den: number[] }> {

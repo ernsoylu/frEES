@@ -20,7 +20,6 @@ frees-core = { path = "crates/frees-core" }
 petgraph = { version = "0.6", default-features = false, features = ["graphmap"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-thiserror = "1"
 libm = "0.2"
 
 # The container the linked property grids ship in — deflated at build time,

@@ -25,6 +25,7 @@
 
 use std::collections::BTreeMap;
 
+use frees_core::analysis::montecarlo::apply_overrides;
 use frees_core::components::cyclepath;
 use frees_core::components::metadata::{self, VariableRow};
 use frees_core::engine::{CheckReport, Solution};
@@ -79,9 +80,9 @@ pub fn version() -> String {
 
 /// `{variableInfo: [...], stopCriteria: {...}}` — the request body
 /// `POST /api/solve` and `POST /api/check` receive (`SolveController.SolveRequest`),
-/// minus the fields whose machinery is not ported yet (`overrides`,
-/// `findAllSolutions`, …). Unknown fields are ignored, so the frontend can
-/// keep sending its full request unchanged.
+/// minus the fields whose machinery is not ported yet (`findAllSolutions`, …).
+/// Unknown fields are ignored, so the frontend can keep sending its full
+/// request unchanged.
 #[derive(Debug, Default, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 struct SolveRequest {
@@ -101,6 +102,16 @@ struct SolveRequest {
     /// (`SolveDtos.functionDefsOf` at `SolveController` line 217 and
     /// `CheckController` line 142) — wired by Wave H (decision D10).
     function_tables: Option<Vec<FunctionTableDto>>,
+    /// `SolveRequest.overrides` — the `"<name> = <value>"` lines the REPL and
+    /// the slider strip send (`web/src/api.ts`, `web/src/sliders.ts`).
+    /// [`apply_overrides`] strikes each named variable's defining assignment
+    /// out of the document and appends these in its place, so an override
+    /// re-parameterises the model instead of overdetermining it.
+    ///
+    /// `Option` for the reason every other DTO field here is one: the Java
+    /// record's field is nullable, so an explicit `"overrides": null` has to
+    /// mean "none" rather than "Invalid request".
+    overrides: Option<Vec<String>>,
 }
 
 /// `SolveDtos.FunctionTableDto` — one GUI Function Table in solver wire
@@ -526,6 +537,14 @@ pub fn solve(source: &str, request_json: &str) -> String {
     };
     let settings = settings_of(&request);
     let overrides = overrides_of(&request);
+    // `SolverApiSupport.applyOverrides`, at the Java position: before anything
+    // parses the document. Every downstream reader takes the overridden text —
+    // the solve, `fillMissing`, the REPL workspace and the `errorLine`
+    // lookup — so they cannot disagree about what was solved. Line *count* is
+    // preserved (a struck segment leaves its line behind), so `errorLine`
+    // still points at the user's own text.
+    let overridden = apply_overrides(source, request.overrides.as_deref().unwrap_or_default());
+    let source = overridden.as_str();
 
     let system = unit_system_of(&request);
     let explicit_units = explicit_units_of(&request);
@@ -1101,6 +1120,13 @@ pub fn check(source: &str, request_json: &str) -> String {
         Err(message) => return check_failure(message),
     };
     let overrides = overrides_of(&request);
+    // The same `applyOverrides` pass `solve` runs. Check gates the Solve
+    // button, so it has to report on the model Solve will actually run: a
+    // document that is only solvable *with* an override must not be reported
+    // unsolvable, and one the override breaks must say so before Solve is
+    // pressed.
+    let overridden = apply_overrides(source, request.overrides.as_deref().unwrap_or_default());
+    let source = overridden.as_str();
     // `CheckController.check`: `solver.check(parsed, complexMode,
     // SolveDtos.functionDefsOf(request.functionTables()))` — all three
     // arguments since Wave T5. The flag matters here and not only on `solve`

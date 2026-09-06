@@ -4621,6 +4621,9 @@ fn solve_block_with_fallback(
     cache: Option<&PinnedBlockCache>,
     mut dense: Option<&mut DenseRun<'_>>,
 ) -> Result<usize> {
+    if let Some(message) = crate::ode::deadline::strike() {
+        return Err(FreesError::solver(message));
+    }
     let block = &blocks[index];
     let mut actual_solved: Option<Block> = None; // None = the original block
     let mut iterations = 0usize;
