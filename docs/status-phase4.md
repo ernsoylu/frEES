@@ -60,7 +60,7 @@ a file to see real output.
 | Clippy (host) | `cargo clippy --workspace --all-targets -- -D warnings` | exit **0**, no output |
 | Clippy (wasm32) | same, `--target wasm32-unknown-unknown` | exit **0**, no output |
 | Format | `cargo fmt --all --check` | exit **0**, no output |
-| wasm bundle | `wasm-pack build crates/frees-wasm --release --target web --out-dir ../../web/src/wasm/pkg` | **1,175,269 B = 1147.7 KiB raw**, **446,593 B = 436.1 KiB gzipped**. Budget 2048 KiB raw → **56.0% used, 900.3 KiB headroom** |
+| wasm bundle | `wasm-pack build crates/frees --release --target web --out-dir ../../web/src/wasm/pkg` | **1,175,269 B = 1147.7 KiB raw**, **446,593 B = 436.1 KiB gzipped**. Budget 2048 KiB raw → **56.0% used, 900.3 KiB headroom** |
 | Web tests | `cd web && nvm use 22 && npx vitest run` | **328 passed / 34 files**, 0 failed |
 | Web build | `npm run build` | exit **0** (only pre-existing rollup `/*#__PURE__*/` and chunk-size warnings from vendored deps) |
 
@@ -104,7 +104,7 @@ Explorer, expanded:
 `browser_network_requests` filtered by `/api/`: **empty, on both the workspace
 and the Help page.** The full unfiltered list is the static bundle plus exactly
 two engine artefacts — `assets/engine.worker-*.js` and
-`assets/frees_wasm_bg-*.wasm`. The only non-200s in the whole session were
+`assets/frees_bg-*.wasm`. The only non-200s in the whole session were
 `/build-info.js` (injected by nginx in the Docker deploy, absent from a bare
 `dist`) and `/favicon.ico`.
 

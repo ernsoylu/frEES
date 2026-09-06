@@ -3,14 +3,14 @@ resolver = "2"
 members = [
     "crates/frees-core",
     "crates/frees-cli",
-    "crates/frees-wasm",
+    "crates/frees",
 ]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
-repository = "https://github.com/ernsoylu/frees-wasm"
+repository = "https://github.com/ernsoylu/frees"
 rust-version = "1.85"
 
 [workspace.dependencies]

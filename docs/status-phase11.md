@@ -161,7 +161,7 @@ support macOS 13).
 
 | Step | Result |
 |---|---|
-| First load | service worker registers at scope `/`, activates; precache populates **329 entries including `frees_wasm_bg-<hash>.wasm`** |
+| First load | service worker registers at scope `/`, activates; precache populates **329 entries including `frees_bg-<hash>.wasm`** |
 | Manifest | fetched from the injected link: name, `standalone`, `start_url "."`, theme `#1a1b1e`, icons `192 / 512 / 512-maskable / any(svg)` — the installability surface Chrome requires |
 | Solve online | F2 → Solved (sanity baseline) |
 | File → Browser Projects… → Save | IndexedDB `frees/projects` holds `{name: "untitled", size: 3781}` with the document text — written through the real UI, read back through raw IDB |

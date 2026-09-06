@@ -1,6 +1,6 @@
 // DTO-parity assertions for the wasm-engine seam: what the Rust boundary
 // actually emits (fixtures below are captured verbatim from
-// crates/frees-wasm — see tests/dto_parity.rs on that side) versus what
+// crates/frees — see tests/dto_parity.rs on that side) versus what
 // solve()/check() promise their call sites. The two contracts under test:
 //
 //  1. every SolveResponse/CheckResponse field App.tsx dereferences is either
@@ -35,14 +35,14 @@ import { wasmCheck, wasmCurveFit, wasmMonteCarlo, wasmOptimize, wasmSolve, wasmS
 const solveMock = vi.mocked(wasmSolve)
 const checkMock = vi.mocked(wasmCheck)
 
-// ── Fixtures: verbatim boundary output (crates/frees-wasm) ────────────────
+// ── Fixtures: verbatim boundary output (crates/frees) ────────────────
 
 const SOLVE_OK =
   '{"blocks":[{"equations":["P = 140 [kPa]"],"index":0,"variables":["P"]},{"equations":["Q = P * 2"],"index":1,"variables":["Q"]}],"error":null,"errorLine":null,"failedBlockIndex":null,"residuals":[{"equation":"P = 140 [kPa]","value":0.0},{"equation":"Q = P * 2","value":0.0}],"solutions":[{"maxResidual":0.0,"variables":[{"name":"P","units":"Pa","value":140000.0},{"name":"Q","units":"Pa","value":280000.0}]}],"stats":{"blocks":2,"elapsedMillis":1,"equations":2,"iterations":4,"maxResidual":0.0,"unknowns":2},"success":true,"unitWarnings":[],"variables":[{"name":"P","units":"Pa","value":140000.0},{"name":"Q","units":"Pa","value":280000.0}]}'
 
 // A document with a DYNAMIC block: the trajectory rides on `odeTables`, and
 // `variables` holds only the analytic parameters. Regenerate with
-//   cargo test -p frees-wasm --release --test dto_parity \
+//   cargo test -p frees --release --test dto_parity \
 //     print_the_ode_table_payload -- --ignored --nocapture
 // (elapsedMillis pinned to 1 — it is wall-clock).
 const SOLVE_WITH_ODE_TABLE =
@@ -116,7 +116,7 @@ describe('solve() over the wasm boundary payloads', () => {
   // A solved DYNAMIC block arrives as `odeTables` and NOWHERE ELSE: `variables`
   // carries only the analytic parameters, so a Tables/Plots window fed from
   // `variables` would render an empty transient. Payload captured verbatim from
-  // the Rust boundary (crates/frees-wasm/tests/dto_parity.rs,
+  // the Rust boundary (crates/frees/tests/dto_parity.rs,
   // `a_solved_dynamic_block_reaches_the_frontend_as_an_ode_table`), whose row
   // values are the Java oracle's from fixtures/golden/dyn_plain_ode.json.
   it('carries a solved DYNAMIC block through as an OdeTableDto', async () => {
@@ -260,7 +260,7 @@ describe('check() over the wasm boundary payloads', () => {
 // ── solveTable (Wave B: the Tables workbook GUI Solve) ────────────────────
 
 // Verbatim boundary output. Regenerate with a one-off example calling
-// frees_wasm::solve_table("y = 2 * x\n",
+// frees::solve_table("y = 2 * x\n",
 //   '{"table": {"variables": ["x", "y"], "rows": [{"x": 1}, {"x": 2}]}}').
 const SOLVE_TABLE_OK =
   '{"results":[{"error":null,"success":true,"values":{"x":1.0,"y":2.0}},{"error":null,"success":true,"values":{"x":2.0,"y":4.0}}],"stats":{"elapsedMillis":1,"equations":2,"failed":0,"iterations":3,"maxResidual":0.0,"runs":2,"solved":2,"unknowns":2},"variables":[{"name":"x","uncertainty":0.0,"units":"-","value":2.0},{"name":"y","uncertainty":0.0,"units":"-","value":4.0}]}'
@@ -320,7 +320,7 @@ describe('solveTable (wasm engine)', () => {
 // ── runMonteCarlo (Wave B2) ────────────────────────────────────────────────
 
 // Verbatim boundary output shape (abridged sample list). Regenerate via
-// frees_wasm::monte_carlo("x = 2\ny = 3 * x\n",
+// frees::monte_carlo("x = 2\ny = 3 * x\n",
 //   '{"samples": 2, "seed": 42, "variableInfo": [{"name": "x", "guess": 2, "uncertainty": 0.1}]}').
 const MONTE_CARLO_OK =
   '{"stats":[{"variable":"y","mean":6.31,"sigma":0.29,"p5":6.1,"p50":6.3,"p95":6.5,"firstOrderSigma":0.3},{"variable":"x","mean":2.1,"sigma":0.097,"p5":2.03,"p50":2.1,"p95":2.17,"firstOrderSigma":0.1}],"samples":[{"error":null,"success":true,"values":{"x":2.11,"y":6.34}},{"error":null,"success":true,"values":{"x":2.09,"y":6.27}}],"sources":["x"],"requestedSamples":2,"failedSamples":0,"truncated":false}'

@@ -28,7 +28,7 @@ import { wasmReference } from './wasm/engineClient'
 
 const referenceMock = vi.mocked(wasmReference)
 
-// Verbatim boundary output (crates/frees-wasm `reference()`), trimmed to one
+// Verbatim boundary output (crates/frees `reference()`), trimmed to one
 // row per array.
 const REFERENCE =
   '{"constants":[{"description":"Universal (molar) gas constant","name":"R#","unit":"J/mol-K","value":8.314462618},' +

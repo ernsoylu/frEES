@@ -5,7 +5,7 @@
 
 Build dist first (needs Node 22 — see web/.nvmrc):
     export PATH="$HOME/.cargo/bin:$PATH"
-    wasm-pack build crates/frees-wasm --release --target web --out-dir ../../web/src/wasm/pkg
+    wasm-pack build crates/frees --release --target web --out-dir ../../web/src/wasm/pkg
     cd web && npm ci && npm run build
 
 

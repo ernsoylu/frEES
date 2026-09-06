@@ -53,7 +53,7 @@ a few hundred MB of toolchain download), drops in the prebuilt
 install`), then runs
 
 ```
-wasm-pack build crates/frees-wasm --release --target web --out-dir ../../web/src/wasm/pkg
+wasm-pack build crates/frees --release --target web --out-dir ../../web/src/wasm/pkg
 cd web && npm run build
 ```
 
@@ -78,7 +78,7 @@ hand Vercel the finished output.
 ### B1: `vercel build` + `vercel deploy --prebuilt` (keeps vercel.json semantics)
 
 ```bash
-cd /Users/erensoylu/homecloud/dev/frees-wasm
+cd /Users/erensoylu/homecloud/dev/frees
 
 # one-time per machine: link the project (interactive)
 vercel link

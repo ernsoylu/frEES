@@ -1,5 +1,5 @@
 // The REPL seam: `replEvaluate` / `replClear` in api.ts against the wasm
-// engine boundary (crates/frees-wasm/src/repl.rs). Two contracts:
+// engine boundary (crates/frees/src/repl.rs). Two contracts:
 //
 //  1. the ReplResponse fields ReplTerminal.tsx dereferences (`success`,
 //     `text`, `value`, `error`, `name`, `assignedVariables`) survive the shim

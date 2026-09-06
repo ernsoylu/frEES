@@ -133,7 +133,7 @@ Promoted (all match the oracle at the default `1e-9`, no new tolerance entries):
 
 ### 6. `odeTables` reaches the frontend
 
-`crates/frees-wasm/src/lib.rs::solve_success` emits `OdeTableDto` — `vars` /
+`crates/frees/src/lib.rs::solve_success` emits `OdeTableDto` — `vars` /
 `units` / `rows` / `events` / `method` / `stopped` / `endTime`, the shape
 `web/src/api.ts` already declared and `tables.ts::odeTableFromDto` already
 consumed. Nothing in `web/src` needed changing: `mergeCodeTables` was already

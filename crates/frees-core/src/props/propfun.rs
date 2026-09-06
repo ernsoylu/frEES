@@ -1930,7 +1930,7 @@ impl RealFluid for TableBackend {
     /// fails. The doc comment on the trait method already stated the rule ("a
     /// fluid picker that offered thirty-six would be lying about thirty-four of
     /// them"); returning everything the backend can answer *something* for
-    /// broke it, and `frees-wasm`'s dome test caught it.
+    /// broke it, and `frees`'s dome test caught it.
     fn served_fluids(&self) -> Option<Vec<String>> {
         Some(self.fluids().iter().map(|s| (*s).to_string()).collect())
     }

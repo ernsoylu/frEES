@@ -26,7 +26,7 @@
 | Newton (`solver/newton.rs`) | FD Jacobian, partial pivoting, step-halving; stop criteria matched to Java (250 iter, 1e-12, 25 trials). |
 | Engine (`engine.rs`) | `solve`/`check` wiring parse → constants → GUESS → block → per-block Newton. |
 | CLI (`frees-cli`) | `solve`/`check`, file or stdin, JSON out. |
-| wasm boundary (`frees-wasm`) | `version`/`solve`/`check` as JSON-string exports; panic hook. |
+| wasm boundary (`frees`) | `version`/`solve`/`check` as JSON-string exports; panic hook. |
 | Parity harness | 17 golden fixtures from the **real Java engine** (`tools/golden-dumper`); `tests/parity.rs` replays them — **17/17 match**, and the test provably detects an injected divergence. |
 | CI | fmt + clippy + tests + wasm build + bundle-size gate + parity replay. |
 
@@ -271,12 +271,12 @@ so no in-range request behaves differently. Each is pinned from both sides by
     larger gap, not just a bug: none of `analysis/` is reachable from a document
     or the wasm boundary yet, so its validation has no upstream owner.*
     *(Update 2026-08-22, Waves B1/B2: two of the surfaces now have their owner
-    — `frees-wasm/src/analysis.rs` validates the table sweep (row cap,
+    — `frees/src/analysis.rs` validates the table sweep (row cap,
     cooperative deadline) and the Monte Carlo run (the 2–1000 sample cap with
     the Java's verbatim message, the 120 s truncating budget). The
     optimizer/NSGA-II/curve-fit/param-fit validations still await their
     exports.)* *(Wave B3, same day: they arrived — all six analysis surfaces
-    with REST endpoints now validate at `frees-wasm/src/analysis.rs`.)*
+    with REST endpoints now validate at `frees/src/analysis.rs`.)*
 
 ### Opened by the Phase 9 robustness pass (2026-08-01)
 
@@ -340,7 +340,7 @@ pinned by `crates/frees-core/tests/cas_control_robustness.rs`. Full context in
 ### Opened by Phase 10 (2026-08-01)
 
 The measurement surface (`crates/frees-core/src/measurement/`,
-`crates/frees-wasm/src/measurement.rs`). Pinned by
+`crates/frees/src/measurement.rs`). Pinned by
 `crates/frees-core/tests/measurement_parity.rs` and
 `crates/frees-core/tests/measurement_robustness.rs`. Full context in
 [`docs/status-phase10.md`](status-phase10.md).
@@ -431,7 +431,7 @@ The measurement surface (`crates/frees-core/src/measurement/`,
     so `X` and `x` are one binding); and a text-declared channel stays text
     rather than being sniffed into a number. An inverted window range returns an
     empty window rather than throwing, which is the item-28 reason again.
-    **Deliberate.** (`crates/frees-wasm/src/measurement.rs`)
+    **Deliberate.** (`crates/frees/src/measurement.rs`)
 
 **One divergence *closed* by this pass, engine-wide and worth flagging because
 it changes documents too.** `^` was C's `pow`, which answers `1` for
@@ -540,7 +540,7 @@ links into it still resolve. Each item names its own decision or wave.
 38. **The measurement stack is removed entirely (decision D11, 2026-08-24),
     and with it items 26–30.** `crates/frees-core/src/measurement/` (3,251
     lines: sampled series, envelope decimation, raster construction,
-    calculated signals), `crates/frees-wasm/src/measurement.rs` (1,184
+    calculated signals), `crates/frees/src/measurement.rs` (1,184
     lines, the `measurement_calc` export), and the `measurement_parity` /
     `measurement_robustness` suites (2,264 lines) left with the Data Analyzer
     that was their only consumer. This is the **first removal of ported
@@ -680,7 +680,7 @@ cargo test --workspace --test parity          # golden-corpus parity only. NOT
                                               # without rustprop, so it refuses.
                                               # See CLAUDE.md's Build and test block.
 cargo clippy --workspace --all-targets -- -D warnings
-wasm-pack build crates/frees-wasm --release --target web --out-dir ../../pkg
+wasm-pack build crates/frees --release --target web --out-dir ../../pkg
 tools/golden-dumper/run.sh                    # regenerate fixtures from Java
 printf 'x = 2\ny = x^2\n' | cargo run -qp frees-cli -- solve
 ```

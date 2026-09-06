@@ -69,7 +69,7 @@ miniz_oxide = { workspace = true }
 [features]
 # `linked-tables` is on by default, so a native build, `frees-cli` and the whole
 # test suite keep the D1 artifacts and behave exactly as they always did.
-# `frees-wasm` is the one crate that sets `default-features = false` — see D9.
+# `frees` is the one crate that sets `default-features = false` — see D9.
 default = ["linked-tables"]
 serde = ["dep:serde"]
 

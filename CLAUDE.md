@@ -137,7 +137,7 @@ item 1 is that the optional remote-fallback adapter stays unwired by choice.
 **Phase 10 is *removed*, and this paragraph is history (decision
 [D11](docs/decisions/0011-remove-analyzer.md), 2026-08-24).** D6 took the
 `.mf4` reader; D11 takes the rest. `crates/frees-core/src/measurement/` (3,251
-lines), `crates/frees-wasm/src/measurement.rs` (1,184 lines), the
+lines), `crates/frees/src/measurement.rs` (1,184 lines), the
 `measurement_calc` export and the `measurement_parity` /
 `measurement_robustness` suites are gone with the Data Analyzer that was their
 only consumer — **the engine has no measurement surface at all**, and measured
@@ -147,7 +147,7 @@ What follows is what Phase 10 delivered, left as written on 2026-08-01:
 
 **Phase 10 was implemented and wired.** `crates/frees-core/src/measurement/`
 (MDF4 reading over `mf4-rs`, sampled series, envelope decimation, raster
-construction, calculated signals) and `crates/frees-wasm/src/measurement.rs`
+construction, calculated signals) and `crates/frees/src/measurement.rs`
 replace `/api/measurements/*`, and `web/src/analyzer/measurementApi.ts` now
 calls the worker instead of `fetch`. **A `.mf4` opened in frees never leaves the
 machine** — that is the point of the phase, and it is why the Java's
@@ -488,7 +488,7 @@ cargo test -p frees-core --test dynamics_robustness    # the transient + analysi
 cargo clippy --workspace --all-targets -- -D warnings   # CI gate
 cargo clippy --workspace --target wasm32-unknown-unknown --all-targets -- -D warnings
 cargo fmt --all --check                                 # CI gate
-wasm-pack build crates/frees-wasm --release --target web --out-dir ../../web/src/wasm/pkg
+wasm-pack build crates/frees --release --target web --out-dir ../../web/src/wasm/pkg
 tools/golden-dumper/run.sh             # regenerate golden fixtures from the Java oracle
 tools/table-gen/run.sh                 # regenerate fixtures/proptables from native CoolProp
 tools/aux-gen/run.sh                   # regenerate fixtures/auxtables (FRAUX1 grids, D7)
@@ -520,7 +520,7 @@ tools/aux-gen/run.sh --sweep           # its error-vs-resolution ladder; writes 
 > already broken a gate twice (recorded in `docs/status-phase78.md`, gap 8):
 > one left the tree uncompilable for ~15 minutes, and fmt churn landed in
 > files neither owned. The convention: an agent that edits runs in its own
-> `git worktree` (`git worktree add ../frees-wasm-<task> <branch>`), merges
+> `git worktree` (`git worktree add ../frees-<task> <branch>`), merges
 > back only with the gates green, and removes the worktree after; read-only
 > agents may share the main tree freely. If a task cannot use a worktree, do
 > not run a second editing agent beside it.
@@ -528,7 +528,7 @@ tools/aux-gen/run.sh --sweep           # its error-vs-resolution ladder; writes 
 ## Workspace layout
 
 - `crates/frees-core` — the engine (target-agnostic; **must never depend on wasm-bindgen**)
-- `crates/frees-wasm` — thin wasm-bindgen boundary (JSON-string in/out)
+- `crates/frees` — thin wasm-bindgen boundary (JSON-string in/out)
 - `crates/frees-cli` — headless solve/check for the parity harness
 - `tools/golden-dumper` — Java program run against the frEES core jar to emit `fixtures/golden/`
 - `tools/table-gen` — Java program run against native CoolProp to emit `fixtures/proptables/*.phtab`
@@ -561,7 +561,7 @@ families are served but have no dome to draw, so the published picker is
 
 `props::tables::install_builtin_once` — which
 every public entry point calls — installs `RustpropBackend`, and
-`frees-wasm` requires it, so the browser and the native gate get the same
+`frees` requires it, so the browser and the native gate get the same
 engine. **Decision [D9](docs/decisions/0009-rustprop-backend.md) is the
 authority; read it before touching `props/tables.rs`,
 `props/rustprop_backend.rs`, `props/rustprop_warm.rs` or either tolerance
@@ -571,7 +571,7 @@ Two things follow that a new reader will otherwise get wrong:
 
 * **`cargo test --workspace` grades rustprop; `cargo test -p frees-core` does
   not.** Resolver-v2 unifies `frees-core`'s features over the members being
-  built, and `frees-wasm` requires `rustprop-backend`, so the workspace form
+  built, and `frees` requires `rustprop-backend`, so the workspace form
   turns it on. The single-package form does not, and the parity corpus
   contains twelve documents no `(P,h)` table can serve, so
   `tests/parity.rs` **refuses** that configuration and prints the command to
@@ -586,7 +586,7 @@ downloads.** `crates/frees-core/src/props/data/*.phtab` are copies of
 `fixtures/proptables/*.phtab`, and `data/*.fraux` of
 `fixtures/auxtables/*.fraux`, all packed by `build.rs`, `include_bytes!`d by
 `props/tables.rs` behind the `linked-tables` feature (on by default, off in
-`frees-wasm` alone) and installed on the first `solve`/`check` **only when
+`frees` alone) and installed on the first `solve`/`check` **only when
 `rustprop-backend` is off**. Regenerating them means copying them across as
 well as into `fixtures/`. What survives in the browser is the decoders and the
 `install_from_bytes` fetch seam — the offline path a host can fetch into.

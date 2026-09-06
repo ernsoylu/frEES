@@ -30,11 +30,11 @@ measurement, or a correction to the written record.
 >   negated, plus `rustfmt` on the same function.
 >
 > `cargo fmt --all` also re-wrapped several of their lines, in
-> `analysis/uncertainty.rs`, `engine.rs` and `frees-wasm/src/lib.rs`. None of
+> `analysis/uncertainty.rs`, `engine.rs` and `frees/src/lib.rs`. None of
 > these changed any semantics.
 >
 > **The tree was still being edited when I finished.** My last green run of all
-> four Rust gates was at 15:57; `frees-wasm/src/lib.rs` had been written 9
+> four Rust gates was at 15:57; `frees/src/lib.rs` had been written 9
 > seconds earlier. Treat every number here as a snapshot, and re-run the gates
 > before trusting them.
 
@@ -185,7 +185,7 @@ worker down with an allocation abort or an unbounded loop, and `panic = "abort"`
 means nothing downstream can turn that into a diagnostic.
 
 **Zero `/api/` requests.** 28 network requests, all static assets plus
-`frees_wasm_bg-*.wasm`. The single URL matching `/api/` is
+`frees_bg-*.wasm`. The single URL matching `/api/` is
 `/assets/api-jHsz8Gy2.js` — the bundled fetch→RPC shim, served as a file. Two
 console errors, both benign 404s (`build-info.js`, `favicon.ico`).
 
@@ -270,7 +270,7 @@ will breach 3072 KiB. **Pay one of the two debts before Phase 9, not after.**
    2 300 lines of tested library code — `optimize`, `optimize_multi`,
    `curvefit::fit`, `montecarlo::run`, `paramfit::run`, `AllRootsSolver`,
    `run_sweep`, `propagate` — and **none of it is reachable from a document or
-   from the wasm boundary.** `crates/frees-wasm/src/lib.rs` exports exactly
+   from the wasm boundary.** `crates/frees/src/lib.rs` exports exactly
    `solve`, `check`, `reference`, `fluids`, `property_diagram`,
    `psychrometric_chart`; `engine.rs` calls nothing in `analysis/` except the
    parametric *accessors*. The REST surface `CLAUDE.md` lists — `/api/optimize`,
@@ -280,7 +280,7 @@ will breach 3072 KiB. **Pay one of the two debts before Phase 9, not after.**
    there is no place for the Java controllers' input validation to live, so the
    library is the only line of defence and had none. **A `PARAMETRIC` block
    still cannot be solved from the Tables tab in the browser.**
-   *(First slice closed 2026-08-22, Wave B1: `frees-wasm/src/analysis.rs`
+   *(First slice closed 2026-08-22, Wave B1: `frees/src/analysis.rs`
    exports `solve_table`, driving `run_sweep` end-to-end — with
    `engine::solve_with_parametric` finally delivering the accessor channel —
    behind the transcribed controller caps (5 000 rows, a cooperative 120 s
@@ -314,7 +314,7 @@ will breach 3072 KiB. **Pay one of the two debts before Phase 9, not after.**
    is three minutes of a spinning worker with no progress indication and no
    cancel. The Java's `deadlineNanos` covers this and the port dropped it
    because wasm32 has no clock — but the *boundary* does (`Date.now` is already
-   imported in `frees-wasm/src/lib.rs`), so an injected deadline predicate is
+   imported in `frees/src/lib.rs`), so an injected deadline predicate is
    available and was not built. `montecarlo::run` already takes exactly such a
    predicate; the integrator does not.
    *(Closed 2026-08-22, Wave C1: `ode/deadline.rs` — a boundary-installed

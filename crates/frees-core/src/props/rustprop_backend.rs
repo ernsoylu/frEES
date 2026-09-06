@@ -169,7 +169,7 @@ impl RealFluid for RustpropBackend {
     /// The list is unchanged by that and still honest — `(P,T)`, `(P,Hmass)`,
     /// `(P,Smass)`, transport and `Z` are all served, and rustprop draws Air's
     /// pseudo-pure dome too (both branches across 65-130 K, glide intact),
-    /// which is what the diagram picker in `frees-wasm` needs.
+    /// which is what the diagram picker in `frees` needs.
     ///
     /// Since **Wave-3 F8** the claim this entry makes about `Air` is checked by
     /// the parity gate and not only by unit tests: `sysdesign-ex06-pneumatic`,

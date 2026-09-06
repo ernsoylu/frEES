@@ -12,7 +12,7 @@ stubbed in `src/api.ts` until their engine features port.
 
 ```bash
 export PATH="$HOME/.cargo/bin:$PATH"
-wasm-pack build ../crates/frees-wasm --release --target web --out-dir ../web/src/wasm/pkg
+wasm-pack build ../crates/frees --release --target web --out-dir ../web/src/wasm/pkg
 ```
 
 (paths relative to `web/`; absolute paths work too). The Dockerfile guards
@@ -118,7 +118,7 @@ calculated signals, the `.frees` table-import path and eleven vitest suites).
 With it went its dock windows, the Inspector `SignalBrowser` panel, the left
 rail's Analyzer launcher, the `analyzers` React state and the `uplot` +
 `papaparse` (+ `@types/papaparse`) dependencies. The engine side —
-`measurement_calc`, `crates/frees-wasm/src/measurement.rs`,
+`measurement_calc`, `crates/frees/src/measurement.rs`,
 `crates/frees-core/src/measurement/` — goes with it in the same wave.
 
 **The one capability that moved rather than died is CSV import.** It now

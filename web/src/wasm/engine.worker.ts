@@ -53,7 +53,7 @@ import init, {
   solve,
   solve_table,
   version,
-} from './pkg/frees_wasm.js'
+} from './pkg/frees.js'
 
 export interface EngineRequest {
   id: number
@@ -121,7 +121,7 @@ let inFlightId: number | null = null
 // `new URL(..., import.meta.url)` lets Vite emit the .wasm as a hashed asset
 // and rewrite the URL in both dev and build.
 const ready = init({
-  module_or_path: new URL('./pkg/frees_wasm_bg.wasm', import.meta.url),
+  module_or_path: new URL('./pkg/frees_bg.wasm', import.meta.url),
 })
 
 // `onmessage` is typed as returning void, so the async body is wrapped and

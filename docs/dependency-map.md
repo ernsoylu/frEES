@@ -52,7 +52,7 @@ The **REST contract survives** as the worker RPC surface — 22 methods, listed 
 
 | Concern | Crate | Notes |
 |---|---|---|
-| Wasm boundary | `wasm-bindgen`, `js-sys`, `web-sys`, `serde-wasm-bindgen` | Only in `crates/frees-wasm`, never in `frees-core` |
+| Wasm boundary | `wasm-bindgen`, `js-sys`, `web-sys`, `serde-wasm-bindgen` | Only in `crates/frees`, never in `frees-core` |
 | Build | `wasm-pack` + `vite-plugin-wasm` (or `trunk`) | Feeds the existing Vite 6 build |
 | Panics | `console_error_panic_hook` | Turns wasm traps into readable console errors |
 | Graph | `petgraph` | Tarjan SCC |

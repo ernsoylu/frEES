@@ -13,11 +13,11 @@ Four parts, and the fourth is what keeps the first three honest.
 1. **The wasm bundle ships rustprop as its only in-bundle property backend.**
    `props::tables::install_builtin_once` — the function every public entry point
    calls — installs `RustpropBackend` when the `rustprop-backend` feature is on,
-   and the pre-D9 `TableBackend` when it is off. `frees-wasm` turns it on.
+   and the pre-D9 `TableBackend` when it is off. `frees` turns it on.
 2. **The linked `.phtab` / `.fraux` data leaves that bundle.** The
    `include_bytes!` calls in `props/tables.rs::packed` now sit behind a
    `linked-tables` Cargo feature, on by default and off in exactly one place:
-   `frees-wasm` depends on `frees-core` with `default-features = false`.
+   `frees` depends on `frees-core` with `default-features = false`.
    `build.rs` skips the deflate entirely when the feature is off, so a stray
    include is a build error rather than 684 KiB quietly returning.
 3. **The decoders and the `install_from_bytes` seam stay compiled.** They are
@@ -33,7 +33,7 @@ Four parts, and the fourth is what keeps the first three honest.
    there is no configuration in which the gate grades a backend the product does
    not ship. Note *why* the native gate lands on rustprop without anything
    opting in: `cargo test --workspace` resolves `frees-core`'s features as the
-   union over the members being built, and `frees-wasm` is one of them. CI's
+   union over the members being built, and `frees` is one of them. CI's
    `native` and `parity` jobs therefore grade the same backend the browser gets.
    `cargo test -p frees-core` on its own does not unify, and grades the table
    path against `tolerances.json` — which is why that file had to stay correct
@@ -267,7 +267,7 @@ between them.
   token), the git/tag keys become a plain version requirement. The original
   text follows for the record: `frees-core` reached rustprop through a `path`
   dependency on a sibling checkout, which F1 made *optional* so the runner
-  could still build; D9 made `frees-wasm` require it, so the `wasm`, `web` and
+  could still build; D9 made `frees` require it, so the `wasm`, `web` and
   (through feature unification) `native`/`parity` jobs needed `../rustprop`
   present, and until publication the gate was a local gate.
 * **The fetch fallback is narrower than the seam suggests, and deliberately not
@@ -677,7 +677,7 @@ This record's original `Air` bullet, and the D6 amendment that reversed it, are
 the whole story: `RealFluid::served_fluids` carries `Air`, and the
 property-diagram picker is `plot_fluids_available`, which is **derived** from
 `served_fluids` rather than being a second list — so widening one widened both.
-`crates/frees-wasm/src/lib.rs` asserts the published picker is exactly
+`crates/frees/src/lib.rs` asserts the published picker is exactly
 `["Air", "R1234yf", "R134a", "Water"]`. The only surviving narrowing is
 `TableBackend::served_fluids` (`props/propfun.rs`), which is the *other*
 backend: its `(P,h)` build has D7's `(P,T)` transport grid for air and no state
@@ -717,7 +717,7 @@ one by one against the checkout rather than carried forward. Three moved.
 
 ### The bundle, re-measured
 
-`wasm-pack build crates/frees-wasm --release --target web`, then CI's own
+`wasm-pack build crates/frees --release --target web`, then CI's own
 `stat -c%s` and `gzip -c`, on `wave4-f9` with rustprop at `d5a7331`:
 
 | | raw | gzipped | of the 3072 KiB budget | headroom |
@@ -814,7 +814,7 @@ Checked against the tree, found correct, changed nothing:
   mechanisms, and the replay reports all ten as used, `solver_floor` empty.
 * `RealFluid` still has the five methods D8 named, and `RustpropBackend`'s
   `served_fluids` is `Water, R134a, R1234yf, Air, INCOMP::MEG, INCOMP::MPG`.
-  `crates/frees-wasm/src/lib.rs:1988` still asserts the published picker is
+  `crates/frees/src/lib.rs:1988` still asserts the published picker is
   `["Air", "R1234yf", "R134a", "Water"]`. *(Both superseded 2026-08-24 by the
   Wave C1 amendment at the end of this record: `CO2` joined the list, and the
   assertion is now `["Air", "CO2", "R1234yf", "R134a", "Water"]`.)*
@@ -827,7 +827,7 @@ Checked against the tree, found correct, changed nothing:
 **Date:** 2026-08-24
 **Amends** this record's `served_fluids` list under *Consequences and open
 risks* and the Wave-4 F9 amendment's "Verified and unmoved" bullet that quotes
-it, plus the picker assertion in `crates/frees-wasm/src/lib.rs`.
+it, plus the picker assertion in `crates/frees/src/lib.rs`.
 
 **Owner request.** This is not a technical re-derivation like the D6 `Air`
 amendment below — nothing in the engine changed to make CO2 possible. Its data

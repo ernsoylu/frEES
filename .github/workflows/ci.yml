@@ -184,7 +184,7 @@ jobs:
           version: v0.13.1
 
       - name: Build wasm package
-        run: wasm-pack build crates/frees-wasm --release --target web --out-dir ../../pkg
+        run: wasm-pack build crates/frees --release --target web --out-dir ../../pkg
 
       - name: Enforce bundle budget
         run: |
@@ -213,7 +213,7 @@ jobs:
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: frees-wasm-pkg
+          name: frees-pkg
           path: pkg/
 
   web:
@@ -237,7 +237,7 @@ jobs:
     # also a wash on wall clock (~212 s either way) and trades away the size
     # gate's isolation, since a red vitest would then hide it.
     #
-    # The uploaded `frees-wasm-pkg` artifact has no consumer in this workflow —
+    # The uploaded `frees-pkg` artifact has no consumer in this workflow —
     # no `needs:`, no download-artifact anywhere — it exists for humans.
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -264,7 +264,7 @@ jobs:
       - name: Build wasm package into the web tree
         # web/src/wasm/pkg is generated output (gitignored); the worker imports
         # from it, so it must exist before the Vite build.
-        run: wasm-pack build crates/frees-wasm --release --target web --out-dir ../../web/src/wasm/pkg
+        run: wasm-pack build crates/frees --release --target web --out-dir ../../web/src/wasm/pkg
 
       - name: Install frontend dependencies
         working-directory: web

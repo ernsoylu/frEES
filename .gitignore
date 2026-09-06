@@ -8,7 +8,7 @@ web/src/wasm/pkg/
 # ...and where wasm-pack puts it when --out-dir is omitted. A stale copy sat
 # here untracked from 2026-08-21 until Wave T5; it was two waves out of date
 # and nothing referenced it, which is exactly how it went unnoticed.
-crates/frees-wasm/pkg/
+crates/frees/pkg/
 Cargo.lock.bak
 *.wasm
 !fixtures/**/*.wasm
