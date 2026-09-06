@@ -1,6 +1,0 @@
-You are an expert rust engineer. Output ONLY the following complete code file inside a ```rust code block without repeating any functions, mocking components, or adding explanations:
-
-// Test module
-pub fn add(a: i32, b: i32) -> i32 {
-    a + b
-}

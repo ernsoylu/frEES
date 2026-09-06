@@ -26,5 +26,5 @@ web/tsconfig.tsbuildinfo
 # the Vite build, standing in for the nginx image's container-start entrypoint.
 web/public/build-info.js
 
-# Local code-generation helper
-/scratch/gen_file.py
+# Local scratch files and helper scripts
+/scratch/
