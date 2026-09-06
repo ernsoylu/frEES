@@ -176,20 +176,17 @@ test('wasm constrained optimization benchmark', async ({ page }) => {
     // 3 warmup iterations
     for (let i = 0; i < 3; i++) mod.optimize(optSource, optReq)
 
-    const samples: number[] = []
-    let elapsed = 0
-    while ((elapsed < 2000 || samples.length < 5) && samples.length < 50) {
-      const t0 = performance.now()
+    const optTimes: number[] = []
+    for (let i = 0; i < 20; i++) {
+      const tStart = performance.now()
       mod.optimize(optSource, optReq)
-      const dt = performance.now() - t0
-      samples.push(dt)
-      elapsed += dt
+      optTimes.push(performance.now() - tStart)
     }
-    samples.sort((a, b) => a - b)
+    optTimes.sort((a, b) => a - b)
     return {
-      medianMs: samples[Math.floor(samples.length / 2)],
-      minMs: samples[0],
-      n: samples.length,
+      medianMs: optTimes[optTimes.length >> 1],
+      minMs: optTimes[0],
+      n: optTimes.length,
     }
   })
 
@@ -219,20 +216,17 @@ test('wasm 1,000-row sweep benchmark', async ({ page }) => {
       return { error: `sweep failed: ${probe.stats?.solved} solved of 1000` }
     }
 
-    const samples: number[] = []
-    let elapsed = 0
-    while ((elapsed < 3000 || samples.length < 3) && samples.length < 20) {
-      const t0 = performance.now()
+    const sweepDurations: number[] = []
+    for (let count = 0; count < 10; count++) {
+      const mark = performance.now()
       mod.solve_table(sweepSource, sweepReq)
-      const dt = performance.now() - t0
-      samples.push(dt)
-      elapsed += dt
+      sweepDurations.push(performance.now() - mark)
     }
-    samples.sort((a, b) => a - b)
+    sweepDurations.sort((x, y) => x - y)
     return {
-      medianMs: samples[Math.floor(samples.length / 2)],
-      minMs: samples[0],
-      n: samples.length,
+      medianMs: sweepDurations[sweepDurations.length >> 1],
+      minMs: sweepDurations[0],
+      n: sweepDurations.length,
     }
   })
 
