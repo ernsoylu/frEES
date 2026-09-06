@@ -482,7 +482,8 @@ export function buildXYFigure(
     })
   } else if (chartType === 'surface3d') {
     series.forEach((s) => {
-      if (s.z && s.z.length > 0) {
+      if (s.z && s.z.length >= 3 && s.x.some((x, i) =>
+        i > 1 && (s.x[1] - s.x[0]) * (s.y[i] - s.y[0]) !== (s.y[1] - s.y[0]) * (x - s.x[0]))) {
         traces.push({
           type: 'mesh3d',
           name: displayVar(s.name),

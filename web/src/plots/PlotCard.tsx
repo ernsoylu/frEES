@@ -81,7 +81,7 @@ function buildXYSeries(
     const z: number[] = []
     const size: number[] = []
     rows.forEach((row, i) => {
-      const xValue = runValue(row, results[i], xVar)
+      const xValue = xVar ? runValue(row, results[i], xVar) : i
       const yValue = runValue(row, results[i], yVar)
       const zValue = zVar ? runValue(row, results[i], zVar) : undefined
       const sizeValue = sizeVar ? runValue(row, results[i], sizeVar) : undefined
@@ -89,7 +89,7 @@ function buildXYSeries(
       const hasX = xValue !== undefined
       const hasY = yValue !== undefined
       const hasZ = !zVar || zValue !== undefined
-      const hasSize = !sizeVar || sizeValue !== undefined
+      const hasSize = !sizeVar || (sizeValue !== undefined && sizeValue >= 0)
 
       const valid = hasX && hasY && hasZ && hasSize
       x.push(valid ? xValue : Number.NaN)
@@ -131,8 +131,10 @@ function buildArrayXYSeries(
   xVar: string,
   yVars: string[],
   axis: 'y' | 'y2' = 'y',
+  zVar?: string | null,
+  sizeVar?: string | null,
 ): XYSeries[] {
-  const channels = [xVar, ...yVars]
+  const channels = [...new Set([xVar, ...yVars, zVar, sizeVar].filter((name): name is string => !!name))]
   const arrays = channels.map((name) => arrayValues(variables, name))
   const indices = [...new Set(arrays.flatMap((array) => [...array.keys()]))].sort((a, b) => a - b)
   const rows: ParamRow[] = []
@@ -140,7 +142,7 @@ function buildArrayXYSeries(
     if (i > 0 && index > indices[i - 1] + 1) rows.push({ id: `gap-${index}`, values: {} })
     rows.push({ id: String(index), values: Object.fromEntries(channels.map((name, j) => [name, arrays[j].has(index) ? String(arrays[j].get(index)) : ''])) })
   })
-  return buildXYSeries(rows, [], xVar, yVars, null, null, axis)
+  return buildXYSeries(rows, [], xVar, yVars, zVar, sizeVar, axis)
 }
 
 export function useDiagramData(spec: PlotSpec) {
@@ -253,8 +255,8 @@ export function buildFigure(spec: PlotSpec, inputs: FigureInputs): PlotlyFigure 
   if (spec.kind === 'psychro' && psychart) {
     return buildPsychroFigure(psychart, spec.psychro, spec.format, overlayStates(spec.psychro.stateTable), theme, cyclePath)
   }
-  if (spec.kind === 'xy' && spec.xy.xVar && spec.xy.yVars.length > 0) {
-    return buildXyFigureFromSpec(spec, inputs, spec.xy.xVar)
+  if (spec.kind === 'xy' && (spec.xy.xVar || spec.xy.chartType === 'histogram') && spec.xy.yVars.length > 0 && (spec.xy.chartType !== 'surface3d' || spec.xy.zVar)) {
+    return buildXyFigureFromSpec(spec, inputs, spec.xy.chartType === 'histogram' ? '' : spec.xy.xVar!)
   }
   if (spec.kind === 'bode' && spec.control.omega && spec.control.mag && spec.control.phase) {
     const omega = getArrayValues(variables, spec.control.omega)
@@ -305,7 +307,7 @@ function buildXyFigureFromSpec(spec: PlotSpec, inputs: FigureInputs, xVar: strin
     yAll.some((y) => tableRows.some((r) => (r.values[y] ?? '').trim() !== ''))
   const useArrays = (tableRows.length === 0 || tableResults.length === 0) && !rowsCarrySeries
   const series = useArrays
-    ? buildArrayXYSeries(variables, xVar, spec.xy.yVars)
+    ? buildArrayXYSeries(variables, xVar, spec.xy.yVars, 'y', spec.xy.zVar, spec.xy.sizeVar)
     : buildXYSeries(tableRows, tableResults, xVar, spec.xy.yVars, spec.xy.zVar, spec.xy.sizeVar)
   if (spec.xy.y2Vars && spec.xy.y2Vars.length > 0) {
     series.push(

@@ -55,7 +55,7 @@ const CHART_TYPE_OPTIONS = [
   { value: 'pie', label: 'Pie chart' },
   { value: 'histogram', label: 'Histogram' },
   { value: 'scatter', label: 'Scatter (bubble)' },
-  { value: 'surface3d', label: '3D Surface' },
+  { value: 'surface3d', label: 'Triangulated 3D mesh' },
 ]
 
 function XYSection({
