@@ -154,6 +154,8 @@ export default function ImportCsvModal({ tables, onClose, onCreate }: Readonly<P
       reduction: reduction ?? undefined,
       xMin: Number.isFinite(min) ? min : undefined,
       xMax: Number.isFinite(max) ? max : undefined,
+      argUnit: xColumn.unit,
+      outputUnit: yColumn.unit,
     })
   }, [xColumn, yColumn, name, argName, reduction, xMin, xMax])
 

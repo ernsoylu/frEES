@@ -102,6 +102,9 @@ export interface SweepFunctionInput {
   xMin?: number
   xMax?: number
   maxRows?: number
+  argUnit?: string
+  outputUnit?: string
+  paramUnit?: string
 }
 
 export interface ComposeCounts {
@@ -293,6 +296,8 @@ export function functionSpecFromParamColumns(input: SweepFunctionInput): Compose
         rows: reduced.kept.map((r) => ({ x: r.x, ys: r.ys })),
         is1D: true,
         source: 'gui',
+        argUnit: input.argUnit ?? table.columnUnits?.[xVar],
+        outputUnit: input.outputUnit ?? table.columnUnits?.[yVar],
       },
       counts,
       extra,
@@ -363,6 +368,9 @@ export function functionSpecFromParamColumns(input: SweepFunctionInput): Compose
       rows: reduced.kept.map((r) => ({ x: r.x, ys: r.ys })),
       is1D: false,
       source: 'gui',
+      argUnit: input.argUnit ?? table.columnUnits?.[xVar],
+      outputUnit: input.outputUnit ?? table.columnUnits?.[yVar],
+      paramUnit: input.paramUnit ?? table.columnUnits?.[familyVar],
     },
     counts,
     extra,
@@ -383,6 +391,8 @@ export interface SeriesFunctionInput {
   reduction?: ReductionChoice
   xMin?: number
   xMax?: number
+  argUnit?: string
+  outputUnit?: string
 }
 
 /**
@@ -447,6 +457,8 @@ export function functionSpecFromXY(input: SeriesFunctionInput): ComposeResult {
       rows: reduced.kept.map((p) => ({ x: String(p.x), ys: [String(p.y)] })),
       is1D: true,
       source: 'gui',
+      argUnit: input.argUnit,
+      outputUnit: input.outputUnit,
     },
     counts,
     { reduction: input.reduction, xMin: input.xMin, xMax: input.xMax },

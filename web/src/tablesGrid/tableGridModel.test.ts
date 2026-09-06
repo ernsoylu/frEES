@@ -127,6 +127,13 @@ describe('parametric grid layout', () => {
     expect(headerTitles(paramSpec({ columnUnits: { T: 'K' } }))).toEqual(['Run', 'T [K]', 'P'])
   })
 
+  it('shows argument and output units on function-table headers', () => {
+    expect(headerTitles(spec1D({ argName: 'P', argUnit: 'kPa', outputUnit: 'm' }))).toEqual([
+      'P [kPa]',
+      'y [m]',
+    ])
+  })
+
   it('renders run labels, inputs and blank cells as data rows', () => {
     const spec = paramSpec()
     expect(gridRowCount(spec)).toBe(2) // no in-grid header row
@@ -192,10 +199,9 @@ describe('function-table cell edits', () => {
     expect(f.columns.length).toBe(spec.columns.length)
   })
 
-  it('keeps blank/invalid-cell omission in step with toFunctionTableDtos', () => {
-    const back = applyCellEdit(spec1D(), 2, 1, 'garbage') // non-numeric y
-    const dtos = toFunctionTableDtos([back.spec])
-    expect(dtos[0].curves[0].points).toEqual([[1, 10]]) // row 2 omitted
+  it('blocks conversion of invalid numeric drafts', () => {
+    const back = applyCellEdit(spec1D(), 2, 1, 'garbage')
+    expect(() => toFunctionTableDtos([back.spec])).toThrow(/invalid number/)
   })
 
   it('sanitizes formula-error literals to blank and reports the cell', () => {

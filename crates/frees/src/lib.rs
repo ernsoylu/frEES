@@ -128,6 +128,8 @@ pub(crate) struct FunctionTableDto {
     x_log: Option<bool>,
     y_log: Option<bool>,
     curves: Option<Vec<FunctionCurveDto>>,
+    output_unit: Option<String>,
+    arg_units: Option<Vec<Option<String>>>,
 }
 
 /// `SolveDtos.FunctionCurveDto`: family-parameter value (`null` for a lone
@@ -160,8 +162,9 @@ pub(crate) struct FunctionCurveDto {
 ///   with the ordinary "unknown function", as on the Java side);
 /// * the last table of a name wins (`HashMap.put`).
 ///
-/// `outputUnit`/`argUnits` do not exist on the wire; the defs carry `None`,
-/// the Java's 5-argument `FunctionTableDef` constructor.
+/// `outputUnit`/`argUnits` are optional. When a unit parses, GUI knot values
+/// convert to SI here so equation evaluation stays in SI. Unknown or blank
+/// units leave the numbers as written — they are not assumed to be SI.
 pub(crate) fn function_table_defs_of(
     tables: &Option<Vec<FunctionTableDto>>,
 ) -> Vec<frees_core::parser::defs::FunctionTableDef> {
@@ -178,18 +181,19 @@ pub(crate) fn function_table_defs_of(
             continue;
         }
         let name = name.to_ascii_lowercase();
-        let curves = curves_of(table);
+        let mut curves = curves_of(table);
         if curves.is_empty() {
             continue;
         }
+        convert_gui_curves_to_si(&mut curves, table);
         let def = frees_core::parser::defs::FunctionTableDef {
             name: name.clone(),
             arg_names: table.arg_names.clone().unwrap_or_default(),
             x_log: table.x_log == Some(true),
             y_log: table.y_log == Some(true),
             curves,
-            output_unit: None,
-            arg_units: None,
+            output_unit: nonempty_unit(table.output_unit.as_deref()),
+            arg_units: table.arg_units.clone(),
         };
         if let Some(existing) = defs.iter_mut().find(|d| d.name == name) {
             *existing = def;
@@ -231,6 +235,47 @@ fn curves_of(table: &FunctionTableDto) -> Vec<frees_core::parser::defs::Curve> {
         });
     }
     curves
+}
+
+fn nonempty_unit(unit: Option<&str>) -> Option<String> {
+    unit.map(str::trim)
+        .filter(|u| !u.is_empty() && *u != "-")
+        .map(str::to_string)
+}
+
+fn unit_at(units: &Option<Vec<Option<String>>>, index: usize) -> Option<&str> {
+    units.as_ref()?.get(index)?.as_deref()
+}
+
+/// Convert a GUI knot when its unit parses. Unknown units stay as written.
+fn to_si_if_known(value: f64, unit: Option<&str>) -> f64 {
+    let Some(unit) = nonempty_unit(unit) else {
+        return value;
+    };
+    match UnitRegistry::parse_with_offset(&unit) {
+        Ok(q) => q.to_si(value),
+        Err(_) => value,
+    }
+}
+
+fn convert_gui_curves_to_si(
+    curves: &mut [frees_core::parser::defs::Curve],
+    table: &FunctionTableDto,
+) {
+    let x_unit = unit_at(&table.arg_units, 0);
+    let p_unit = unit_at(&table.arg_units, 1);
+    let y_unit = table.output_unit.as_deref();
+    for curve in curves {
+        for x in &mut curve.xs {
+            *x = to_si_if_known(*x, x_unit);
+        }
+        for y in &mut curve.ys {
+            *y = to_si_if_known(*y, y_unit);
+        }
+        if let Some(p) = curve.param.as_mut() {
+            *p = to_si_if_known(*p, p_unit);
+        }
+    }
 }
 
 /// One row of the Variable Information window

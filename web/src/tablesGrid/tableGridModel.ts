@@ -98,9 +98,14 @@ export function headerTitles(spec: TableSpec): string[] {
       }),
     ]
   }
+  const arg = spec.argUnit ? `${spec.argName || 'x'} [${spec.argUnit}]` : spec.argName || 'x'
   return [
-    spec.argName || 'x',
-    ...spec.columns.map((param, j) => (spec.is1D ? 'y' : param || `curve ${j + 1}`)),
+    arg,
+    ...spec.columns.map((param, j) => {
+      if (spec.is1D) return spec.outputUnit ? `y [${spec.outputUnit}]` : 'y'
+      const label = param || `curve ${j + 1}`
+      return spec.paramUnit ? `${label} [${spec.paramUnit}]` : label
+    }),
   ]
 }
 
@@ -141,11 +146,13 @@ export function cellViewAt(spec: TableSpec, gridRow: number, col: number): CellV
   if (spec.kind === 'function') {
     if (gridRow === 0) {
       if (col === 0) {
-        return { text: spec.argName || 'x', kind: 'header', editable: false }
+        const text = spec.argUnit ? `${spec.argName || 'x'} [${spec.argUnit}]` : spec.argName || 'x'
+        return { text, kind: 'header', editable: false }
       }
       const j = col - 1
+      const label = spec.is1D ? 'y' : spec.columns[j] ?? ''
       return {
-        text: spec.is1D ? 'y' : spec.columns[j] ?? '',
+        text: spec.is1D && spec.outputUnit ? `y [${spec.outputUnit}]` : label,
         kind: 'header',
         // 2-D curve-parameter VALUE headers are editable — they map back to
         // spec.columns (the old sheet's one editable header range).

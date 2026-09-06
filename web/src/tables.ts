@@ -84,6 +84,12 @@ export interface FunctionTableSpec {
   detachedFormulas?: Record<string, string>[]
   /** Last conversion that produced this table, when it came from CSV/sweep/fit. */
   conversion?: FunctionConversion
+  /** Lookup-argument unit as written; unknown/blank is not assumed SI. */
+  argUnit?: string
+  /** Family-parameter unit, when the table is a curve family. */
+  paramUnit?: string
+  /** Output (Y) unit as written. */
+  outputUnit?: string
 }
 
 /** Provenance of a GUI function produced from CSV, sweep columns, or a fit. */
@@ -194,12 +200,18 @@ export function toFunctionTableDtos(tables: TableSpec[]): FunctionTableDto[] {
       }
     })
     if (curves.some((c) => c.points.length > 0)) {
+      const argNames = [table.argName, table.paramName].filter((a) => a.trim() !== '')
+      const argUnits = [table.argUnit, table.paramUnit]
+        .slice(0, argNames.length)
+        .map((u) => (u && u.trim() && u.trim() !== '-' ? u.trim() : null))
       dtos.push({
         name: table.name.trim(),
-        argNames: [table.argName, table.paramName].filter((a) => a.trim() !== ''),
+        argNames,
         xLog: table.xLog,
         yLog: table.yLog,
         curves,
+        outputUnit: table.outputUnit?.trim() || null,
+        argUnits: argUnits.some((u) => u) ? argUnits : null,
       })
     }
   }
@@ -400,6 +412,9 @@ function functionTableFromDto(dto: FunctionTableDto): FunctionTableSpec {
     rows,
     is1D,
     source: 'code',
+    argUnit: dto.argUnits?.[0] ?? undefined,
+    paramUnit: dto.argUnits?.[1] ?? undefined,
+    outputUnit: dto.outputUnit ?? undefined,
   }
 }
 

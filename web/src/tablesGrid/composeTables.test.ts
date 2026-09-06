@@ -120,6 +120,17 @@ describe('functionSpecFromParamColumns (1-D)', () => {
     expect(out.spec.source).toBe('gui')
   })
 
+  it('copies source column units onto the produced function', () => {
+    const t = paramSpec({
+      vars: ['P', 'h'],
+      columnUnits: { P: 'kPa', h: 'kJ/kg' },
+      rows: [row({ P: '100', h: '200' }), row({ P: '200', h: '300' })],
+    })
+    const out = functionSpecFromParamColumns({ table: t, xVar: 'P', yVar: 'h', name: 'h_of_p' })
+    expect(out.spec.argUnit).toBe('kPa')
+    expect(out.spec.outputUnit).toBe('kJ/kg')
+  })
+
   it('sorts by numeric x and keeps the first row of a duplicate x', () => {
     const t = paramSpec({
       vars: ['T', 'eta'],

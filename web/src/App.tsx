@@ -1618,7 +1618,21 @@ export default function App() {
         return null
       }
       setCheckResult(response)
-      writeTables((all) => mergeCodeTables(all, response.codeTables, response.parametricTables))
+      writeTables((all) =>
+        mergeCodeTables(all, response.codeTables, response.parametricTables).map((t) => {
+          if (t.kind !== 'parametric' || t.source === 'code') return t
+          const columnUnits = { ...t.columnUnits }
+          let changed = false
+          for (const name of t.vars) {
+            const inferred = response.inferredUnits[name]
+            if (inferred && columnUnits[name] !== inferred) {
+              columnUnits[name] = inferred
+              changed = true
+            }
+          }
+          return changed ? { ...t, columnUnits } : t
+        }),
+      )
       // Sync the Variable Information table: keep edited rows for variables
       // that still exist, add defaults for new ones.
       setVariables(response.variables)
@@ -1803,6 +1817,18 @@ export default function App() {
       if (response.variables.length > 0) {
         setVariables(response.variables)
         setVarDrafts((drafts) => mergeInferredUnits(drafts, response.variables, response.inferredUnits))
+        updateParamTable(tableId, (t) => {
+          const columnUnits = { ...t.columnUnits }
+          let changed = false
+          for (const name of t.vars) {
+            const inferred = response.inferredUnits[name]
+            if (inferred && columnUnits[name] !== inferred) {
+              columnUnits[name] = inferred
+              changed = true
+            }
+          }
+          return changed ? { ...t, columnUnits } : t
+        })
       }
 
       if (response.solvable) {

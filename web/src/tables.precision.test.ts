@@ -2,6 +2,24 @@ import { expect, it } from 'vitest'
 import { duplicateAsEditable, fillMissingCells, functionTableFromDigitizer, mergeCodeTables, toFunctionTableDtos } from './tables'
 import { csvValuesFor } from './tablesGrid/tableGridModel'
 
+it('sends argument and output units on the function-table DTO', () => {
+  const [code] = mergeCodeTables([], [{
+    name: 'curve',
+    argNames: ['P'],
+    xLog: false,
+    yLog: false,
+    curves: [{ param: null, points: [[100, 1]] }],
+    argUnits: ['kPa'],
+    outputUnit: 'm',
+  }])
+  const copy = duplicateAsEditable(code)
+  expect(copy.argUnit).toBe('kPa')
+  expect(copy.outputUnit).toBe('m')
+  const dto = toFunctionTableDtos([copy])[0]
+  expect(dto.argUnits).toEqual(['kPa'])
+  expect(dto.outputUnit).toBe('m')
+})
+
 it('retains close knots, first exact duplicates and full precision through adapters and copies', () => {
   const points = [[1.000001, 1.2345678901234567], [1.000002, 2.345678901234567], [1.000001, 99]]
   const [code] = mergeCodeTables([], [{ name: 'curve', argNames: ['x'], xLog: false, yLog: false, curves: [{ param: null, points }] }])

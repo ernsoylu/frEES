@@ -272,6 +272,8 @@ export interface FunctionTableDto {
   xLog: boolean
   yLog: boolean
   curves: { param: number | null; points: number[][] }[]
+  outputUnit?: string | null
+  argUnits?: Array<string | null> | null
 }
 
 export async function check(
