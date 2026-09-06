@@ -302,7 +302,7 @@ Prioritize 10A and 10B alongside Phase 9 correctness work; neither waits for com
 - [x] Validate log domains before filling missing cells; identify invalid rows/columns instead of inventing finite replacements. Define duplicate-X, endpoint and out-of-range behavior; preserve precision and record interpolated cells. Compare valid linear/log cases with core interpolation under explicit tolerances.
 - [x] Preserve original row/array indices and gaps for ordered plot lines, including failed solver rows. Keep raw-input plotting distinct from solved-output plotting; show valid/skipped counts for filtered chart types. Preserve cyclic traversal order.
 - [x] Make channel requirements type-specific: histogram needs samples without X; mesh needs X/Y/Z. Align array X/Y/Z/size by original index, validate bubble sizes and degenerate geometry, and label the current mesh as triangulated. Check equivalent table/array datasets.
-- [ ] Restrict property/psychrometric requests and fluid loading to applicable plot kinds. Every control kind must issue zero thermodynamic requests.
+- [x] Restrict property/psychrometric requests and fluid loading to applicable plot kinds. Every control kind must issue zero thermodynamic requests.
 
 Primary files: [table adapters](web/src/tables.ts), [read-only grid](web/src/DataGridReadOnly.tsx), [plot preparation](web/src/plots/PlotCard.tsx), [figure builders](web/src/plots/figure.ts), [core interpolation](crates/frees-core/src/curvetable.rs).
 

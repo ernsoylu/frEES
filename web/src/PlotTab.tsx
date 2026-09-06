@@ -69,9 +69,10 @@ export default function PlotTab({
     }
   }
 
+  const needsFluids = editing?.kind === 'property' || (adding && kinds.includes('property'))
   useEffect(() => {
-    void getFluids().then(setFluids)
-  }, [])
+    if (needsFluids) void getFluids().then(setFluids)
+  }, [needsFluids])
 
   useEffect(() => {
     if (visible.length > 0 && (activePlot === null || !visible.some((p) => p.id === activePlot))) {

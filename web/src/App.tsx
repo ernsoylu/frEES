@@ -739,8 +739,8 @@ export default function App() {
   const [lastSolvedWithFillMissing, setLastSolvedWithFillMissing] = useState(false)
 
   useEffect(() => {
-    void getFluids().then(setFluids)
-  }, [])
+    if (newPlotKind === 'property') void getFluids().then(setFluids)
+  }, [newPlotKind])
 
   useEffect(() => {
     saveTables(tables)

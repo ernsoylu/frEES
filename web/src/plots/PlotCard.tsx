@@ -156,7 +156,7 @@ export function useDiagramData(spec: PlotSpec) {
   const { pressureKPa, tMinC, tMaxC } = spec.psychro
 
   useEffect(() => {
-    if (kind === 'xy') return
+    if (kind !== 'property' && kind !== 'psychro') return
     let cancelled = false
     setLoading(true)
     setError(null)
