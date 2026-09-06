@@ -225,7 +225,7 @@ impl ParamOverrides {
 /// component's ports **in declaration order** (shared-name connection: two
 /// instances naming the same stream are joined); `params` are `name=value`
 /// overrides of the component's defaults.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct ComponentInst {
     /// Lowercase name of the [`ComponentDef`] being instantiated (`type` in the
     /// Java record — a Rust keyword).
@@ -238,8 +238,23 @@ pub struct ComponentInst {
     /// The instantiation as the user wrote it, verbatim, for diagnostics.
     pub source_text: String,
     /// 1-based source line of the instantiation, 0 when unknown (test fixtures).
+    /// Navigation metadata: not part of structural equality, because the same
+    /// library instance is line 221 in its file and line 564 in the concatenated
+    /// source the Java parses as one string.
     pub line: usize,
 }
+
+impl PartialEq for ComponentInst {
+    fn eq(&self, other: &Self) -> bool {
+        self.type_name == other.type_name
+            && self.name == other.name
+            && self.port_args == other.port_args
+            && self.params == other.params
+            && self.source_text == other.source_text
+    }
+}
+
+impl Eq for ComponentInst {}
 
 /// One `connect(a.out, b.in, stream)` declaration.
 ///

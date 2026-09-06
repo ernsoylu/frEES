@@ -6,12 +6,14 @@ import { COMPONENT_CATALOG } from './componentCatalog'
 import { declaredInstances } from './schematic/declaration'
 import { previewDomain } from './schematic/wiring'
 
-const FLUID_MEMBERS = ['P', 'h', 'mdot', 'T']
-const HEAT_MEMBERS = ['T', 'Qdot']
-const ELEC_MEMBERS = ['V', 'I']
-const MECH_MEMBERS = ['w', 'tau']
-const TRANS_MEMBERS = ['vel', 'F']
-const SIGNAL_MEMBERS = ['sig']
+const DOMAIN_MEMBERS: Record<string, string[]> = {
+  heat: ['T', 'Qdot'],
+  electrical: ['V', 'I'],
+  mechanical: ['w', 'tau'],
+  translational: ['vel', 'F'],
+  signal: ['sig'],
+  fluid: ['P', 'h', 'mdot', 'T'],
+}
 
 export interface CompletionItem {
   label: string
@@ -27,22 +29,7 @@ export interface LocalComponent {
 }
 
 export function membersForDomain(domain: string | null): string[] {
-  switch (domain) {
-    case 'heat':
-      return HEAT_MEMBERS
-    case 'electrical':
-      return ELEC_MEMBERS
-    case 'mechanical':
-      return MECH_MEMBERS
-    case 'translational':
-      return TRANS_MEMBERS
-    case 'signal':
-      return SIGNAL_MEMBERS
-    case 'fluid':
-      return FLUID_MEMBERS
-    default:
-      return [...FLUID_MEMBERS, ...HEAT_MEMBERS, ...ELEC_MEMBERS]
-  }
+  return DOMAIN_MEMBERS[domain ?? ''] ?? [...DOMAIN_MEMBERS.fluid, ...DOMAIN_MEMBERS.heat, ...DOMAIN_MEMBERS.electrical]
 }
 
 function paramNames(list: string): string[] {
@@ -52,23 +39,28 @@ function paramNames(list: string): string[] {
     .filter((name) => /^[A-Za-z_][\w$]*$/.test(name))
 }
 
+function items(labels: string[], apply: (name: string) => string, info: string): CompletionItem[] {
+  return labels.map((label) => ({ label, type: 'property', apply: apply(label), info }))
+}
+
+function findLocal(text: string, typeName: string): LocalComponent | undefined {
+  return localComponentNames(text).find((c) => c.name.toLowerCase() === typeName.toLowerCase())
+}
+
 /** User `COMPONENT` / `SUBSYSTEM` blocks: ports from the header, params from PARAM. */
 export function localComponentNames(text: string): LocalComponent[] {
   const out: LocalComponent[] = []
   const re = /^\s*(?:COMPONENT|SUBSYSTEM)\s+(\w+)\s*\(([^)]*)\)/gim
   let m: RegExpExecArray | null
   while ((m = re.exec(text)) !== null) {
-    const name = m[1]
-    const ports = paramNames(m[2])
     const after = text.slice(m.index + m[0].length)
     const end = after.search(/^\s*END\b/im)
-    const body = end >= 0 ? after.slice(0, end) : after
     const params: string[] = []
-    for (const line of body.split('\n')) {
+    for (const line of (end >= 0 ? after.slice(0, end) : after).split('\n')) {
       const param = /^\s*PARAM\s+(.+)$/i.exec(line)
       if (param) params.push(...paramNames(param[1]))
     }
-    out.push({ name, ports, params })
+    out.push({ name: m[1], ports: paramNames(m[2]), params })
   }
   return out
 }
@@ -77,11 +69,10 @@ export function localSignature(
   text: string,
   typeName: string,
 ): { usage: string; detail: string } | null {
-  const local = localComponentNames(text).find((c) => c.name.toLowerCase() === typeName.toLowerCase())
+  const local = findLocal(text, typeName)
   if (!local) return null
-  const args = [...local.ports, ...local.params.map((p) => `${p}=`)]
   return {
-    usage: `${local.name} Instance(${args.join(', ')})`,
+    usage: `${local.name} Instance(${[...local.ports, ...local.params.map((p) => `${p}=`)].join(', ')})`,
     detail: 'Local component definition',
   }
 }
@@ -96,34 +87,15 @@ function catalogArgs(typeName: string): { ports: string[]; params: string[] } | 
 export function completionsForPrefix(text: string, prefix: string): CompletionItem[] | null {
   const dotted = /^(.*)\.([A-Za-z_][\w]*)?$/.exec(prefix)
   if (!dotted) return null
-  const head = dotted[1]
-  const parts = head.split('.')
-  const instances = declaredInstances(text)
-  const locals = localComponentNames(text)
-
+  const parts = dotted[1].split('.')
+  const inst = declaredInstances(text).get(parts[0].toLowerCase())
+  if (!inst) return null
   if (parts.length === 1) {
-    const inst = instances.get(parts[0].toLowerCase())
-    if (!inst) return null
-    const spec = catalogArgs(inst.type)
-    const local = locals.find((l) => l.name.toLowerCase() === inst.type.toLowerCase())
-    const ports = spec?.ports ?? local?.ports ?? []
-    return ports.map((p) => ({
-      label: p,
-      type: 'property',
-      apply: p,
-      info: `${inst.type} port`,
-    }))
+    const ports = catalogArgs(inst.type)?.ports ?? findLocal(text, inst.type)?.ports ?? []
+    return items(ports, (p) => p, `${inst.type} port`)
   }
   if (parts.length === 2) {
-    const inst = instances.get(parts[0].toLowerCase())
-    if (!inst) return null
-    const domain = previewDomain(inst.type, parts[1])
-    return membersForDomain(domain).map((m) => ({
-      label: m,
-      type: 'property',
-      apply: m,
-      info: `${inst.label}.${parts[1]} member`,
-    }))
+    return items(membersForDomain(previewDomain(inst.type, parts[1])), (m) => m, `${inst.label}.${parts[1]} member`)
   }
   return null
 }
@@ -143,18 +115,11 @@ export function parameterCompletions(
   typeName: string,
   already: ReadonlySet<string>,
 ): CompletionItem[] {
-  const spec = catalogArgs(typeName)
-  const local = localComponentNames(text).find((c) => c.name.toLowerCase() === typeName.toLowerCase())
-  const names = local?.params ?? spec?.params ?? []
-  const localNote = local ? ' (local)' : ''
-  return names
-    .filter((name) => !already.has(name.toLowerCase()))
-    .map((name) => ({
-      label: name,
-      type: 'property',
-      apply: `${name}=`,
-      info: `${typeName} parameter${localNote}`,
-    }))
+  const local = findLocal(text, typeName)
+  const names = (local?.params ?? catalogArgs(typeName)?.params ?? []).filter(
+    (name) => !already.has(name.toLowerCase()),
+  )
+  return items(names, (name) => `${name}=`, `${typeName} parameter${local ? ' (local)' : ''}`)
 }
 
 export function namedArgsAlreadyPresent(callText: string): Set<string> {
