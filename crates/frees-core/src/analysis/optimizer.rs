@@ -218,6 +218,7 @@ impl OptimizeResult {
 /// (inequality) or `h(x) = 0` (equality) — the Java `ParsedConstraint`.
 #[derive(Debug, Clone, PartialEq)]
 struct ParsedConstraint {
+    index: usize,
     lhs_expr: String,
     operator: ConstraintOp,
     rhs_value: f64,
@@ -307,13 +308,32 @@ fn parse_constraints(raw: &[String]) -> Result<Vec<ParsedConstraint>> {
                  in constraint '{constraint}'."
             )));
         };
+        let index = parsed.len();
         parsed.push(ParsedConstraint {
+            index,
             lhs_expr: lhs.trim().to_string(),
             operator,
             rhs_value,
         });
     }
     Ok(parsed)
+}
+
+/// Selects a temporary variable prefix for constraint LHS expressions that is
+/// guaranteed not to collide with any identifier in the problem text.
+fn choose_constraint_prefix(text: &str) -> String {
+    let base = "zz_opt_con_";
+    if !text.contains(base) {
+        return base.to_string();
+    }
+    let mut i = 1;
+    loop {
+        let cand = format!("zz_opt_con_{i}_");
+        if !text.contains(&cand) {
+            return cand;
+        }
+        i += 1;
+    }
 }
 
 /// Constraint tolerance relative to the magnitude of the RHS constant.
@@ -392,7 +412,7 @@ fn validate(problem: &Problem) -> Result<()> {
 /// The Java `unconstrainedOptimize`.
 fn unconstrained_optimize(problem: &Problem) -> Result<OptimizeResult> {
     if problem.decisions.len() == 1 && problem.is_brent() {
-        let mut ctx = Ctx::new(problem, MAX_EVALUATIONS);
+        let mut ctx = Ctx::new(problem, &[], "", MAX_EVALUATIONS);
         // `SearchInterval(lo, hi)` starts at the midpoint; Brent never sees
         // the spec's guess in the 1-D path.
         let point = brent_optimize(
@@ -421,7 +441,7 @@ fn unconstrained_optimize(problem: &Problem) -> Result<OptimizeResult> {
             warning: None,
         });
     }
-    multivariate_optimize(problem, &[], 0.0, &[], 0.0, None, None)
+    multivariate_optimize(problem, &[], "", &[], 0.0, &[], 0.0, None, None)
 }
 
 // ---------------------------------------------------------------------------
@@ -432,6 +452,7 @@ fn unconstrained_optimize(problem: &Problem) -> Result<OptimizeResult> {
 /// iteratively tighten the barrier parameter μ and the Lagrangian weight ρ
 /// until every constraint holds within tolerance.
 fn constrained_optimize(problem: &Problem) -> Result<OptimizeResult> {
+    let con_var_prefix = choose_constraint_prefix(&problem.text);
     let all_constraints = parse_constraints(&problem.constraints)?;
     let inequalities: Vec<ParsedConstraint> = all_constraints
         .iter()
@@ -458,10 +479,13 @@ fn constrained_optimize(problem: &Problem) -> Result<OptimizeResult> {
 
     let mut best_point = initial_guess(problem);
     let mut total_evaluations = 0usize;
+    let mut last_inner: Option<OptimizeResult> = None;
 
     for _outer in 0..CONSTRAINED_MAX_OUTER_ITERATIONS {
         let inner = multivariate_optimize(
             problem,
+            &all_constraints,
+            &con_var_prefix,
             &inequalities,
             mu,
             &equalities,
@@ -470,17 +494,18 @@ fn constrained_optimize(problem: &Problem) -> Result<OptimizeResult> {
             Some(&best_point),
         )?;
 
-        best_point = inner.decision_values;
+        best_point = inner.decision_values.clone();
         total_evaluations += inner.evaluations;
 
         let all_satisfied = update_and_check_constraints(
             &inequalities,
             &equalities,
-            problem,
-            &best_point,
+            &con_var_prefix,
+            &inner.solution,
             &mut lambda,
             rho,
         );
+        last_inner = Some(inner);
         if all_satisfied {
             break;
         }
@@ -493,15 +518,16 @@ fn constrained_optimize(problem: &Problem) -> Result<OptimizeResult> {
         }
     }
 
-    let solution = solve_with_decisions(problem, &best_point)?;
-    let objective_value = read_objective(&solution, &problem.objective)?;
-    let warning = build_constraint_warning(&all_constraints, problem, &best_point);
+    let mut final_result = last_inner.expect("at least one outer iteration executed");
+    let warning =
+        build_constraint_warning(&all_constraints, &con_var_prefix, &final_result.solution);
+    strip_constraint_variables(&mut final_result.solution, &con_var_prefix);
 
     Ok(OptimizeResult {
-        decision_values: best_point,
-        objective_value,
+        decision_values: final_result.decision_values,
+        objective_value: final_result.objective_value,
         evaluations: total_evaluations,
-        solution: Box::new(solution),
+        solution: final_result.solution,
         warning,
     })
 }
@@ -515,29 +541,25 @@ fn constrained_optimize(problem: &Problem) -> Result<OptimizeResult> {
 fn update_and_check_constraints(
     inequalities: &[ParsedConstraint],
     equalities: &[ParsedConstraint],
-    problem: &Problem,
-    best_point: &[f64],
+    con_var_prefix: &str,
+    solution: &Solution,
     lambda: &mut [f64],
     rho: f64,
 ) -> bool {
     let mut all_satisfied = true;
     for c in inequalities {
-        let g = c.normalised(evaluate_constraint_expression_or_nan(
-            &c.lhs_expr,
-            problem,
-            best_point,
-        ));
+        let key = format!("{con_var_prefix}{}", c.index);
+        let lhs_val = solution.values.get(&key).copied().unwrap_or(f64::NAN);
+        let g = c.normalised(lhs_val);
         if g > tolerance(c) {
             all_satisfied = false;
             break;
         }
     }
     for (j, c) in equalities.iter().enumerate() {
-        let h = c.normalised(evaluate_constraint_expression_or_nan(
-            &c.lhs_expr,
-            problem,
-            best_point,
-        ));
+        let key = format!("{con_var_prefix}{}", c.index);
+        let lhs_val = solution.values.get(&key).copied().unwrap_or(f64::NAN);
+        let h = c.normalised(lhs_val);
         if h.abs() > tolerance(c) {
             all_satisfied = false;
         }
@@ -549,12 +571,13 @@ fn update_and_check_constraints(
 /// The Java `buildConstraintWarning`.
 fn build_constraint_warning(
     all_constraints: &[ParsedConstraint],
-    problem: &Problem,
-    best_point: &[f64],
+    con_var_prefix: &str,
+    solution: &Solution,
 ) -> Option<String> {
     let mut warning: Option<String> = None;
     for c in all_constraints {
-        let lhs_val = evaluate_constraint_expression_or_nan(&c.lhs_expr, problem, best_point);
+        let key = format!("{con_var_prefix}{}", c.index);
+        let lhs_val = solution.values.get(&key).copied().unwrap_or(f64::NAN);
         let v = if c.is_equality() {
             c.normalised(lhs_val).abs()
         } else {
@@ -587,6 +610,8 @@ fn build_constraint_warning(
 /// empty ⇒ the plain unconstrained path).
 fn multivariate_optimize(
     problem: &Problem,
+    all_constraints: &[ParsedConstraint],
+    con_var_prefix: &str,
     inequalities: &[ParsedConstraint],
     mu: f64,
     equalities: &[ParsedConstraint],
@@ -595,7 +620,12 @@ fn multivariate_optimize(
     warm_start: Option<&[f64]>,
 ) -> Result<OptimizeResult> {
     let n = problem.decisions.len();
-    let mut ctx = Ctx::new(problem, MULTIVARIATE_MAX_EVALUATIONS);
+    let mut ctx = Ctx::new(
+        problem,
+        all_constraints,
+        con_var_prefix,
+        MULTIVARIATE_MAX_EVALUATIONS,
+    );
     ctx.penalty = if inequalities.is_empty() && equalities.is_empty() {
         None
     } else {
@@ -654,7 +684,7 @@ fn multivariate_optimize(
         best_points[i] = jmax(lower_bounds[i], jmin(upper_bounds[i], best_points[i]));
     }
 
-    let solution = solve_with_decisions(problem, &best_points)?;
+    let solution = solve_candidate(problem, &best_points, all_constraints, con_var_prefix)?;
     let objective_value = read_objective(&solution, &problem.objective)?;
     Ok(OptimizeResult {
         decision_values: best_points,
@@ -714,6 +744,8 @@ type EvalResult = std::result::Result<f64, EvalAbort>;
 /// ```
 struct Ctx<'a> {
     problem: &'a Problem,
+    all_constraints: &'a [ParsedConstraint],
+    con_var_prefix: &'a str,
     /// The Java `AtomicInteger evaluations` — full system solves attempted.
     evaluations: usize,
     /// Apache's `Incrementor` count.
@@ -730,9 +762,16 @@ struct Ctx<'a> {
 }
 
 impl<'a> Ctx<'a> {
-    fn new(problem: &'a Problem, max: usize) -> Ctx<'a> {
+    fn new(
+        problem: &'a Problem,
+        all_constraints: &'a [ParsedConstraint],
+        con_var_prefix: &'a str,
+        max: usize,
+    ) -> Ctx<'a> {
         Ctx {
             problem,
+            all_constraints,
+            con_var_prefix,
             evaluations: 0,
             used: 0,
             max,
@@ -812,45 +851,23 @@ impl<'a> Ctx<'a> {
     /// The Java `evaluateWithPenalty` (or a bare objective when the problem is
     /// unconstrained).
     fn penalised(&mut self, point: &[f64]) -> EvalResult {
-        // The objective solve always runs first — both Java paths call
-        // `evaluateObjectiveMultivariate` before touching a constraint — which
-        // is also what lets the penalty terms borrow `self` afterwards.
-        let mut obj = self.raw_objective(point)?;
-        let problem = self.problem;
-        let Some(penalty) = self.penalty.as_ref() else {
-            return Ok(obj);
-        };
-        if obj == PENALTY || obj == -PENALTY {
-            return Ok(obj);
-        }
-        let sign = if problem.maximize { 1.0 } else { -1.0 };
-        let infeasible = if problem.maximize { -PENALTY } else { PENALTY };
-        obj = apply_inequality_penalties(obj, sign, penalty, problem, point);
-        if obj.is_nan() {
-            return Ok(infeasible);
-        }
-        obj = apply_equality_penalties(obj, sign, penalty, problem, point);
-        if obj.is_nan() {
-            return Ok(infeasible);
-        }
-        Ok(obj)
-    }
-
-    /// The Java `evaluateObjective` / `evaluateObjectiveMultivariate`: one full
-    /// system solve with the decisions pinned. A parse or solver failure is
-    /// [`PENALTY`] rather than an abort — but a *successful* solve whose result
-    /// lacks the objective variable throws, because that is a broken request.
-    fn raw_objective(&mut self, point: &[f64]) -> EvalResult {
         self.evaluations += 1;
         let infeasible = if self.problem.maximize {
             -PENALTY
         } else {
             PENALTY
         };
-        let Ok(solution) = solve_with_decisions(self.problem, point) else {
+
+        let Ok(solution) = solve_candidate(
+            self.problem,
+            point,
+            self.all_constraints,
+            self.con_var_prefix,
+        ) else {
             return Ok(infeasible);
         };
-        solution
+
+        let raw_obj = solution
             .values
             .get(&self.problem.objective.to_ascii_lowercase())
             .copied()
@@ -859,65 +876,65 @@ impl<'a> Ctx<'a> {
                     "The objective variable '{}' is not part of the system.",
                     self.problem.objective
                 )))
-            })
-    }
-}
+            })?;
 
-/// The Java `applyInequalityPenalties`. Feasible: the log-barrier `∓μ·ln(−g)`
-/// repels the iterate from the boundary. Infeasible: a smooth exterior
-/// quadratic penalty of weight `1/μ` points back into the feasible region.
-/// Returns NaN if a constraint LHS is NaN.
-fn apply_inequality_penalties(
-    mut obj: f64,
-    sign: f64,
-    penalty: &Penalty,
-    problem: &Problem,
-    point: &[f64],
-) -> f64 {
-    for c in &penalty.inequalities {
-        let lhs_val = evaluate_constraint_expression_or_nan(&c.lhs_expr, problem, point);
-        if lhs_val.is_nan() {
-            return f64::NAN;
+        let Some(penalty) = self.penalty.as_ref() else {
+            return Ok(raw_obj);
+        };
+        if raw_obj == PENALTY || raw_obj == -PENALTY {
+            return Ok(raw_obj);
         }
-        let g = c.normalised(lhs_val);
-        if g >= 0.0 {
-            let weight = 1.0 / jmax(penalty.mu, BARRIER_MU_MIN);
-            obj -= sign * weight * (g * g + g);
-        } else {
-            obj += sign * penalty.mu * (-g).ln();
-        }
-    }
-    obj
-}
 
-/// The Java `applyEqualityPenalties`: `λᵀh(x) + (ρ/2)‖h(x)‖²`. Returns NaN if a
-/// constraint LHS is NaN.
-fn apply_equality_penalties(
-    mut obj: f64,
-    sign: f64,
-    penalty: &Penalty,
-    problem: &Problem,
-    point: &[f64],
-) -> f64 {
-    for (j, c) in penalty.equalities.iter().enumerate() {
-        let lhs_val = evaluate_constraint_expression_or_nan(&c.lhs_expr, problem, point);
-        if lhs_val.is_nan() {
-            return f64::NAN;
+        let sign = if self.problem.maximize { 1.0 } else { -1.0 };
+        let mut obj = raw_obj;
+
+        for c in &penalty.inequalities {
+            let key = format!("{}{}", self.con_var_prefix, c.index);
+            let Some(&lhs_val) = solution.values.get(&key).filter(|v| v.is_finite()) else {
+                return Ok(infeasible);
+            };
+            let g = c.normalised(lhs_val);
+            if g >= 0.0 {
+                let weight = 1.0 / jmax(penalty.mu, BARRIER_MU_MIN);
+                obj -= sign * weight * (g * g + g);
+            } else {
+                obj += sign * penalty.mu * (-g).ln();
+            }
         }
-        let h = c.normalised(lhs_val);
-        obj -= sign * (penalty.lambda[j] * h + (penalty.rho / 2.0) * h * h);
+        if obj.is_nan() {
+            return Ok(infeasible);
+        }
+
+        for (j, c) in penalty.equalities.iter().enumerate() {
+            let key = format!("{}{}", self.con_var_prefix, c.index);
+            let Some(&lhs_val) = solution.values.get(&key).filter(|v| v.is_finite()) else {
+                return Ok(infeasible);
+            };
+            let h = c.normalised(lhs_val);
+            obj -= sign * (penalty.lambda[j] * h + (penalty.rho / 2.0) * h * h);
+        }
+        if obj.is_nan() {
+            return Ok(infeasible);
+        }
+
+        Ok(obj)
     }
-    obj
 }
 
 // ---------------------------------------------------------------------------
 // Talking to the solver
 // ---------------------------------------------------------------------------
 
-/// The Java `solveWithDecisions`: append `decision = value` for every decision
-/// and re-solve the whole document.
-fn solve_with_decisions(problem: &Problem, values: &[f64]) -> Result<Solution> {
-    let mut augmented = String::with_capacity(problem.text.len() + 32 * values.len());
+/// Pin the decisions, add one `<prefix><i> = <c.lhs_expr>` equation per
+/// constraint, and solve once.
+fn solve_candidate(
+    problem: &Problem,
+    values: &[f64],
+    constraints: &[ParsedConstraint],
+    con_var_prefix: &str,
+) -> Result<Solution> {
+    let mut augmented =
+        String::with_capacity(problem.text.len() + 32 * (values.len() + constraints.len()));
     augmented.push_str(&problem.text);
     for (name, value) in problem.decisions.iter().zip(values) {
         augmented.push('\n');
@@ -925,8 +942,44 @@ fn solve_with_decisions(problem: &Problem, values: &[f64]) -> Result<Solution> {
         augmented.push_str(" = ");
         augmented.push_str(&plain_string(*value));
     }
+    for c in constraints {
+        augmented.push('\n');
+        augmented.push_str(con_var_prefix);
+        augmented.push_str(&c.index.to_string());
+        augmented.push_str(" = ");
+        augmented.push_str(&c.lhs_expr);
+    }
     crate::engine::solve_with(&augmented, &problem.settings, &problem.overrides)
         .map_err(|failure| failure.error)
+}
+
+/// The Java `solveWithDecisions`: append `decision = value` for every decision
+/// and re-solve the whole document.
+fn solve_with_decisions(problem: &Problem, values: &[f64]) -> Result<Solution> {
+    solve_candidate(problem, values, &[], "")
+}
+
+/// Strips temporary constraint variables introduced during optimization from the final solution.
+fn strip_constraint_variables(solution: &mut Solution, prefix: &str) {
+    if prefix.is_empty() {
+        return;
+    }
+    solution.values.retain(|k, _| !k.starts_with(prefix));
+    solution.display_names.retain(|k, _| !k.starts_with(prefix));
+    solution
+        .inferred_units
+        .retain(|k, _| !k.starts_with(prefix));
+    solution
+        .residuals
+        .retain(|r| !r.equation.trim_start().starts_with(prefix));
+    solution.blocks.retain_mut(|b| {
+        b.variables.retain(|v| !v.starts_with(prefix));
+        !b.variables.is_empty()
+    });
+    solution.block_equations.retain_mut(|eqs| {
+        eqs.retain(|eq| !eq.trim_start().starts_with(prefix));
+        !eqs.is_empty()
+    });
 }
 
 /// The Java `result.variables().get(objective)`.
@@ -945,45 +998,6 @@ fn read_objective(solution: &Solution, objective: &str) -> Result<f64> {
                 "The objective variable '{objective}' is not part of the solution."
             ))
         })
-}
-
-/// The Java `evaluateConstraintExpression`: inject the decision values, add a
-/// temporary equation `zz_constraint_lhs_zz = <expr>`, solve, and read it back.
-///
-/// The name must start with a letter because the grammar's IDENT rule rejects a
-/// leading underscore.
-fn evaluate_constraint_expression(expr: &str, problem: &Problem, point: &[f64]) -> Result<f64> {
-    const CONSTRAINT_VAR: &str = "zz_constraint_lhs_zz";
-    let mut augmented = String::with_capacity(problem.text.len() + 64);
-    augmented.push_str(&problem.text);
-    for (name, value) in problem.decisions.iter().zip(point) {
-        augmented.push('\n');
-        augmented.push_str(name);
-        augmented.push_str(" = ");
-        augmented.push_str(&plain_string(*value));
-    }
-    augmented.push('\n');
-    augmented.push_str(CONSTRAINT_VAR);
-    augmented.push_str(" = ");
-    augmented.push_str(expr);
-
-    let solution = crate::engine::solve_with(&augmented, &problem.settings, &problem.overrides)
-        .map_err(|failure| failure.error)?;
-    solution.values.get(CONSTRAINT_VAR).copied().ok_or_else(|| {
-        FreesError::solver(format!("Could not evaluate constraint expression: {expr}"))
-    })
-}
-
-/// The Java `evaluateConstraintExpressionSafe`.
-///
-/// The Java's *unsafe* variant is used in `updateAndCheckConstraints` and
-/// `buildConstraintWarning`, where a throw would abort the run. In practice both
-/// sites run on a point the search already evaluated successfully, so the
-/// distinction is unobservable; failing soft to NaN there is strictly safer than
-/// aborting a completed optimisation, and NaN compares false against every
-/// tolerance, so a NaN never reports a satisfied constraint.
-fn evaluate_constraint_expression_or_nan(expr: &str, problem: &Problem, point: &[f64]) -> f64 {
-    evaluate_constraint_expression(expr, problem, point).unwrap_or(f64::NAN)
 }
 
 /// The Java `initialGuess`: the decision's own spec guess when the Variable
@@ -1653,11 +1667,13 @@ mod tests {
     #[test]
     fn normalisation_matches_the_java_table() {
         let le = ParsedConstraint {
+            index: 0,
             lhs_expr: "x".into(),
             operator: ConstraintOp::Le,
             rhs_value: 5.0,
         };
         let ge = ParsedConstraint {
+            index: 0,
             lhs_expr: "x".into(),
             operator: ConstraintOp::Ge,
             rhs_value: 5.0,
@@ -1869,6 +1885,11 @@ mod tests {
             result.decision_values[0]
         );
         assert!(result.warning.is_none(), "{:?}", result.warning);
+        assert!(!result
+            .solution
+            .values
+            .keys()
+            .any(|k| k.starts_with("zz_opt_con_")));
     }
 
     #[test]
@@ -1886,6 +1907,11 @@ mod tests {
         let result = optimize(&p).unwrap();
         let sum = result.decision_values[0] + result.decision_values[1];
         assert!((sum - 2.0).abs() < 1e-2, "a + b = {sum}");
+        assert!(!result
+            .solution
+            .values
+            .keys()
+            .any(|k| k.starts_with("zz_opt_con_")));
     }
 
     #[test]

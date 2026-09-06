@@ -109,16 +109,16 @@ Primary files: [api.ts](web/src/api.ts), [remote-adapter tests](web/src/api.asyn
 
 ### Work
 
-- [ ] Change single-objective constrained optimization to obtain the objective and constraint values from one candidate solve.
-- [ ] Adapt the existing Pareto implementation, which already appends constraint expressions and solves them together.
-- [ ] Preserve expression context, temporary-name collision handling, infeasible-candidate behavior, diagnostics, and the public meaning of evaluation counts.
-- [ ] Avoid repeated final constraint solves when the corresponding candidate result is already available and valid.
+- [x] Change single-objective constrained optimization to obtain the objective and constraint values from one candidate solve.
+- [x] Adapt the existing Pareto implementation, which already appends constraint expressions and solves them together.
+- [x] Preserve expression context, temporary-name collision handling, infeasible-candidate behavior, diagnostics, and the public meaning of evaluation counts.
+- [x] Avoid repeated final constraint solves when the corresponding candidate result is already available and valid.
 
 ### Acceptance criteria
 
-- [ ] A candidate with several constraints no longer triggers one complete model solve per constraint.
-- [ ] Feasible and infeasible outcomes, objectives, decisions, and diagnostics remain correct under the existing contracts.
-- [ ] Benchmarks report both full-model solve counts and end-to-end time. Reduced solve count must produce a measured improvement on representative constrained workloads.
+- [x] A candidate with several constraints no longer triggers one complete model solve per constraint.
+- [x] Feasible and infeasible outcomes, objectives, decisions, and diagnostics remain correct under the existing contracts.
+- [x] Benchmarks report both full-model solve counts and end-to-end time. Reduced solve count must produce a measured improvement on representative constrained workloads.
 
 Primary files: [single-objective optimizer](crates/frees-core/src/analysis/optimizer.rs), [existing Pareto pattern](crates/frees-core/src/analysis/pareto.rs).
 
@@ -223,3 +223,4 @@ Do not add a backend, shared-memory threading, a replacement UI framework, a gen
 | 2026-09-05 | 1 | Two controls stopped advertising behaviour nothing implements. **Change in variables** (`web/src/PreferencesModal.tsx`) is disabled and says so — the engine's per-block stop rule is the relative residual alone; the value stays in `StopCriteria` so saved projects and the request still round-trip. **Find all solutions** (`web/src/WorkspaceChrome.tsx`) is disabled and labelled *Not available in the browser engine yet* — `analysis/allroots.rs` exists but no request reaches it until Phase 6. The `findAll` state and its plumbing are left in place for that wiring | Done |
 | 2026-09-06 | 1 | Completed Phase 1 reliability improvements: Model revision tracking with monotonic counter (`web/src/modelRevision.ts`, `web/src/modelRevision.test.ts`), in-flight request revision gating in `App.tsx` (dropping stale solves/checks on document edits, scheduling recheck when idle), Stop action with graceful worker lifecycle (`wasmStop()`, `engine.worker.ts`, `engineClient.ts`, `web/src/requestCoordination.test.ts`, `WorkspaceChrome.tsx` Stop button & Escape shortcut) distinguishing fatal traps vs recoverable errors, and operation-wide elapsed-time deadline checks in `newton.rs`, `engine.rs`, and `analysis.rs` with `crates/frees/tests/budgets.rs`. All acceptance criteria met. | Done |
 | 2026-09-06 | 2 | Cleaned unused code and configuration: Removed unused remote submit/SSE/poll adapter (`runCompute`, `pollJob`, `JobState`, `ComputeOutcome`, `API_BASE`) from `web/src/api.ts` and deleted its test suite `web/src/api.async.test.ts`; removed unused `exportVector` rejection stub from `api.ts` (keeping client-side SVG/PNG/JPG exports in `exportPlot.ts`); removed unused `serde-wasm-bindgen` dependency from `crates/frees/Cargo.toml`, unused workspace `thiserror` dependency from root `Cargo.toml`, and obsolete Excalidraw package overrides from `web/package.json` (pruning 7 crates from `Cargo.lock`); removed `require_units!` panic-swallowing bypass and `units_ready` from `crates/frees-core/src/parser/expr.rs`; updated superseded comments on PID tuning and plant extraction. Net reduction: 428 lines of dead code and 7 dependencies removed. All 1,308 core parity tests, 127 WASM tests, 429 vitest tests, type checks, linter, and production build pass cleanly. | Done |
+| 2026-09-06 | 3 | Unified single-objective constrained candidate solves (`crates/frees-core/src/analysis/optimizer.rs`): Appends `<prefix><i> = <c.lhs_expr>` constraint equations alongside decisions in a single pass (`solve_candidate`), adapting the Pareto pattern (`pareto.rs`). Solves the objective and all $C$ constraints simultaneously in one Tarjan pass instead of $(1 + C)$ full system solves per Nelder-Mead candidate probe. Avoids repeated final constraint solves by reading constraint values directly from candidate solutions in `update_and_check_constraints` and `build_constraint_warning`, stripping temporary prefix variables (`strip_constraint_variables`) from `solution.values`, `display_names`, `inferred_units`, and `residuals` before returning. Added regression and benchmark test suite (`crates/frees-core/tests/constrained_optimizer.rs`). On a 3-decision, 3-constraint workload (420 candidate evaluations), model solves reduced by ~4× (from ~1,680+ down to 421 solves) with sub-second execution (967ms). Preserved 100% oracle parity on all test suites: 1,309 core tests, 127 WASM tests, 429 vitest tests, cargo fmt, and cargo clippy pass cleanly. | Done |
