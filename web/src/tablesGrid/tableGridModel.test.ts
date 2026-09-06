@@ -530,6 +530,13 @@ describe('csvValuesFor', () => {
     ])
     expect(csvValuesFor(spec1D())[0]).toEqual(['Re', 'y'])
   })
+
+  it('formats a report export without changing the exact-data grid values', () => {
+    const spec = spec1D({ rows: [{ x: '1.000001', ys: ['1.23456789'] }] })
+    expect(csvValuesFor(spec, 'exact')[1]).toEqual(['1.000001', '1.23456789'])
+    expect(csvValuesFor(spec, 'display')[1][1]).toBe(Number.parseFloat((1.23456789).toPrecision(6)).toString())
+    expect(spec.rows[0].ys[0]).toBe('1.23456789')
+  })
 })
 
 describe('atomic edits and scoped history', () => {

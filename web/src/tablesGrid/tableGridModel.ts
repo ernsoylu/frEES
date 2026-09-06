@@ -20,7 +20,7 @@ import { detachLegacyFormulas } from '../tables'
 //                they map back to spec.columns) or the fixed 'y' label (1-D).
 //                Data rows follow at grid rows 1..N.
 
-import { newParamRow, ParamRow, ParamTableSpec, TableSpec } from '../tables'
+import { fmt6, newParamRow, ParamRow, ParamTableSpec, TableSpec } from '../tables'
 
 /** Hard cap on data rows (contract a of the old binding layer, kept): a
  * runaway 50k-row paste truncates here instead of bloating the .frees file
@@ -585,16 +585,50 @@ export function applyColumnFill(
 // ---------------------------------------------------------------------------
 // CSV export (what the grid shows: headers + merged computed values)
 
-export function csvValuesFor(spec: TableSpec): string[][] {
+export type CsvExportMode = 'exact' | 'display'
+
+function formatExportCell(text: string, mode: CsvExportMode): string {
+  if (mode === 'exact') return text
+  const n = Number(text)
+  return text.trim() !== '' && Number.isFinite(n) ? fmt6(n) : text
+}
+
+export function csvValuesFor(spec: TableSpec, mode: CsvExportMode = 'exact'): string[][] {
   const out: string[][] = [headerTitles(spec)]
   if (spec.kind === 'function') {
-    for (const row of spec.rows) out.push([row.x, ...spec.columns.map((_, j) => row.ys[j] ?? '')])
+    for (const row of spec.rows) {
+      out.push([row.x, ...spec.columns.map((_, j) => row.ys[j] ?? '')].map((c) => formatExportCell(c, mode)))
+    }
     return out
   }
   spec.rows.forEach((_, i) => {
     out.push(
-      Array.from({ length: boundColumnCount(spec) }, (_, c) => cellViewAt(spec, i, c).text),
+      Array.from({ length: boundColumnCount(spec) }, (_, c) =>
+        formatExportCell(cellViewAt(spec, i, c).text, mode),
+      ),
     )
   })
   return out
+}
+
+export function csvExportComments(spec: TableSpec, mode: CsvExportMode): string[] {
+  const units =
+    spec.kind === 'function'
+      ? `arg=${spec.argUnit || 'unknown'} output=${spec.outputUnit || 'unknown'}${spec.paramUnit ? ` param=${spec.paramUnit}` : ''}`
+      : spec.vars.map((name) => `${name}=${spec.columnUnits?.[name] || 'unknown'}`).join(' ')
+  const status =
+    spec.kind === 'parametric'
+      ? `status=${spec.runStatus ?? 'not-run'} revision=${spec.resultRevision ?? 'none'}`
+      : spec.source === 'code'
+        ? 'status=code-owned'
+        : 'status=editable'
+  return [
+    'frees table export',
+    `name=${spec.name}`,
+    `kind=${spec.kind}`,
+    `units ${units}`,
+    status,
+    `values=${mode}`,
+    'scope=all',
+  ]
 }

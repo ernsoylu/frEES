@@ -16,21 +16,26 @@
 // numeric-looking failures are listed on `rejectedRows` so the dialog can show
 // them. Delimiter/header/decimal/unit-row overrides come from the import dialog.
 
-/** CSV download for the Tables workbook: quote-double `"` and wrap any cell
- *  containing a comma, quote, or newline. */
-export function downloadValuesAsCsv(values: unknown[][], filename: string): void {
-  const csvStr = values
-    .map((row) =>
-      row
-        .map((cell) => {
-          let val = String(cell ?? '').replaceAll('"', '""')
-          if (val.includes(',') || val.includes('"') || val.includes('\n')) val = `"${val}"`
-          return val
-        })
-        .join(','),
-    )
-    .join('\n')
-  const blob = new Blob([csvStr], { type: 'text/csv' })
+/** Quote-double `"` and wrap any cell containing a comma, quote, CR or LF. */
+export function csvCell(value: unknown): string {
+  let val = String(value ?? '').replaceAll('"', '""')
+  if (/[",\r\n]/.test(val)) val = `"${val}"`
+  return val
+}
+
+export function serializeCsv(values: unknown[][], comments: readonly string[] = []): string {
+  const lines = comments.map((comment) => `# ${comment.replace(/[\r\n]+/g, ' ')}`)
+  for (const row of values) lines.push(row.map(csvCell).join(','))
+  return lines.join('\n')
+}
+
+/** CSV download for the Tables workbook. */
+export function downloadValuesAsCsv(
+  values: unknown[][],
+  filename: string,
+  comments: readonly string[] = [],
+): void {
+  const blob = new Blob([serializeCsv(values, comments)], { type: 'text/csv' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
@@ -258,7 +263,10 @@ export interface CsvOptions {
 
 export function parseCsvTable(text: string, delimiter?: string, options: CsvOptions = {}): CsvTable {
   const delim = delimiter ?? detectDelimiter(text)
-  const rows = splitCsvRows(text, delim).filter((r) => r.some((c) => c.trim() !== ''))
+  const rows = splitCsvRows(text, delim).filter((r) => {
+    if (!r.some((c) => c.trim() !== '')) return false
+    return !(r[0]?.trim().startsWith('#') && r.every((c, i) => i === 0 || c.trim() === ''))
+  })
   if (rows.length === 0) {
     return { columns: [], rowCount: 0, headerless: false, delimiter: delim }
   }

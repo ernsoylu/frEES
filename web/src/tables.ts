@@ -495,6 +495,8 @@ export function mergeCodeTables(
 /** Makes an independent, editable GUI copy of a code-defined table, decoupled
  * from the editor text. The copy is renamed to avoid clashing with the
  * code-defined original (which still wins in the solver by its text name). */
+/** Input-only editable copy: parametric results are not carried over, so
+ *  solved outputs cannot become constraints on the next run. */
 export function duplicateAsEditable(table: TableSpec, existing: TableSpec[] = [table]): TableSpec {
   table = detachLegacyFormulas(table)
   const name = uniqueTableName(`${table.name}_copy`, existing)
@@ -518,6 +520,27 @@ export function duplicateAsEditable(table: TableSpec, existing: TableSpec[] = [t
     checkResult: null,
     checkMessage: '',
     source: 'gui',
+    runStatus: 'not-run',
+    resultRevision: undefined,
+  }
+}
+
+/** Snapshot copy: successful solved outputs are frozen as typed inputs. */
+export function duplicateAsSnapshot(table: TableSpec, existing: TableSpec[] = [table]): TableSpec {
+  if (table.kind !== 'parametric') return duplicateAsEditable(table, existing)
+  const name = uniqueTableName(`${table.name}_snapshot`, existing)
+  return {
+    ...duplicateAsEditable(table, existing),
+    name,
+    rows: table.rows.map((row, i) => {
+      const values = { ...row.values }
+      for (const name of table.vars) {
+        if ((values[name] ?? '').trim()) continue
+        const v = table.results[i]?.success ? table.results[i].values[name] : undefined
+        if (typeof v === 'number' && Number.isFinite(v)) values[name] = String(v)
+      }
+      return { id: crypto.randomUUID(), values }
+    }),
   }
 }
 

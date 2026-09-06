@@ -80,6 +80,7 @@ import {
   boundColumnCount,
   cellViewAt,
   clearCells,
+  csvExportComments,
   csvValuesFor,
   gridRowCount,
   headerTitles,
@@ -468,9 +469,14 @@ export default function TablesGridTab({
     setRenamingId(null)
   }
 
-  const handleExportCsv = () => {
+  const handleExportCsv = (mode: 'exact' | 'display') => {
     if (!active) return
-    downloadValuesAsCsv(csvValuesFor(active), `${active.name || 'table'}.csv`)
+    const suffix = mode === 'display' ? '.display.csv' : '.csv'
+    downloadValuesAsCsv(
+      csvValuesFor(active, mode),
+      `${active.name || 'table'}${suffix}`,
+      csvExportComments(active, mode),
+    )
   }
 
   const multiCurve = (activeFn?.columns.length ?? 0) > 1
@@ -493,11 +499,21 @@ export default function TablesGridTab({
           <Text size="xs" fw={700} c="dimmed">
             Tables
           </Text>
-          <Tooltip label="Export the active table as CSV">
-            <ActionIcon size="sm" variant="light" aria-label="Export active table as CSV" onClick={handleExportCsv} disabled={!active}>
-              <IconDownload size={14} />
-            </ActionIcon>
-          </Tooltip>
+          <Menu position="bottom-end" shadow="md">
+            <Menu.Target>
+              <ActionIcon size="sm" variant="light" aria-label="Export active table as CSV" disabled={!active}>
+                <IconDownload size={14} />
+              </ActionIcon>
+            </Menu.Target>
+            <Menu.Dropdown>
+              <Menu.Item leftSection={<IconFileTypeCsv size={14} />} onClick={() => handleExportCsv('exact')}>
+                Exact values (round-trip)
+              </Menu.Item>
+              <Menu.Item leftSection={<IconFileTypeCsv size={14} />} onClick={() => handleExportCsv('display')}>
+                Formatted report (6 significant digits)
+              </Menu.Item>
+            </Menu.Dropdown>
+          </Menu>
           <Menu position="bottom-start" shadow="md">
             <Menu.Target>
               <ActionIcon size="sm" variant="light" aria-label="Add table">

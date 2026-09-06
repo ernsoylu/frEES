@@ -7,7 +7,7 @@
 // functionSpecFromXY — because that pairing is the feature.
 
 import { describe, expect, it } from 'vitest'
-import { detectDelimiter, parseCsvTable, splitCsvRows } from './csv'
+import { detectDelimiter, parseCsvTable, serializeCsv, splitCsvRows } from './csv'
 import { functionSpecFromXY } from './composeTables'
 
 const numbers = (col: { values: Float64Array }) => Array.from(col.values)
@@ -214,6 +214,15 @@ describe('CSV interpretation escape hatches (T8)', () => {
       { record: 3, reason: 'Ragged record; missing cells remain blank' },
       { record: 5, reason: 'Column 2: invalid number' },
     ])
+  })
+
+  it('quotes CR as well as LF and skips comment lines on re-import', () => {
+    const text = serializeCsv([['a', 'b\rc'], ['1', '2']], ['name=demo', 'values=exact'])
+    expect(text).toContain('"b\rc"')
+    expect(text.startsWith('# name=demo')).toBe(true)
+    const parsed = parseCsvTable(text)
+    expect(parsed.columns.map((c) => c.name)).toEqual(['a', 'b\rc'])
+    expect(parsed.rowCount).toBe(1)
   })
 
   it('honours explicit delimiter, header, decimal-comma and unit-row choices', () => {
