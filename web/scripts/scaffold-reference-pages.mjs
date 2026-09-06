@@ -15,6 +15,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { parseLibrary } from './parse-library.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SRC = path.join(__dirname, '../src');
@@ -181,33 +182,17 @@ for (const f of manifest.materials.functions) {
   made++;
 }
 
-// 5. Components — real ports, params, and constitutive equations from the .frees
-// source. Uses a balanced parser so VARIANT … END blocks are captured per variant
-// (not truncated at the first inner END) along with the component's own END.
-const compDir = path.join(REPO, 'backend/core/src/main/resources/components');
+// 5. Components — real ports, params, and constitutive equations from THIS
+// port's embedded library (crates/frees-core/src/components/library-data).
 const compInfo = {};
-for (const file of fs.readdirSync(compDir).filter((f) => f.endsWith('.frees'))) {
-  const domain = file.replace(/\.frees$/, '');
-  const lines = read(path.join(compDir, file)).split('\n');
-  for (let i = 0; i < lines.length; i++) {
-    const head = lines[i].match(/^\s*COMPONENT\s+(\w+)\s*(?:\(([^)]*)\))?/);
-    if (!head) continue;
-    const name = head[1];
-    const ports = (head[2] || '').split(',').map((s) => s.trim()).filter(Boolean);
-    const params = []; const shared = []; const variants = [];
-    let cur = null; let depth = 0;
-    for (i++; i < lines.length; i++) {
-      const raw = lines[i].replace(/\s+$/, ''); const l = raw.trim();
-      if (/^END\b/.test(l)) { if (depth === 0) break; depth--; cur = null; continue; }
-      const vm = l.match(/^VARIANT\s+(\w+)(?:\s+REQUIRE\s+(.+))?/);
-      if (vm) { depth++; cur = { name: vm[1], require: (vm[2] || '').split(',').map((s) => s.trim()).filter(Boolean), eqs: [] }; variants.push(cur); continue; }
-      const pm = l.match(/^PARAM\s+(.+)$/);
-      if (pm) { pm[1].split(',').forEach((p) => params.push(p.trim())); continue; }
-      if (!l || /^(REQUIRE|OUTPUT|MODEL|\{|\}|\/\/)/.test(l)) continue;
-      (cur ? cur.eqs : shared).push(raw.replace(/^\s{0,4}/, ''));
-    }
-    compInfo[name] = { domain, ports, params, shared, variants };
-  }
+for (const c of parseLibrary()) {
+  compInfo[c.name] = {
+    domain: c.domain,
+    ports: c.ports,
+    params: c.params.filter((p) => !p.fromRequire).map((p) => (p.defaultValue ? `${p.name} = ${p.defaultValue}` : p.name)),
+    shared: c.shared || [],
+    variants: c.variants.map((v) => ({ name: v.name, require: v.requires, eqs: v.eqs || [] })),
+  };
 }
 for (const c of manifest.components) {
   if (done(c.name)) continue;
@@ -231,7 +216,7 @@ for (const c of manifest.components) {
     body: [
       `# ${c.name}`, '',
       `Reusable acausal **${c.domain}-domain** component. Instantiate it and connect its ports; instantiation expands the constitutive equations below into scalar equations solved by the standard Newton/Tarjan pipeline.`, '',
-      '> **Auto-generated** from the component library (`backend/core/src/main/resources/components/`). The ports, parameters, and constitutive equations are taken verbatim from the component definition; a worked example and prose discussion are added as the page is curated.', '',
+      '> **Auto-generated** from this port\'s component library (`crates/frees-core/src/components/library-data/`). The ports, parameters, and variants are taken from the component definition; a worked example and prose discussion are added as the page is curated.', '',
       '## Usage', '', '```', `${c.name} inst(${info.params.map((p) => p.split('=')[0].trim()).join(', ') || 'param = value, ...'})`, '```', '',
       ...portRow, ...paramRows, ...eqRows, ...variantRows,
     ].join('\n'),

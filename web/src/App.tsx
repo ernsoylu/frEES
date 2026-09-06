@@ -104,6 +104,7 @@ import { applyColumnFill } from './tablesGrid/tableGridModel'
 // sessions never open, so they are code-split and only fetched when their tab
 // is first shown (wrapped in <Suspense> at their render sites below).
 const SchematicTab = lazy(() => import('./schematic/SchematicTab'))
+import { declaredInstances } from './schematic/declaration'
 import type { SchematicOffsets } from './schematic/layout'
 const DigitizerTab = lazy(() =>
   import('./DigitizerTab').then((m) => ({ default: m.DigitizerTab })),
@@ -638,6 +639,10 @@ export default function App() {
     setActiveTab('equations')
     setTimeout(() => editorRef.current?.insertStatement(block), 50)
   }, [])
+  const existingInstanceNames = useMemo(
+    () => [...declaredInstances(text).values()].map((hit) => hit.label),
+    [text],
+  )
   // Programmatic document replacement (project load, new/example, generated
   // equations): updates the ref + state and pushes the doc into the uncontrolled
   // editor. setDoc does not echo back through onTextChange.
@@ -2394,7 +2399,7 @@ export default function App() {
             mb={6}
             withCloseButton
             onClose={() => setDismissedWarnings(true)}
-            title={`${unitWarnings.length} unit consistency warning${unitWarnings.length === 1 ? '' : 's'}`}
+            title={`${unitWarnings.length} warning${unitWarnings.length === 1 ? '' : 's'}`}
           >
             <Stack gap={2} mah={120} style={{ overflowY: 'auto' }}>
               {withStableKeys(unitWarnings).map((w) => (
@@ -3080,6 +3085,7 @@ export default function App() {
             opened={showComponentWizard}
             onClose={() => setShowComponentWizard(false)}
             onInsert={insertComponentBlock}
+            existingNames={existingInstanceNames}
           />
         )}
       </Suspense>

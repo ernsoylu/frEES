@@ -4,10 +4,16 @@ import {
   generateComponentText,
   isValidInstanceName,
   suggestInstanceName,
+  instanceNameError,
   missingRequiredParams,
   activeParams,
   selectedVariant,
   assembleBlock,
+  formatStringValue,
+  isPlainNumericLiteral,
+  paramValueError,
+  paramValueErrors,
+  inactiveDraftParams,
 } from './componentText'
 
 const param = (over: Partial<ComponentSpec['params'][number]> & { name: string }) => ({
@@ -19,6 +25,7 @@ const param = (over: Partial<ComponentSpec['params'][number]> & { name: string }
   required: true,
   values: [],
   variants: [],
+  defaultValue: '',
   ...over,
 })
 
@@ -38,6 +45,19 @@ const chiller: ComponentSpec = {
   variants: [],
 }
 
+const hx: ComponentSpec = {
+  type: 'LiquidWallHX',
+  library: 'liquid',
+  summary: '',
+  tags: [],
+  ports: ['in', 'out', 'wall'],
+  params: [
+    param({ name: 'fluid$' }),
+    param({ name: 'UA', isString: false, unit: 'W/K' }),
+  ],
+  variants: [],
+}
+
 // A component with a real variant: volumetric requires eta_v/disp/rpm.
 const compressor: ComponentSpec = {
   type: 'Compressor',
@@ -48,14 +68,44 @@ const compressor: ComponentSpec = {
   params: [
     param({ name: 'eta', isString: false }),
     param({ name: 'fluid$' }),
-    param({ name: 'model$', isSelector: true, required: false, values: ['isentropic', 'volumetric'] }),
+    param({
+      name: 'model$',
+      isSelector: true,
+      required: false,
+      values: ['isentropic', 'volumetric'],
+      defaultValue: 'isentropic',
+    }),
     param({ name: 'eta_v', isString: false, variants: ['volumetric'] }),
     param({ name: 'disp', isString: false, variants: ['volumetric'] }),
     param({ name: 'rpm', isString: false, variants: ['volumetric'] }),
   ],
   variants: [
-    { name: 'isentropic', requires: [] },
+    { name: 'isentropic', requires: ['eta'] },
     { name: 'volumetric', requires: ['eta_v', 'disp', 'rpm'] },
+  ],
+}
+
+// Default is NOT the first documented variant — the engine's model$ default wins.
+const orifice: ComponentSpec = {
+  type: 'HydraulicOrifice',
+  library: 'hydraulic',
+  summary: '',
+  tags: [],
+  ports: ['in', 'out'],
+  params: [
+    param({ name: 'CdA', isString: false }),
+    param({
+      name: 'model$',
+      isSelector: true,
+      required: false,
+      values: ['laminar', 'turbulent'],
+      defaultValue: 'turbulent',
+    }),
+    param({ name: 'nu', isString: false, variants: ['laminar'] }),
+  ],
+  variants: [
+    { name: 'laminar', requires: ['nu'] },
+    { name: 'turbulent', requires: [] },
   ],
 }
 
@@ -84,6 +134,52 @@ describe('generateComponentText', () => {
     const text = generateComponentText(chiller, '   ', { ref$: 'Water', cool$: 'Water', U_tp: '1', eps_zone: '0' })
     expect(text.startsWith('Chiller CHIL(')).toBe(true)
   })
+
+  it('appends units only to a plain numeric literal', () => {
+    expect(generateComponentText(hx, 'HX', { fluid$: 'Water', UA: '10' }))
+      .toBe('LiquidWallHX HX(fluid$=Water, UA=10 [W/K])')
+  })
+
+  it('preserves a variable reference without appending units', () => {
+    expect(generateComponentText(hx, 'HX', { fluid$: 'Water', UA: 'conductance' }))
+      .toBe('LiquidWallHX HX(fluid$=Water, UA=conductance)')
+  })
+
+  it('does not double-wrap an already annotated literal', () => {
+    expect(generateComponentText(hx, 'HX', { fluid$: 'Water', UA: '10 [W/K]' }))
+      .toBe('LiquidWallHX HX(fluid$=Water, UA=10 [W/K])')
+  })
+
+  it('preserves signed and scientific literals, then appends the field unit', () => {
+    expect(generateComponentText(hx, 'HX', { fluid$: 'Water', UA: '-1.5e3' }))
+      .toBe('LiquidWallHX HX(fluid$=Water, UA=-1.5e3 [W/K])')
+    expect(generateComponentText(hx, 'HX', { fluid$: 'Water', UA: '+8.0E-2' }))
+      .toBe('LiquidWallHX HX(fluid$=Water, UA=+8.0E-2 [W/K])')
+  })
+
+  it('preserves offset-temperature annotations as written', () => {
+    const tSpec: ComponentSpec = {
+      ...hx,
+      params: [param({ name: 'fluid$' }), param({ name: 'T', isString: false, unit: 'K' })],
+    }
+    expect(generateComponentText(tSpec, 'S', { fluid$: 'Water', T: '20 [degC]' }))
+      .toBe('LiquidWallHX S(fluid$=Water, T=20 [degC])')
+  })
+
+  it('preserves arithmetic expressions', () => {
+    expect(generateComponentText(hx, 'HX', { fluid$: 'Water', UA: '2 * 400' }))
+      .toBe('LiquidWallHX HX(fluid$=Water, UA=2 * 400)')
+  })
+
+  it('quotes string values that are not bare identifiers', () => {
+    expect(generateComponentText(hx, 'HX', { fluid$: 'INCOMP::MEG[0.50]', UA: '10' }))
+      .toBe("LiquidWallHX HX(fluid$='INCOMP::MEG[0.50]', UA=10 [W/K])")
+  })
+
+  it('does not double-quote an already quoted string', () => {
+    expect(generateComponentText(hx, 'HX', { fluid$: "'Water'", UA: '10' }))
+      .toBe("LiquidWallHX HX(fluid$='Water', UA=10 [W/K])")
+  })
 })
 
 describe('instance name helpers', () => {
@@ -99,6 +195,19 @@ describe('instance name helpers', () => {
     expect(suggestInstanceName('MovingBoundaryEvaporator')).toBe('MBE')
     expect(suggestInstanceName('Chiller')).toBe('CHIL')
   })
+
+  it('adds a suffix when the base name is already taken, case-insensitively', () => {
+    expect(suggestInstanceName('Resistor', ['RESI'])).toBe('RESI2')
+    expect(suggestInstanceName('Resistor', ['resi', 'RESI2'])).toBe('RESI3')
+    expect(suggestInstanceName('Chiller', ['CHIL'])).toBe('CHIL2')
+    expect(suggestInstanceName('MovingBoundaryEvaporator', ['MBE'])).toBe('MBE2')
+  })
+
+  it('rejects a case-insensitive collision', () => {
+    expect(instanceNameError('r1', ['R1'])).toMatch(/collides/i)
+    expect(instanceNameError('HX', ['LINE'])).toBeNull()
+    expect(instanceNameError('1bad')).toMatch(/identifier/)
+  })
 })
 
 describe('missingRequiredParams', () => {
@@ -108,10 +217,40 @@ describe('missingRequiredParams', () => {
   })
 })
 
+describe('field validation', () => {
+  const ua = hx.params.find((p) => p.name === 'UA')!
+  const fluid = hx.params.find((p) => p.name === 'fluid$')!
+
+  it('accepts numerics, annotated literals, variables, and arithmetic', () => {
+    expect(paramValueError(ua, '10')).toBeNull()
+    expect(paramValueError(ua, '-1.5e3')).toBeNull()
+    expect(paramValueError(ua, '10 [W/K]')).toBeNull()
+    expect(paramValueError(ua, 'conductance')).toBeNull()
+    expect(paramValueError(ua, '2 * 400')).toBeNull()
+  })
+
+  it('rejects malformed expressions so Add cannot look valid', () => {
+    expect(paramValueError(ua, '10 [W/K] [')).toMatch(/valid/)
+    expect(paramValueError(ua, '10 +')).toMatch(/valid/)
+    expect(paramValueError(ua, '')).toBe('Required.')
+  })
+
+  it('accepts custom fluid names that generation will quote', () => {
+    expect(paramValueError(fluid, 'INCOMP::MEG[0.50]')).toBeNull()
+    expect(paramValueError(fluid, "'Water'")).toBeNull()
+  })
+
+  it('blocks Add when any active field is malformed', () => {
+    const errors = paramValueErrors(hx, { fluid$: 'Water', UA: '10 [' })
+    expect(errors.UA).toBeTruthy()
+  })
+})
+
 describe('variant gating', () => {
-  it('defaults the variant to the first when model$ is unset', () => {
+  it('uses the declared model$ default, not the first documented variant', () => {
+    expect(selectedVariant(orifice, {})).toBe('turbulent')
+    expect(selectedVariant(orifice, { model$: 'laminar' })).toBe('laminar')
     expect(selectedVariant(compressor, {})).toBe('isentropic')
-    expect(selectedVariant(compressor, { model$: 'volumetric' })).toBe('volumetric')
   })
 
   it('hides variant params unless their variant is active', () => {
@@ -130,6 +269,7 @@ describe('variant gating', () => {
   it('drops stale inactive-variant values from the generated text', () => {
     const text = generateComponentText(compressor, 'C1', { eta: '0.7', fluid$: 'R134a', eta_v: '0.9' })
     expect(text).not.toContain('eta_v') // isentropic active → eta_v inactive
+    expect(inactiveDraftParams(compressor, { eta: '0.7', fluid$: 'R134a', eta_v: '0.9' })).toEqual(['eta_v'])
   })
 })
 
@@ -137,5 +277,27 @@ describe('assembleBlock', () => {
   it('joins preamble lines above the component line, dropping blanks', () => {
     expect(assembleBlock(['UA_x = ua_hx(1,2,3,4,5)', ''], 'Chiller C1(UA=UA_x)'))
       .toBe('UA_x = ua_hx(1,2,3,4,5)\nChiller C1(UA=UA_x)')
+  })
+})
+
+describe('formatStringValue', () => {
+  it('leaves identifiers and already-quoted values alone', () => {
+    expect(formatStringValue('Water')).toBe('Water')
+    expect(formatStringValue("'R134a'")).toBe("'R134a'")
+  })
+
+  it('quotes values that would be misparsed unquoted', () => {
+    expect(formatStringValue('INCOMP::MEG[0.50]')).toBe("'INCOMP::MEG[0.50]'")
+  })
+})
+
+describe('isPlainNumericLiteral', () => {
+  it('accepts signed and scientific forms the lexer would', () => {
+    expect(isPlainNumericLiteral('10')).toBe(true)
+    expect(isPlainNumericLiteral('-2')).toBe(true)
+    expect(isPlainNumericLiteral('.5')).toBe(true)
+    expect(isPlainNumericLiteral('1e-3')).toBe(true)
+    expect(isPlainNumericLiteral('conductance')).toBe(false)
+    expect(isPlainNumericLiteral('10 [W/K]')).toBe(false)
   })
 })

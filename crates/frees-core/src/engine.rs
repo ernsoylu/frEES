@@ -1866,7 +1866,7 @@ pub fn check_with_tables_complex(
         error_line: None,
         errors: Vec::new(),
         inferred_units,
-        unit_warnings: unit_report.warnings,
+        unit_warnings: merge_advisory_warnings(unit_report.warnings, &diagnostics),
         diagnostics,
         plots: doc.blocks.plots.clone(),
     };
@@ -2023,6 +2023,9 @@ fn expand_component_layer(
             &mut display_names,
         )?;
         let equations = expander.expand()?;
+        for warning in expander.inactive_warnings() {
+            diagnostics.push(crate::diag::Diagnostic::warning(warning.clone()));
+        }
         let statements = expander.rewrite_statements(statements)?;
         let member_units = expander
             .member_units()
@@ -2276,6 +2279,27 @@ fn builtin_constants(equations: &[Equation]) -> (BTreeMap<String, f64>, HashSet<
 ///
 /// This is a stand-in for the unported `UnitChecker`, which additionally
 /// verifies dimensional consistency across an equation.
+/// Append non-unit advisory diagnostics onto the unit-warning list so Check
+/// and Solve both surface them on the existing `unitWarnings` channel.
+pub(crate) fn merge_advisory_warnings(
+    mut unit_warnings: Vec<String>,
+    diagnostics: &[Diagnostic],
+) -> Vec<String> {
+    for diagnostic in diagnostics {
+        if diagnostic.severity != crate::diag::Severity::Warning {
+            continue;
+        }
+        if !diagnostic.message.contains("is not used by the selected") {
+            continue;
+        }
+        if unit_warnings.iter().any(|w| w == &diagnostic.message) {
+            continue;
+        }
+        unit_warnings.push(diagnostic.message.clone());
+    }
+    unit_warnings
+}
+
 fn collect_unit_warnings(equations: &[Equation], diagnostics: &mut Vec<Diagnostic>) {
     let mut seen = BTreeSet::new();
     for equation in equations {
@@ -4834,6 +4858,34 @@ mod tests {
         assert_close(value(&solution, "a"), 2.0);
         assert_eq!(solution.blocks.len(), 1);
         assert!(solution.blocks[0].is_scalar());
+    }
+
+    #[test]
+    fn check_advises_on_an_inactive_variant_parameter() {
+        let report = check(
+            "\
+COMPONENT C(in, out)
+  PARAM model$ = a, r, q
+  out.mdot = in.mdot
+  VARIANT a REQUIRE r
+    out.P = in.P * r
+  END
+  VARIANT b REQUIRE q
+    out.P = in.P * q
+  END
+END
+C X(s1, s2, r=2, q=3)
+",
+        )
+        .expect("check");
+        assert!(
+            report
+                .unit_warnings
+                .iter()
+                .any(|w| w.contains("'q'") && w.contains("'a'")),
+            "expected inactive-parameter advisory, got {:?}",
+            report.unit_warnings
+        );
     }
 
     #[test]

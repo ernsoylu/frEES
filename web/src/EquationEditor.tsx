@@ -11,6 +11,7 @@ import { CompletionContext, CompletionResult } from '@codemirror/autocomplete'
 import { tags } from '@lezer/highlight'
 import { catalogFunctionNames, FUNCTION_CATEGORIES } from './functionCatalog'
 import { COMPONENT_NAMES } from './componentNames'
+import { activeCallAt, highlightArgIndex } from './signatureHelp'
 
 // Imperative handle the parent uses to drive the editor (insert at caret, jump
 // to a line) without reaching into the DOM, mirroring the old textareaRef ops.
@@ -32,6 +33,8 @@ const KEYWORDS = new Set([
   'END', 'FUNCTION', 'PROCEDURE', 'MODULE', 'CALL', 'PARAMETRIC', 'TABLE',
   'PLOT', 'DUPLICATE', 'AND', 'OR', 'NOT', 'DYNAMIC', 'STATE', 'EVENT',
   'SYMBOLIC',
+  'COMPONENT', 'PARAM', 'VARIANT', 'REQUIRE', 'CONNECT', 'LINEARIZE', 'GUESS',
+  'INPUT', 'OUTPUT',
 ])
 
 // Built-in function names from the Functions-menu catalog (callee of each CALL
@@ -80,26 +83,7 @@ const SIGNATURES: Map<string, SignatureInfo> = (() => {
   return map
 })()
 
-/** The call the caret sits inside on its line: callee name + 0-based active
- *  argument index (top-level commas between the unbalanced '(' and the caret). */
-function activeCallAt(doc: string, caret: number, lineFrom: number): { name: string; argIndex: number } | null {
-  const text = doc.slice(lineFrom, caret)
-  let depth = 0
-  let argIndex = 0
-  for (let i = text.length - 1; i >= 0; i--) {
-    const ch = text[i]
-    if (ch === ')') depth++
-    else if (ch === '(') {
-      if (depth === 0) {
-        const head = /([A-Za-z_][A-Za-z0-9_]*\$?)\s*$/.exec(text.slice(0, i))
-        return head ? { name: head[1], argIndex } : null
-      }
-      depth--
-    } else if (ch === ',' && depth === 0) argIndex++
-    else if (ch === '{' || ch === '}') return null // inside/near a comment: stay quiet
-  }
-  return null
-}
+
 
 /** DOM for the tooltip: usage line with the active argument bold (when the
  *  usage's parenthesis list parses), plus a dimmed one-line detail. */
@@ -154,42 +138,43 @@ const signatureField = StateField.define<Tooltip | null>({
     const state = tr.state
     const caret = state.selection.main.head
     if (!state.selection.main.empty) return null
-    const line = state.doc.lineAt(caret)
-    const call = activeCallAt(state.sliceDoc(line.from, caret), caret - line.from, 0)
+    const call = activeCallAt(state.sliceDoc(0, caret), caret)
     if (!call) return null
     const sig = SIGNATURES.get(call.name.toLowerCase())
     if (!sig) return null
     return {
       pos: caret,
       above: true,
-      create: () => ({ dom: renderSignature(sig, call.argIndex) }),
+      create: () => ({ dom: renderSignature(sig, highlightArgIndex(sig.usage, call)) }),
     }
   },
   provide: (field) => showTooltip.from(field),
 })
 
 interface StreamState {
-  inComment: boolean
+  /** Closer of an unclosed `{…}` or `"…"` comment; null when in code. */
+  commentClose: '}' | '"' | null
 }
 
-/** Consumes the remainder of an open {comment}, clearing the flag at its '}'. */
+/** Consumes the remainder of an open comment, clearing the flag at its closer. */
 function continueComment(stream: StringStream, state: StreamState): string {
+  const close = state.commentClose
   while (!stream.eol()) {
-    if (stream.next() === '}') {
-      state.inComment = false
+    if (stream.next() === close) {
+      state.commentClose = null
       break
     }
   }
   return 'comment'
 }
 
-/** Starts a {comment}; sets the multi-line flag if it does not close on this line. */
-function startComment(stream: StringStream, state: StreamState): string {
+/** Starts a `{…}` or `"…"` comment; sets the multi-line flag if it does not close. */
+function startComment(stream: StringStream, state: StreamState, close: '}' | '"'): string {
   stream.next()
   while (!stream.eol()) {
-    if (stream.next() === '}') return 'comment'
+    if (stream.next() === close) return 'comment'
   }
-  state.inComment = true
+  state.commentClose = close
   return 'comment'
 }
 
@@ -217,15 +202,17 @@ function scanWord(stream: StringStream): string | null {
 // Exported for other frees-DSL inputs (the REPL terminal, the component
 // wizard) — anywhere a field takes frees source rather than a bare number.
 export const freesLanguage = StreamLanguage.define<StreamState>({
-  startState: () => ({ inComment: false }),
+  startState: () => ({ commentClose: null }),
   token(stream, state) {
-    if (state.inComment) return continueComment(stream, state)
+    if (state.commentClose) return continueComment(stream, state)
     if (stream.eatSpace()) return null
     if (stream.eol()) return null
 
     const ch = stream.peek() ?? ''
-    if (ch === '{') return startComment(stream, state)
-    if (ch === '"' || ch === "'") return scanString(stream, ch)
+    if (ch === '{') return startComment(stream, state, '}')
+    // Double quotes delimit comments in frees, not strings. Strings are `'…'`.
+    if (ch === '"') return startComment(stream, state, '"')
+    if (ch === "'") return scanString(stream, ch)
     if (/\d/.test(ch) || (ch === '.' && /\d/.test(stream.string.charAt(stream.pos + 1)))) {
       if (!stream.match(/^\d*\.?\d+([eE][+-]?\d+)?[ij]?/)) stream.next()
       return 'number'

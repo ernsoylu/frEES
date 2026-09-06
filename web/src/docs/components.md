@@ -1,7 +1,7 @@
 [Topic: comp-first-network]
 # Your First Component Network
 
-frees has a library of ~295 **components** — reusable, parameterized blocks of physics (pumps, pipes, heat exchangers, resistors, gears, cooling coils …) with typed **ports**. You instantiate them, wire the ports together, and frees expands the network into ordinary scalar equations solved by the same Newton/Tarjan pipeline as everything else. There is no separate "simulation mode": components and plain equations mix freely in one document.
+frees has a library of **312 components** — reusable, parameterized blocks of physics (pumps, pipes, heat exchangers, resistors, gears, cooling coils …) with typed **ports**. You instantiate them, wire the ports together, and frees expands the network into ordinary scalar equations solved by the same Newton/Tarjan pipeline as everything else. There is no separate "simulation mode": components and plain equations mix freely in one document.
 
 ## Water through a pipe
 
@@ -229,7 +229,7 @@ The `moistair` family conserves **two** masses. Its basis is `(P, mdot_da, h, W)
 [Topic: comp-library]
 # The Component Library
 
-The standard library ships ~295 components across thirteen domain libraries. This page is a map, not a catalog — every component's authoritative page (ports, parameters, variants, governing equations) lives in the **Reference**; find it by name in the A–Z index, or browse it from the Component Wizard.
+The standard library ships 312 components across thirteen domain libraries. This page is a map, not a catalog — every component's authoritative page (ports, parameters, variants, governing equations) lives in the **Reference**; find it by name in the A–Z index, or browse it from the Component Wizard. The Component Wizard and editor completion are generated from this port's parsed library, so a standalone checkout stays in agreement with the engine.
 
 | Library | What's in it |
 | --- | --- |
@@ -273,7 +273,7 @@ Because the component and its ports don't change, **the network around it doesn'
 
 ## Per-variant required parameters
 
-Each variant declares the parameters it needs (`REQUIRE`), validated only when that variant is selected. Choosing `model$=volumetric` without `disp` is an immediate, named error; the same parameter is not even accepted noise for `model$=isentropic`. The reference page of every multi-model component lists its variants and their requirements under **Model Variants**, and the Component Wizard shows and requires exactly the parameters the selected variant needs.
+Each variant declares the parameters it needs (`REQUIRE`), validated only when that variant is selected. Choosing `model$=volumetric` without `disp` is an immediate, named error. Supplying `rpm` on an isentropic compressor is accepted for compatibility — Check reports a nonblocking advisory that the parameter is inactive, and the wizard omits inactive drafts from newly generated code. The reference page of every multi-model component lists its variants and their requirements under **Model Variants**, and the Component Wizard shows and requires exactly the parameters the selected variant needs. The default `model$` is the engine's declared default, not whichever variant happens to be documented first.
 
 Variants of your own components use the `VARIANT ... REQUIRE ... END` construct — see *Writing Your Own Component*.
 

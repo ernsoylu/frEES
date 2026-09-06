@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import {
+  Autocomplete,
   Badge,
   Box,
   Button,
@@ -22,10 +23,14 @@ import { COMPONENT_OVERRIDES, ComponentSection } from './componentOverrides'
 import {
   generateComponentText,
   suggestInstanceName,
-  isValidInstanceName,
+  instanceNameError,
   missingRequiredParams,
   activeParams,
+  selectedVariant,
   assembleBlock,
+  paramValueError,
+  inactiveDraftParams,
+  KNOWN_FLUIDS,
   ParamValues,
 } from './componentText'
 import { isUaParam, UaResult } from './uaCorrelation'
@@ -37,6 +42,8 @@ interface Props {
   onClose: () => void
   /** Insert the generated component block onto a fresh line in the editor. */
   onInsert: (block: string) => void
+  /** Instance names already in the document (case-insensitive uniqueness). */
+  existingNames?: readonly string[]
 }
 
 // Friendly labels for the library keys parsed from `category: Component (<lib>)`.
@@ -80,7 +87,7 @@ function buildSections(spec: ComponentSpec): ComponentSection[] {
   return sections
 }
 
-export default function ComponentWizardModal({ opened, onClose, onInsert }: Readonly<Props>) {
+export default function ComponentWizardModal({ opened, onClose, onInsert, existingNames = [] }: Readonly<Props>) {
   const [search, setSearch] = useState('')
   const [library, setLibrary] = useState<string | null>(null)
   const [selectedType, setSelectedType] = useState<string | null>(null)
@@ -120,15 +127,23 @@ export default function ComponentWizardModal({ opened, onClose, onInsert }: Read
   // Reset the form whenever a different component is selected.
   useEffect(() => {
     if (!spec) return
-    setInstanceName(suggestInstanceName(spec.type))
+    setInstanceName(suggestInstanceName(spec.type, existingNames))
     setValues({})
     setPreamble({})
-  }, [spec])
+  }, [spec, existingNames])
 
   const preview = spec ? generateComponentText(spec, instanceName, values) : ''
   const missing = spec ? missingRequiredParams(spec, values) : []
-  const nameOk = isValidInstanceName(instanceName)
-  const canAdd = !!spec && nameOk && missing.length === 0
+  const nameErr = instanceNameError(instanceName, existingNames)
+  const fieldErrors = spec
+    ? Object.fromEntries(
+        activeParams(spec, values)
+          .map((p) => [p.name, paramValueError(p, values[p.name] ?? '')] as const)
+          .filter(([, err]) => err),
+      )
+    : {}
+  const drafts = spec ? inactiveDraftParams(spec, values) : []
+  const canAdd = !!spec && !nameErr && missing.length === 0 && Object.keys(fieldErrors).length === 0
 
   // Names of params active for the current variant (drives show/hide + which
   // preamble blocks are emitted).
@@ -265,7 +280,7 @@ export default function ComponentWizardModal({ opened, onClose, onInsert }: Read
                 description="A unique identifier for this component instance."
                 value={instanceName}
                 onChange={(e) => setInstanceName(e.currentTarget.value)}
-                error={instanceName && !nameOk ? 'Must be a valid identifier (letters, digits, underscore; not starting with a digit).' : undefined}
+                error={nameErr ?? undefined}
                 w={260}
               />
 
@@ -287,6 +302,8 @@ export default function ComponentWizardModal({ opened, onClose, onInsert }: Read
                               param={p}
                               value={values[name] ?? ''}
                               onChange={(v) => setParam(name, v)}
+                              error={fieldErrors[name] || undefined}
+                              defaultVariant={p.isSelector ? selectedVariant(spec, values) : null}
                               onBuildUa={isUaParam(p.name, p.unit) ? () => setUaBuilderFor(name) : undefined}
                               onBuildMap={p.isMap ? () => setMapBuilderFor(name) : undefined}
                             />
@@ -299,6 +316,12 @@ export default function ComponentWizardModal({ opened, onClose, onInsert }: Read
               })}
 
               <Divider />
+
+              {drafts.length > 0 && (
+                <Text size="xs" c="dimmed">
+                  Inactive for this variant (kept as a draft, omitted from generated code): {drafts.join(', ')}
+                </Text>
+              )}
 
               <Box>
                 <Text size="xs" fw={600} c="dimmed" mb={4}>Preview</Text>
@@ -349,12 +372,16 @@ function ParamField({
   param,
   value,
   onChange,
+  error,
+  defaultVariant,
   onBuildUa,
   onBuildMap,
 }: Readonly<{
   param: ComponentParam
   value: string
   onChange: (v: string) => void
+  error?: string
+  defaultVariant?: string | null
   onBuildUa?: () => void
   onBuildMap?: () => void
 }>) {
@@ -367,6 +394,7 @@ function ParamField({
   )
 
   if (param.isSelector && param.values.length > 0) {
+    const declared = (param.defaultValue || defaultVariant || '').trim()
     return (
       <Select
         label={label}
@@ -374,9 +402,26 @@ function ParamField({
         data={param.values}
         value={value || null}
         onChange={(v) => onChange(v ?? '')}
-        placeholder="default"
+        placeholder={declared ? `default (${declared})` : 'default'}
         clearable
+        error={error}
       />
+    )
+  }
+
+  if (param.isString && /fluid\$/i.test(param.name)) {
+    return (
+      <Box>
+        <Autocomplete
+          label={label}
+          description={param.description || undefined}
+          value={value}
+          onChange={onChange}
+          data={KNOWN_FLUIDS}
+          placeholder="Water, R134a, INCOMP::MEG[0.50], …"
+          error={error}
+        />
+      </Box>
     )
   }
 
@@ -394,6 +439,7 @@ function ParamField({
         value={value}
         onChange={(e) => onChange(e.currentTarget.value)}
         placeholder={param.isString ? 'name' : 'value or variable'}
+        error={error}
       />
       {builder && <Group mt={4}>{builder}</Group>}
     </Box>

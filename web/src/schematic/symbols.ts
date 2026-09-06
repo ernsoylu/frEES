@@ -8,7 +8,7 @@
 // topology is legible at a glance and before any zoom.
 //
 // Classification is by type-name pattern rather than an enumerated table: the
-// library ships ~295 components and grows, and the names are systematic
+// library ships 312 components and grows, and the names are systematic
 // (`LiquidPump`, `HydraulicPump`, `MoistAirFan`), so patterns keep new
 // components drawn correctly without a catalog edit. Anything unmatched falls
 // back to a plain block, which is exactly the old behaviour.

@@ -339,6 +339,9 @@ pub struct ComponentExpander<'d, 'n> {
     display_names: &'n mut BTreeMap<String, String>,
     initials: Vec<ComponentInitial>,
     has_storage: bool,
+    /// Nonblocking advisories: a declared parameter was supplied but is inactive
+    /// for the selected `model$` variant. Source is not rewritten.
+    inactive_warnings: Vec<String>,
 }
 
 /// The resolved network — everything the rewrites read but never mutate.
@@ -405,8 +408,14 @@ impl<'d, 'n> ComponentExpander<'d, 'n> {
 
         let mut instances: Vec<ResolvedInstance<'d>> = Vec::with_capacity(flat_insts.len());
         let mut instance_index: HashMap<String, usize> = HashMap::new();
+        let mut inactive_warnings = Vec::new();
         for inst in flat_insts {
-            let resolved = resolve(inst, &defs_by_name, &mut stream_display)?;
+            let resolved = resolve(
+                inst,
+                &defs_by_name,
+                &mut stream_display,
+                &mut inactive_warnings,
+            )?;
             let name = resolved.inst.name.clone();
             if instance_index
                 .insert(name.clone(), instances.len())
@@ -443,7 +452,14 @@ impl<'d, 'n> ComponentExpander<'d, 'n> {
             display_names,
             initials: Vec::new(),
             has_storage: false,
+            inactive_warnings,
         })
+    }
+
+    /// Advisories collected while resolving instances. Empty when every supplied
+    /// parameter is active for the selected variant.
+    pub fn inactive_warnings(&self) -> &[String] {
+        &self.inactive_warnings
     }
 
     /// Whether any component definitions or instances are present. Port of
@@ -853,6 +869,7 @@ fn resolve<'d>(
     inst: ComponentInst,
     defs: &HashMap<&'d str, &'d ComponentDef>,
     stream_display: &mut BTreeMap<String, String>,
+    inactive_warnings: &mut Vec<String>,
 ) -> Result<ResolvedInstance<'d>> {
     let Some(def) = defs.get(inst.type_name.as_str()).copied() else {
         return Err(FreesError::parse(format!(
@@ -897,6 +914,15 @@ fn resolve<'d>(
     let mut numeric_params: Vec<(String, Expr)> = Vec::new();
     let mut string_params: Vec<(String, String)> = Vec::new();
     for p in &def.params {
+        let supplied = inst.params.contains_key(&p.name);
+        if supplied && variant.is_optional(&p.name) {
+            let model = variant.selected_name().unwrap_or("default");
+            inactive_warnings.push(format!(
+                "Component '{}' ({}): parameter '{}' is not used by the selected \
+                 '{model}' variant.",
+                inst.name, inst.type_name, p.name
+            ));
+        }
         let value = inst.params.get(&p.name).or(p.default_value.as_ref());
         let Some(value) = value else {
             // A parameter listed in some variant's REQUIRE but not the selected
@@ -3566,6 +3592,44 @@ mod tests {
             ),
             "Component 'x' (c): parameter 'r' has no value (give it a default or pass \
              r=value). (required by the selected 'a' variant)."
+        );
+    }
+
+    #[test]
+    fn supplied_inactive_variant_params_warn_without_rejecting() {
+        let def = comp_full(
+            "C",
+            &["in", "out"],
+            &[("model$", Some("a")), ("r", None), ("q", None)],
+            &["out.mdot = in.mdot"],
+            vec![
+                variant("a", &["r"], &["out.P = in.P * r"]),
+                variant("b", &["q"], &["out.P = in.P * q"]),
+            ],
+            vec![],
+            vec![],
+        );
+        let defs = [def];
+        let insts = [inst(
+            "C",
+            "X",
+            &["s1", "s2"],
+            &[("model$", "a"), ("r", "2"), ("q", "3")],
+        )];
+        let mut display = BTreeMap::new();
+        let mut ex =
+            ComponentExpander::new(&[], &defs, &insts, &[], &mut display).expect("resolve");
+        ex.expand().expect("expand");
+        let warnings = ex.inactive_warnings();
+        assert!(
+            warnings
+                .iter()
+                .any(|w| w.contains("'q'") && w.contains("'a'")),
+            "expected an inactive-parameter advisory, got {warnings:?}"
+        );
+        assert!(
+            !warnings.iter().any(|w| w.contains("'r'")),
+            "active parameter 'r' must not warn, got {warnings:?}"
         );
     }
 

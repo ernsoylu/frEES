@@ -256,3 +256,54 @@ describe('WASM Real Boundary: Error Classifications', () => {
     expect(res.error).toBeDefined()
   })
 })
+
+describe('WASM Real Boundary: Wizard generated source', () => {
+  const hx = {
+    type: 'LiquidWallHX',
+    library: 'liquid',
+    summary: '',
+    tags: [],
+    ports: ['in', 'out', 'wall'],
+    params: [
+      { name: 'fluid$', isString: true, isSelector: false, isMap: false, unit: '', description: '', required: true, values: [], variants: [], defaultValue: '' },
+      { name: 'UA', isString: false, isSelector: false, isMap: false, unit: 'W/K', description: '', required: true, values: [], variants: [], defaultValue: '' },
+    ],
+    variants: [],
+  }
+
+  it('does not invent w/k unknowns when UA is a variable', async () => {
+    const { generateComponentText } = await import('./componentText')
+    const line = generateComponentText(hx, 'HX', { fluid$: 'Water', UA: 'conductance' })
+    const src = `conductance = 10 [W/K]\n${line}\n`
+    const res = JSON.parse(check(src, ''))
+    const vars = (res.variables as string[]).map((v) => v.toLowerCase())
+    expect(line).toBe('LiquidWallHX HX(fluid$=Water, UA=conductance)')
+    expect(vars).not.toContain('w')
+    expect(vars).not.toContain('k')
+    expect(res.message ?? '').not.toMatch(/Syntax error/i)
+  })
+
+  it('does not double-wrap an already annotated UA literal', async () => {
+    const { generateComponentText } = await import('./componentText')
+    const line = generateComponentText(hx, 'HX', { fluid$: 'Water', UA: '10 [W/K]' })
+    expect(line).toBe('LiquidWallHX HX(fluid$=Water, UA=10 [W/K])')
+    const res = JSON.parse(check(`${line}\n`, ''))
+    expect(res.message ?? '').not.toMatch(/Syntax error/i)
+  })
+
+  it('quotes INCOMP::MEG[0.50] so brackets are not array syntax', async () => {
+    const { generateComponentText } = await import('./componentText')
+    const line = generateComponentText(hx, 'HX', { fluid$: 'INCOMP::MEG[0.50]', UA: '10' })
+    expect(line).toContain("fluid$='INCOMP::MEG[0.50]'")
+    const res = JSON.parse(check(`${line}\n`, ''))
+    expect(res.message ?? '').not.toMatch(/Syntax error/i)
+  })
+
+  it('treats an unwired generated component as structurally free, not a syntax error', async () => {
+    const { generateComponentText } = await import('./componentText')
+    const line = generateComponentText(hx, 'HX', { fluid$: 'Water', UA: '10' })
+    const res = JSON.parse(check(`${line}\n`, ''))
+    expect(res.solvable).toBe(false)
+    expect(res.message ?? '').not.toMatch(/Syntax error/i)
+  })
+})
