@@ -46,6 +46,7 @@
 //! everything here takes the *result* of classification. Nothing in `dae/`
 //! decides what a state is.
 pub mod assembly;
+pub(crate) mod colamd;
 pub mod jacobian;
 pub mod linearize;
 pub mod solver;

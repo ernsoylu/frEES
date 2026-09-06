@@ -45,7 +45,7 @@ use crate::ode::problem::{OdeProblem, OdeRhs};
 // ---------------------------------------------------------------------------
 
 /// `Math.min` (NaN-propagating, `-0.0 < 0.0`).
-fn java_min(a: f64, b: f64) -> f64 {
+pub(crate) fn java_min(a: f64, b: f64) -> f64 {
     if a.is_nan() || b.is_nan() {
         f64::NAN
     } else if a < b {
@@ -60,7 +60,7 @@ fn java_min(a: f64, b: f64) -> f64 {
 }
 
 /// `Math.max` (NaN-propagating, `0.0 > -0.0`).
-fn java_max(a: f64, b: f64) -> f64 {
+pub(crate) fn java_max(a: f64, b: f64) -> f64 {
     if a.is_nan() || b.is_nan() {
         f64::NAN
     } else if a > b {

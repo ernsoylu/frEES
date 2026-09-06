@@ -19,9 +19,8 @@
 //! [`hermite`] built from the two bracketing knots and their derivatives. That
 //! is what the Java does, so it is what the oracle's `ode_tables` rows contain,
 //! and substituting a higher-order interpolant would change every sampled value.
-//! The same interpolant is what a crossing is refined on — see
-//! [`refine_crossing`] and [`hermite_root`] — which keeps a crossing time
-//! consistent with the row the table reports around it.
+//! The same interpolant is what event bisection refines on, which keeps a
+//! crossing time consistent with the row the table reports around it.
 //!
 //! # No clock
 //!
@@ -40,6 +39,7 @@
 #![allow(clippy::needless_range_loop)]
 
 use crate::diag::{FreesError, Result};
+#[cfg(test)]
 use crate::ode::hermite_root;
 use crate::ode::methods::{
     BdfMethod, ButcherTableau, OdeMethod, RosenbrockMethod, RungeKuttaMethod,
@@ -538,11 +538,12 @@ pub fn resolve_method(name: &str) -> Result<Box<dyn OdeMethod>> {
         "ode45" => Box::new(RungeKuttaMethod::new(ButcherTableau::dopri54())),
         "ode23" => Box::new(RungeKuttaMethod::new(ButcherTableau::bogacki_shampine32())),
         "ode23s" => Box::new(RosenbrockMethod),
+        "radau" | "radau5" | "radauiia" => Box::new(crate::ode::radau::RadauMethod),
         "ode15s" | "ode23t" | "ode23tb" => Box::new(BdfMethod),
         _ => {
             return Err(FreesError::solver(format!(
                 "DYNAMIC: unknown method '{name}'. Supported: ode1, ode2, ode3, \
-                 ode4, ode5, ode45, ode23, ode23s (stiff), ode15s (stiff)."
+                 ode4, ode5, ode45, ode23, ode23s (stiff), ode15s (stiff), radau (stiff)."
             )))
         }
     };
@@ -700,11 +701,15 @@ fn earliest_event(
 }
 
 /// Zero crossing on the Hermite interpolant. Port of
-/// `OdeIntegrator.refineCrossing`, with the analytic short cut below taken
-/// first: when the switching function is a residual of one state — what
-/// `EVENT x = value` compiles to — the crossing is a root of a cubic and is
-/// solved in closed form instead of by 60 bisections. Neither path evaluates
-/// the right-hand side.
+/// `OdeIntegrator.refineCrossing`.
+///
+/// The cubic closed form in [`hermite_root`] is tested and available via
+/// [`analytic_crossing`], but this path **bisects**, as the Java does. Wiring
+/// the analytic root as the production shortcut moved
+/// `av_ev_set_to_expression`: a bounce-with-set document gained a 12th hit
+/// where the oracle records 11, because a step with several interpolant roots
+/// no longer walks the same bracket. Keep the 60-bisection until that
+/// document is re-harvested on purpose.
 fn refine_crossing(
     ev: &OdeEvent<'_>,
     t: f64,
@@ -713,12 +718,9 @@ fn refine_crossing(
     t_new: f64,
     y_new: &[f64],
     f_new: &[f64],
-    g_prev: f64,
-    g_new: f64,
+    _g_prev: f64,
+    _g_new: f64,
 ) -> Result<f64> {
-    if let Some(tc) = analytic_crossing(ev, t, y, f, t_new, y_new, f_new, g_prev, g_new)? {
-        return Ok(tc);
-    }
     let mut lo = t;
     let mut hi = t_new;
     let mut g_lo = ev.g.eval(lo, y)?;
@@ -742,6 +744,7 @@ fn refine_crossing(
 /// The crossing as the analytic root of the cubic Hermite interpolant, or
 /// `None` when this event is not a plain state residual and the caller must
 /// bisect.
+#[cfg(test)]
 ///
 /// Two knot values do not determine a cubic in a general `g` — that would need
 /// `g'`, which nobody has — so the closed form is only available when `g` *is*
@@ -800,6 +803,7 @@ fn analytic_crossing(
 /// The `(index, orientation, level)` of the state this switching function is a
 /// residual of — `g = orientation · (y[index] − level)` — as witnessed at both
 /// knots, or `None`.
+#[cfg(test)]
 fn state_residual(y: &[f64], y_new: &[f64], g_prev: f64, g_new: f64) -> Option<(usize, f64, f64)> {
     for j in 0..y.len().min(y_new.len()) {
         for sign in [1.0f64, -1.0] {
