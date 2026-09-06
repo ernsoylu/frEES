@@ -126,6 +126,8 @@ export interface PlotSpec {
    * block rather than created in the GUI. Code plots are regenerated on every
    * solve and never persisted with the project. */
   fromCode?: boolean
+  /** Unsupported or ignored PLOT attributes, shown on code-owned plots. */
+  codeDiagnostics?: string[]
 }
 
 export function defaultFormat(kind: PlotKind): PlotFormat {
@@ -200,5 +202,5 @@ export function editablePlotCopy(spec: PlotSpec, plots: PlotSpec[]): PlotSpec {
   const base = `${spec.name}_copy`
   let name = base
   for (let i = 2; occupied.has(name.toLowerCase()); i++) name = `${base}${i}`
-  return { ...spec, id: crypto.randomUUID(), name, fromCode: false }
+  return { ...spec, id: crypto.randomUUID(), name, fromCode: false, codeDiagnostics: undefined }
 }

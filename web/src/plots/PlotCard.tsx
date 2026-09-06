@@ -450,6 +450,11 @@ export default function PlotCard({
           Export failed: {exportError}
         </Alert>
       )}
+      {!!spec.codeDiagnostics?.length && (
+        <Alert color="yellow" mb="xs">
+          {spec.codeDiagnostics.join(' ')}
+        </Alert>
+      )}
       {loading && (
         <Group gap="xs">
           <Loader size="xs" />
