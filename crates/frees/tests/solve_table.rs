@@ -338,8 +338,7 @@ fn parameter_fit_calibrates_a_decay_rate_against_its_own_trajectory() {
         "measuredT": ts,
         "measuredV": vs,
     });
-    let out: Value =
-        serde_json::from_str(&frees::parameter_fit(&request.to_string())).unwrap();
+    let out: Value = serde_json::from_str(&frees::parameter_fit(&request.to_string())).unwrap();
     assert_eq!(out["success"], true, "{out}");
     assert_eq!(out["parameterNames"], json_arr(&["k"]));
     let k = out["fittedValues"][0].as_f64().unwrap();
@@ -363,8 +362,7 @@ fn parameter_fit_caps_speak_the_java_messages() {
         "odeBlock": "d", "column": "c",
         "measuredT": big, "measuredV": big,
     });
-    let out: Value =
-        serde_json::from_str(&frees::parameter_fit(&request.to_string())).unwrap();
+    let out: Value = serde_json::from_str(&frees::parameter_fit(&request.to_string())).unwrap();
     assert_eq!(
         out["error"],
         "The measured series has too many samples (200001; limit 200000). Decimate it first."
@@ -395,8 +393,7 @@ fn pid_tune_echoes_the_suggested_crossover_and_tunes_a_first_order_plant() {
 
 #[test]
 fn pid_tune_validation_speaks_the_java_messages() {
-    let out: Value =
-        serde_json::from_str(&frees::pid_tune(r#"{"num": [], "den": []}"#)).unwrap();
+    let out: Value = serde_json::from_str(&frees::pid_tune(r#"{"num": [], "den": []}"#)).unwrap();
     assert_eq!(
         out["error"],
         "A plant transfer function (num and den coefficients) is required."
@@ -428,8 +425,7 @@ fn extract_plant_recovers_the_first_order_plant_from_a_closed_loop() {
         "ki": 1.0,
         "kd": 0.0,
     });
-    let out: Value =
-        serde_json::from_str(&frees::extract_plant(&request.to_string())).unwrap();
+    let out: Value = serde_json::from_str(&frees::extract_plant(&request.to_string())).unwrap();
     assert!(out.get("error").is_none(), "{out}");
     let num: Vec<f64> = out["num"]
         .as_array()

@@ -273,11 +273,9 @@ fn a_parametric_sweep_calls_an_injected_table_in_every_row() {
         "table": {"variables": ["x", "y"], "rows": [{"x": 1}, {"x": 2}, {"x": 4}]},
         "functionTables": [fcurve_dto()],
     });
-    let via_request: Value = serde_json::from_str(&frees::solve_table(
-        "y = fcurve(x)\n",
-        &request.to_string(),
-    ))
-    .expect("valid JSON out");
+    let via_request: Value =
+        serde_json::from_str(&frees::solve_table("y = fcurve(x)\n", &request.to_string()))
+            .expect("valid JSON out");
     assert!(via_request.get("error").is_none(), "{via_request}");
 
     let document_request = json!({
@@ -410,8 +408,8 @@ fn parameter_fit_evaluates_through_an_injected_table() {
             "curves": [{"param": null, "points": [[0, 1], [2, 1]]}],
         }],
     });
-    let out: Value = serde_json::from_str(&frees::parameter_fit(&request.to_string()))
-        .expect("valid JSON out");
+    let out: Value =
+        serde_json::from_str(&frees::parameter_fit(&request.to_string())).expect("valid JSON out");
     assert_eq!(out["success"], true, "{out}");
     let fitted = out["fittedValues"].as_array().unwrap()[0].as_f64().unwrap();
     assert!((fitted - 2.0).abs() < 1e-2, "fitted k = {fitted}, want ≈ 2");
