@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeAll } from 'vitest'
+// @ts-ignore
 import { readFileSync } from 'node:fs'
+// @ts-ignore
 import { resolve } from 'node:path'
+// @ts-ignore
+import { fileURLToPath } from 'node:url'
 import {
   initSync,
   solve,
@@ -10,6 +14,8 @@ import {
 } from './wasm/pkg/frees.js'
 
 beforeAll(() => {
+  // @ts-ignore
+  const __dirname = resolve(fileURLToPath(import.meta.url), '..')
   const wasmPath = resolve(__dirname, './wasm/pkg/frees_bg.wasm')
   const bytes = readFileSync(wasmPath)
   initSync({ module: bytes })
