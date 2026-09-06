@@ -18,121 +18,43 @@ export interface ModelFamily {
   members: ModelChoice[]
 }
 
+type Row = [string, string, string, string, string, string, string]
+
+function family(id: string, label: string, rows: Row[]): ModelFamily {
+  return {
+    id,
+    label,
+    members: rows.map(([type, requiredData, ports, flow, energy, regime, assumptions]) => ({
+      type,
+      requiredData,
+      ports,
+      flow,
+      energy,
+      regime,
+      assumptions,
+    })),
+  }
+}
+
 export const MODEL_FAMILIES: ModelFamily[] = [
-  {
-    id: 'fan',
-    label: 'Fans',
-    members: [
-      {
-        type: 'Fan',
-        requiredData: 'fluid$, dP0, Q0, eta',
-        ports: 'in, out',
-        flow: 'mass conserved; ΔP from (Q0, dP0)',
-        energy: 'shaft work added to enthalpy',
-        regime: 'steady',
-        assumptions: 'quadratic ΔP vs volumetric flow around the design point',
-      },
-      {
-        type: 'FanCurve',
-        requiredData: 'rho, dP0, Q0',
-        ports: 'in, out',
-        flow: 'mass conserved; same quadratic ΔP',
-        energy: 'pressure only — no enthalpy rise',
-        regime: 'steady',
-        assumptions: 'constant density; no work term',
-      },
-      {
-        type: 'FanMap',
-        requiredData: 'rho, map$ (ΔP vs Q)',
-        ports: 'in, out',
-        flow: 'mass conserved; ΔP from the table',
-        energy: 'pressure only — no enthalpy rise',
-        regime: 'steady',
-        assumptions: 'caller supplies a TABLE/FUNCTION map',
-      },
-    ],
-  },
-  {
-    id: 'compressor',
-    label: 'Compressors',
-    members: [
-      {
-        type: 'Compressor',
-        requiredData: 'fluid$, eta; model$ (isentropic / volumetric)',
-        ports: 'in, out',
-        flow: 'mass conserved; volumetric variant sets mdot from rpm',
-        energy: 'isentropic work / eta; named output W',
-        regime: 'steady',
-        assumptions: 'real-fluid isentropic path; volumetric needs disp and rpm',
-      },
-      {
-        type: 'CompressorMap',
-        requiredData: 'fluid$, map_eta$ (eta vs pressure ratio)',
-        ports: 'in, out',
-        flow: 'mass conserved',
-        energy: 'same isentropic path; eta from the map',
-        regime: 'steady',
-        assumptions: 'TABLE/FUNCTION of eta vs out.P/in.P',
-      },
-      {
-        type: 'TwoPhaseCompressor',
-        requiredData: 'fluid$, eta; model$ (isentropic / volumetric)',
-        ports: 'in, out (twophase)',
-        flow: 'mass conserved on refrigerant ports',
-        energy: 'isentropic work / eta; named output W',
-        regime: 'steady',
-        assumptions: 'two-phase connector family; same physics as Compressor',
-      },
-    ],
-  },
-  {
-    id: 'pump',
-    label: 'Pumps (thermofluid)',
-    members: [
-      {
-        type: 'Pump',
-        requiredData: 'fluid$, eta',
-        ports: 'in, out',
-        flow: 'mass conserved',
-        energy: 'v·ΔP / eta added to enthalpy; named output W',
-        regime: 'steady',
-        assumptions: 'incompressible work from specific volume at the inlet',
-      },
-      {
-        type: 'PumpMap',
-        requiredData: 'rho, map$ (head vs Q)',
-        ports: 'in, out',
-        flow: 'mass conserved; ΔP = ρ g head(Q)',
-        energy: 'pressure only — no enthalpy rise',
-        regime: 'steady',
-        assumptions: 'constant density; tabulated head curve',
-      },
-    ],
-  },
-  {
-    id: 'liquid-pump',
-    label: 'Pumps (liquid coolant)',
-    members: [
-      {
-        type: 'LiquidPump',
-        requiredData: 'fluid$, eta',
-        ports: 'in, out (liquid)',
-        flow: 'mass conserved on liquid ports',
-        energy: 'pump work on the liquid stream',
-        regime: 'steady',
-        assumptions: 'single-phase coolant connector; TMS loops',
-      },
-      {
-        type: 'LiquidPumpMap',
-        requiredData: 'rho, eta, map$',
-        ports: 'in, out (liquid)',
-        flow: 'mass conserved; head from the map',
-        energy: 'map head plus efficiency',
-        regime: 'steady',
-        assumptions: 'TABLE/FUNCTION map on a liquid connector',
-      },
-    ],
-  },
+  family('fan', 'Fans', [
+    ['Fan', 'fluid$, dP0, Q0, eta', 'in, out', 'mass conserved; ΔP from (Q0, dP0)', 'shaft work added to enthalpy', 'steady', 'quadratic ΔP vs volumetric flow around the design point'],
+    ['FanCurve', 'rho, dP0, Q0', 'in, out', 'mass conserved; same quadratic ΔP', 'pressure only — no enthalpy rise', 'steady', 'constant density; no work term'],
+    ['FanMap', 'rho, map$ (ΔP vs Q)', 'in, out', 'mass conserved; ΔP from the table', 'pressure only — no enthalpy rise', 'steady', 'caller supplies a TABLE/FUNCTION map'],
+  ]),
+  family('compressor', 'Compressors', [
+    ['Compressor', 'fluid$, eta; model$ (isentropic / volumetric)', 'in, out', 'mass conserved; volumetric variant sets mdot from rpm', 'isentropic work / eta; named output W', 'steady', 'real-fluid isentropic path; volumetric needs disp and rpm'],
+    ['CompressorMap', 'fluid$, map_eta$ (eta vs pressure ratio)', 'in, out', 'mass conserved', 'same isentropic path; eta from the map', 'steady', 'TABLE/FUNCTION of eta vs out.P/in.P'],
+    ['TwoPhaseCompressor', 'fluid$, eta; model$ (isentropic / volumetric)', 'in, out (twophase)', 'mass conserved on refrigerant ports', 'isentropic work / eta; named output W', 'steady', 'two-phase connector family; same physics as Compressor'],
+  ]),
+  family('pump', 'Pumps (thermofluid)', [
+    ['Pump', 'fluid$, eta', 'in, out', 'mass conserved', 'v·ΔP / eta added to enthalpy; named output W', 'steady', 'incompressible work from specific volume at the inlet'],
+    ['PumpMap', 'rho, map$ (head vs Q)', 'in, out', 'mass conserved; ΔP = ρ g head(Q)', 'pressure only — no enthalpy rise', 'steady', 'constant density; tabulated head curve'],
+  ]),
+  family('liquid-pump', 'Pumps (liquid coolant)', [
+    ['LiquidPump', 'fluid$, eta', 'in, out (liquid)', 'mass conserved on liquid ports', 'pump work on the liquid stream', 'steady', 'single-phase coolant connector; TMS loops'],
+    ['LiquidPumpMap', 'rho, eta, map$', 'in, out (liquid)', 'mass conserved; head from the map', 'map head plus efficiency', 'steady', 'TABLE/FUNCTION map on a liquid connector'],
+  ]),
 ]
 
 export function familyOf(type: string): ModelFamily | undefined {
