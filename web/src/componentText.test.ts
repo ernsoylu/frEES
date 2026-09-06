@@ -29,84 +29,67 @@ const param = (over: Partial<ComponentSpec['params'][number]> & { name: string }
   ...over,
 })
 
-const chiller: ComponentSpec = {
-  type: 'Chiller',
-  library: 'ac',
-  summary: '',
-  tags: [],
-  ports: ['ref_in', 'ref_out'],
-  params: [
-    param({ name: 'ref$' }),
-    param({ name: 'cool$' }),
-    param({ name: 'U_tp', isString: false, unit: 'W/m^2-K' }),
-    param({ name: 'eps_zone', isString: false, unit: '' }),
-    param({ name: 'model$', isSelector: true, required: false, values: ['isentropic', 'volumetric'] }),
-  ],
-  variants: [],
+function spec(
+  type: string,
+  library: string,
+  ports: string[],
+  params: ComponentSpec['params'],
+  variants: ComponentSpec['variants'] = [],
+): ComponentSpec {
+  return { type, library, summary: '', tags: [], ports, params, variants }
 }
 
-const hx: ComponentSpec = {
-  type: 'LiquidWallHX',
-  library: 'liquid',
-  summary: '',
-  tags: [],
-  ports: ['in', 'out', 'wall'],
-  params: [
-    param({ name: 'fluid$' }),
-    param({ name: 'UA', isString: false, unit: 'W/K' }),
-  ],
-  variants: [],
-}
+const selector = (values: string[], defaultValue = '') =>
+  param({ name: 'model$', isSelector: true, required: false, values, defaultValue })
 
-// A component with a real variant: volumetric requires eta_v/disp/rpm.
-const compressor: ComponentSpec = {
-  type: 'Compressor',
-  library: 'fluid',
-  summary: '',
-  tags: [],
-  ports: ['in', 'out'],
-  params: [
+const chiller = spec('Chiller', 'ac', ['ref_in', 'ref_out'], [
+  param({ name: 'ref$' }),
+  param({ name: 'cool$' }),
+  param({ name: 'U_tp', isString: false, unit: 'W/m^2-K' }),
+  param({ name: 'eps_zone', isString: false, unit: '' }),
+  selector(['isentropic', 'volumetric']),
+])
+
+const hx = spec('LiquidWallHX', 'liquid', ['in', 'out', 'wall'], [
+  param({ name: 'fluid$' }),
+  param({ name: 'UA', isString: false, unit: 'W/K' }),
+])
+
+const compressor = spec(
+  'Compressor',
+  'fluid',
+  ['in', 'out'],
+  [
     param({ name: 'eta', isString: false }),
     param({ name: 'fluid$' }),
-    param({
-      name: 'model$',
-      isSelector: true,
-      required: false,
-      values: ['isentropic', 'volumetric'],
-      defaultValue: 'isentropic',
-    }),
+    selector(['isentropic', 'volumetric'], 'isentropic'),
     param({ name: 'eta_v', isString: false, variants: ['volumetric'] }),
     param({ name: 'disp', isString: false, variants: ['volumetric'] }),
     param({ name: 'rpm', isString: false, variants: ['volumetric'] }),
   ],
-  variants: [
+  [
     { name: 'isentropic', requires: ['eta'] },
     { name: 'volumetric', requires: ['eta_v', 'disp', 'rpm'] },
   ],
-}
+)
 
-// Default is NOT the first documented variant — the engine's model$ default wins.
-const orifice: ComponentSpec = {
-  type: 'HydraulicOrifice',
-  library: 'hydraulic',
-  summary: '',
-  tags: [],
-  ports: ['in', 'out'],
-  params: [
+const orifice = spec(
+  'HydraulicOrifice',
+  'hydraulic',
+  ['in', 'out'],
+  [
     param({ name: 'CdA', isString: false }),
-    param({
-      name: 'model$',
-      isSelector: true,
-      required: false,
-      values: ['laminar', 'turbulent'],
-      defaultValue: 'turbulent',
-    }),
+    selector(['laminar', 'turbulent'], 'turbulent'),
     param({ name: 'nu', isString: false, variants: ['laminar'] }),
   ],
-  variants: [
+  [
     { name: 'laminar', requires: ['nu'] },
     { name: 'turbulent', requires: [] },
   ],
+)
+
+function hxLine(ua: string, fluid = 'Water') {
+  return generateComponentText(hx, 'HX', { fluid$: fluid, UA: ua })
 }
 
 describe('generateComponentText', () => {
@@ -135,50 +118,30 @@ describe('generateComponentText', () => {
     expect(text.startsWith('Chiller CHIL(')).toBe(true)
   })
 
-  it('appends units only to a plain numeric literal', () => {
-    expect(generateComponentText(hx, 'HX', { fluid$: 'Water', UA: '10' }))
-      .toBe('LiquidWallHX HX(fluid$=Water, UA=10 [W/K])')
-  })
-
-  it('preserves a variable reference without appending units', () => {
-    expect(generateComponentText(hx, 'HX', { fluid$: 'Water', UA: 'conductance' }))
-      .toBe('LiquidWallHX HX(fluid$=Water, UA=conductance)')
-  })
-
-  it('does not double-wrap an already annotated literal', () => {
-    expect(generateComponentText(hx, 'HX', { fluid$: 'Water', UA: '10 [W/K]' }))
-      .toBe('LiquidWallHX HX(fluid$=Water, UA=10 [W/K])')
-  })
-
-  it('preserves signed and scientific literals, then appends the field unit', () => {
-    expect(generateComponentText(hx, 'HX', { fluid$: 'Water', UA: '-1.5e3' }))
-      .toBe('LiquidWallHX HX(fluid$=Water, UA=-1.5e3 [W/K])')
-    expect(generateComponentText(hx, 'HX', { fluid$: 'Water', UA: '+8.0E-2' }))
-      .toBe('LiquidWallHX HX(fluid$=Water, UA=+8.0E-2 [W/K])')
+  it('formats UA and fluid$ without inventing extra unknowns', () => {
+    const cases: Array<[string, string, string]> = [
+      ['10', 'Water', 'LiquidWallHX HX(fluid$=Water, UA=10 [W/K])'],
+      ['conductance', 'Water', 'LiquidWallHX HX(fluid$=Water, UA=conductance)'],
+      ['10 [W/K]', 'Water', 'LiquidWallHX HX(fluid$=Water, UA=10 [W/K])'],
+      ['-1.5e3', 'Water', 'LiquidWallHX HX(fluid$=Water, UA=-1.5e3 [W/K])'],
+      ['+8.0E-2', 'Water', 'LiquidWallHX HX(fluid$=Water, UA=+8.0E-2 [W/K])'],
+      ['2 * 400', 'Water', 'LiquidWallHX HX(fluid$=Water, UA=2 * 400)'],
+      ['10', 'INCOMP::MEG[0.50]', "LiquidWallHX HX(fluid$='INCOMP::MEG[0.50]', UA=10 [W/K])"],
+      ['10', "'Water'", "LiquidWallHX HX(fluid$='Water', UA=10 [W/K])"],
+    ]
+    for (const [ua, fluid, want] of cases) {
+      expect(hxLine(ua, fluid), `${fluid} UA=${ua}`).toBe(want)
+    }
   })
 
   it('preserves offset-temperature annotations as written', () => {
-    const tSpec: ComponentSpec = {
-      ...hx,
-      params: [param({ name: 'fluid$' }), param({ name: 'T', isString: false, unit: 'K' })],
-    }
-    expect(generateComponentText(tSpec, 'S', { fluid$: 'Water', T: '20 [degC]' }))
-      .toBe('LiquidWallHX S(fluid$=Water, T=20 [degC])')
-  })
-
-  it('preserves arithmetic expressions', () => {
-    expect(generateComponentText(hx, 'HX', { fluid$: 'Water', UA: '2 * 400' }))
-      .toBe('LiquidWallHX HX(fluid$=Water, UA=2 * 400)')
-  })
-
-  it('quotes string values that are not bare identifiers', () => {
-    expect(generateComponentText(hx, 'HX', { fluid$: 'INCOMP::MEG[0.50]', UA: '10' }))
-      .toBe("LiquidWallHX HX(fluid$='INCOMP::MEG[0.50]', UA=10 [W/K])")
-  })
-
-  it('does not double-quote an already quoted string', () => {
-    expect(generateComponentText(hx, 'HX', { fluid$: "'Water'", UA: '10' }))
-      .toBe("LiquidWallHX HX(fluid$='Water', UA=10 [W/K])")
+    const tSpec = spec('LiquidWallHX', 'liquid', hx.ports, [
+      param({ name: 'fluid$' }),
+      param({ name: 'T', isString: false, unit: 'K' }),
+    ])
+    expect(generateComponentText(tSpec, 'S', { fluid$: 'Water', T: '20 [degC]' })).toBe(
+      'LiquidWallHX S(fluid$=Water, T=20 [degC])',
+    )
   })
 })
 
