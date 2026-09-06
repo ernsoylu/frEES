@@ -610,10 +610,11 @@ function solvePill(result: SolveResponse): PillContent {
   }
 }
 
-function checkPill(checkResult: CheckResponse): PillContent {
+export function checkPill(checkResult: CheckResponse): PillContent {
   const warnings = checkResult.unitWarnings
   const syntax =
-    (checkResult.errors && checkResult.errors.length > 0) || /syntax error/i.test(checkResult.message)
+    (checkResult.errors && checkResult.errors.length > 0) ||
+    (!checkResult.solvable && /^syntax error\b/i.test(checkResult.message.trim()))
   if (syntax) {
     return {
       color: 'red',
