@@ -497,6 +497,9 @@ export function mergeCodeTables(
  * code-defined original (which still wins in the solver by its text name). */
 /** Input-only editable copy: parametric results are not carried over, so
  *  solved outputs cannot become constraints on the next run. */
+export function duplicateAsEditable(table: ParamTableSpec, existing?: TableSpec[]): ParamTableSpec
+export function duplicateAsEditable(table: FunctionTableSpec, existing?: TableSpec[]): FunctionTableSpec
+export function duplicateAsEditable(table: TableSpec, existing?: TableSpec[]): TableSpec
 export function duplicateAsEditable(table: TableSpec, existing: TableSpec[] = [table]): TableSpec {
   table = detachLegacyFormulas(table)
   const name = uniqueTableName(`${table.name}_copy`, existing)
@@ -526,11 +529,15 @@ export function duplicateAsEditable(table: TableSpec, existing: TableSpec[] = [t
 }
 
 /** Snapshot copy: successful solved outputs are frozen as typed inputs. */
+export function duplicateAsSnapshot(table: ParamTableSpec, existing?: TableSpec[]): ParamTableSpec
+export function duplicateAsSnapshot(table: FunctionTableSpec, existing?: TableSpec[]): FunctionTableSpec
+export function duplicateAsSnapshot(table: TableSpec, existing?: TableSpec[]): TableSpec
 export function duplicateAsSnapshot(table: TableSpec, existing: TableSpec[] = [table]): TableSpec {
   if (table.kind !== 'parametric') return duplicateAsEditable(table, existing)
   const name = uniqueTableName(`${table.name}_snapshot`, existing)
+  const base = duplicateAsEditable(table, existing)
   return {
-    ...duplicateAsEditable(table, existing),
+    ...base,
     name,
     rows: table.rows.map((row, i) => {
       const values = { ...row.values }

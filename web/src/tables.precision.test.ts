@@ -13,6 +13,8 @@ it('sends argument and output units on the function-table DTO', () => {
     outputUnit: 'm',
   }])
   const copy = duplicateAsEditable(code)
+  expect(copy.kind).toBe('function')
+  if (copy.kind !== 'function') return
   expect(copy.argUnit).toBe('kPa')
   expect(copy.outputUnit).toBe('m')
   const dto = toFunctionTableDtos([copy])[0]

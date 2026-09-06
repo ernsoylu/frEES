@@ -225,7 +225,7 @@ export default function CreateFunctionModal({
                   setXMax(max)
                 }}
               />
-              {usedRows > 0 && (
+              {p.result.usedRows > 0 && (
                 <Text size="xs" c="dimmed">
                   Use in equations: <Code>U = {signature}</Code>
                 </Text>
