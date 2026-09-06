@@ -942,6 +942,7 @@ fn solve_success(
         // through `plotDefToSpec`, so this is what makes a declared plot
         // render.
         "definedPlots": plot_defs(&solution.plots),
+        "connections": connection_defs(&solution.component_connections),
         // Tornado breakdown: per dependent variable, its propagated sigma and
         // each source's signed contribution, largest sigma first — the Java
         // `SolveController.uncertaintyBreakdownOf`. Empty when the document
@@ -1003,6 +1004,21 @@ fn plot_defs(plots: &[frees_core::parser::blocks::PlotDef]) -> Vec<Value> {
                 .map(|(key, values)| (key.to_string(), json!(values)))
                 .collect();
             json!({ "name": plot.name, "attributes": attributes })
+        })
+        .collect()
+}
+
+fn connection_defs(conns: &[frees_core::components::expander::Connection]) -> Vec<Value> {
+    conns
+        .iter()
+        .map(|c| {
+            json!({
+                "domain": c.domain.as_str(),
+                "endpoints": c.endpoints,
+                "connector": c.connector,
+                "fluid": c.fluid,
+                "streams": c.streams,
+            })
         })
         .collect()
 }
@@ -1221,6 +1237,25 @@ fn check_response(report: &CheckReport) -> String {
         // what lets the Plots tab populate before the first solve —
         // `App.tsx`'s `result?.definedPlots ?? checkResult?.definedPlots`.
         "definedPlots": plot_defs(&report.plots),
+        "connections": connection_defs(&report.connections),
+        "instances": report
+            .instances
+            .iter()
+            .map(|i| {
+                json!({
+                    "name": i.name,
+                    "label": i.label,
+                    "type": i.type_name,
+                    "line": i.line,
+                    "localType": i.local_type,
+                })
+            })
+            .collect::<Vec<_>>(),
+        "definitions": report
+            .definitions
+            .iter()
+            .map(|d| json!({ "name": d.name, "line": d.line }))
+            .collect::<Vec<_>>(),
     })
     .to_string()
 }
@@ -1239,6 +1274,9 @@ fn check_failure(message: String) -> String {
         "errorLine": null,
         "errors": [],
         "definedPlots": [],
+        "connections": [],
+        "instances": [],
+        "definitions": [],
     })
     .to_string()
 }
@@ -1880,6 +1918,19 @@ R_load = 20
         // does, or a component document would report as empty and solvable.
         assert_eq!(v["equations"], v["unknowns"], "{v}");
         assert!(v["equations"].as_u64().unwrap() >= 14, "{v}");
+        let conns = v["connections"].as_array().expect("connections");
+        assert!(!conns.is_empty(), "{v}");
+        let ends: Vec<&str> = conns
+            .iter()
+            .flat_map(|c| {
+                c["endpoints"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .filter_map(|e| e.as_str())
+            })
+            .collect();
+        assert!(ends.iter().any(|e| e.contains("r1")), "{ends:?}");
     }
 
     #[test]

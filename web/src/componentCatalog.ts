@@ -1,6 +1,6 @@
 // GENERATED FILE - DO NOT EDIT DIRECTLY.
-// Compiled from src/docs/reference/components/**/*.md by scripts/compile-docs.js
-// (npm run compile-docs). Structured specs for the Component Browser/Wizard.
+// Compiled by scripts/compile-docs.js from this port's parsed component library
+// plus authored Markdown descriptions (npm run compile-docs).
 
 export interface ComponentParam {
   name: string;          // e.g. "U_tp", "fluid$"
@@ -12,6 +12,7 @@ export interface ComponentParam {
   required: boolean;
   values: string[];      // selector option values (model variants), else []
   variants: string[];    // variants that require this param; [] = shared/always-shown
+  defaultValue?: string; // engine-declared default (PARAM model$ = isentropic), else ""
 }
 
 export interface ComponentVariant {
@@ -37,13 +38,13 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`aircoil`, `component`, `ac`, `acausal`],
     ports: [`ref_in`, `ref_out`, `air_in`, `air_out`],
     params: [
-      { name: `ref$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Refrigerant name (e.g. R134a, R1234yf).`, required: true, values: [], variants: [] },
-      { name: `U_tp`, isString: false, isSelector: false, isMap: false, unit: `W/m^2-K`, description: `Two-phase-zone overall coefficient [W/m²·K].`, required: true, values: [], variants: [] },
-      { name: `U_sh`, isString: false, isSelector: false, isMap: false, unit: `W/m^2-K`, description: `Superheat-zone overall coefficient [W/m²·K].`, required: true, values: [], variants: [] },
-      { name: `D`, isString: false, isSelector: false, isMap: false, unit: `m`, description: `Diameter [m].`, required: true, values: [], variants: [] },
-      { name: `L`, isString: false, isSelector: false, isMap: false, unit: `m`, description: `Length [m].`, required: true, values: [], variants: [] },
-      { name: `eps_zone`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Zone-collapse smoothing width.`, required: true, values: [], variants: [] },
-      { name: `eps_air`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Air-side effectiveness.`, required: true, values: [], variants: [] }
+      { name: `ref$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Refrigerant name (e.g. R134a, R1234yf).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `U_tp`, isString: false, isSelector: false, isMap: false, unit: `W/m^2-K`, description: `Two-phase-zone overall coefficient [W/m²·K].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `U_sh`, isString: false, isSelector: false, isMap: false, unit: `W/m^2-K`, description: `Superheat-zone overall coefficient [W/m²·K].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `D`, isString: false, isSelector: false, isMap: false, unit: `m`, description: `Diameter [m].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `L`, isString: false, isSelector: false, isMap: false, unit: `m`, description: `Length [m].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eps_zone`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Zone-collapse smoothing width.`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eps_air`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Air-side effectiveness.`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -54,14 +55,14 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`chiller`, `component`, `ac`, `acausal`],
     ports: [`ref_in`, `ref_out`, `cool_in`, `cool_out`],
     params: [
-      { name: `ref$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Refrigerant name (e.g. R134a, R1234yf).`, required: true, values: [], variants: [] },
-      { name: `cool$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Coolant name (e.g. EG50, Water).`, required: true, values: [], variants: [] },
-      { name: `U_tp`, isString: false, isSelector: false, isMap: false, unit: `W/m^2-K`, description: `Two-phase-zone overall coefficient [W/m²·K].`, required: true, values: [], variants: [] },
-      { name: `U_sh`, isString: false, isSelector: false, isMap: false, unit: `W/m^2-K`, description: `Superheat-zone overall coefficient [W/m²·K].`, required: true, values: [], variants: [] },
-      { name: `D`, isString: false, isSelector: false, isMap: false, unit: `m`, description: `Diameter [m].`, required: true, values: [], variants: [] },
-      { name: `L`, isString: false, isSelector: false, isMap: false, unit: `m`, description: `Length [m].`, required: true, values: [], variants: [] },
-      { name: `eps_zone`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Zone-collapse smoothing width.`, required: true, values: [], variants: [] },
-      { name: `UA_cool`, isString: false, isSelector: false, isMap: false, unit: `W/K`, description: `Coolant-side conductance [W/K].`, required: true, values: [], variants: [] }
+      { name: `ref$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Refrigerant name (e.g. R134a, R1234yf).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `cool$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Coolant name (e.g. EG50, Water).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `U_tp`, isString: false, isSelector: false, isMap: false, unit: `W/m^2-K`, description: `Two-phase-zone overall coefficient [W/m²·K].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `U_sh`, isString: false, isSelector: false, isMap: false, unit: `W/m^2-K`, description: `Superheat-zone overall coefficient [W/m²·K].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `D`, isString: false, isSelector: false, isMap: false, unit: `m`, description: `Diameter [m].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `L`, isString: false, isSelector: false, isMap: false, unit: `m`, description: `Length [m].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eps_zone`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Zone-collapse smoothing width.`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `UA_cool`, isString: false, isSelector: false, isMap: false, unit: `W/K`, description: `Coolant-side conductance [W/K].`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -72,10 +73,10 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`exv`, `component`, `ac`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [] },
-      { name: `CdA_max`, isString: false, isSelector: false, isMap: false, unit: `m^2`, description: `Maximum Cd·A [m²].`, required: true, values: [], variants: [] },
-      { name: `u`, isString: false, isSelector: false, isMap: false, unit: `J/kg`, description: `Specific internal energy [J/kg].`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `CdA_max`, isString: false, isSelector: false, isMap: false, unit: `m^2`, description: `Maximum Cd·A [m²].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `u`, isString: false, isSelector: false, isMap: false, unit: `J/kg`, description: `Specific internal energy [J/kg].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `twophase` }
     ],
     variants: [],
   },
@@ -86,9 +87,9 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`exvcmd`, `component`, `ac`, `acausal`],
     ports: [`in`, `out`, `u`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `CdA_max`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `CdA_max`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `twophase` }
     ],
     variants: [],
   },
@@ -99,9 +100,9 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`heatercore`, `component`, `ac`, `acausal`],
     ports: [`cool_in`, `cool_out`, `air_in`, `air_out`],
     params: [
-      { name: `cool$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `UA_cool`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `eps_air`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `cool$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `UA_cool`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eps_air`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -112,9 +113,9 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`radiator`, `component`, `ac`, `acausal`],
     ports: [`cool_in`, `cool_out`, `air_in`, `air_out`],
     params: [
-      { name: `cool$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `UA_cool`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `eps_air`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `cool$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `UA_cool`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eps_air`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -125,13 +126,13 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`txv`, `component`, `ac`, `acausal`],
     ports: [`in`, `out`, `bulb`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [] },
-      { name: `Kv`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Flow coefficient.`, required: true, values: [], variants: [] },
-      { name: `SH_set`, isString: false, isSelector: false, isMap: false, unit: `K`, description: `Target superheat [K].`, required: true, values: [], variants: [] },
-      { name: `CdA0`, isString: false, isSelector: false, isMap: false, unit: `m^2`, description: `Reference Cd·A [m²].`, required: true, values: [], variants: [] },
-      { name: `tau_valve`, isString: false, isSelector: false, isMap: false, unit: `s`, description: `Valve time constant [s].`, required: true, values: [], variants: [] },
-      { name: `tau_bulb`, isString: false, isSelector: false, isMap: false, unit: `s`, description: `Bulb time constant [s].`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Kv`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Flow coefficient.`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `SH_set`, isString: false, isSelector: false, isMap: false, unit: `K`, description: `Target superheat [K].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `CdA0`, isString: false, isSelector: false, isMap: false, unit: `m^2`, description: `Reference Cd·A [m²].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `tau_valve`, isString: false, isSelector: false, isMap: false, unit: `s`, description: `Valve time constant [s].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `tau_bulb`, isString: false, isSelector: false, isMap: false, unit: `s`, description: `Bulb time constant [s].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `twophase` }
     ],
     variants: [],
   },
@@ -142,9 +143,9 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`pithermostat`, `component`, `control`, `acausal`],
     ports: [`port`],
     params: [
-      { name: `Kp`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Proportional gain.`, required: true, values: [], variants: [] },
-      { name: `Ki`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Integral gain.`, required: true, values: [], variants: [] },
-      { name: `Tref`, isString: false, isSelector: false, isMap: false, unit: `K`, description: `Reference (setpoint) temperature [K].`, required: true, values: [], variants: [] }
+      { name: `Kp`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Proportional gain.`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Ki`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Integral gain.`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Tref`, isString: false, isSelector: false, isMap: false, unit: `K`, description: `Reference (setpoint) temperature [K].`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -155,8 +156,8 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`battery`, `component`, `electrical`, `acausal`],
     ports: [`p`, `n`],
     params: [
-      { name: `Voc`, isString: false, isSelector: false, isMap: false, unit: `V`, description: `Open-circuit voltage [V].`, required: true, values: [], variants: [] },
-      { name: `R0`, isString: false, isSelector: false, isMap: false, unit: `ohm`, description: `Series (ohmic) resistance [Ω].`, required: true, values: [], variants: [] }
+      { name: `Voc`, isString: false, isSelector: false, isMap: false, unit: `V`, description: `Open-circuit voltage [V].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `R0`, isString: false, isSelector: false, isMap: false, unit: `ohm`, description: `Series (ohmic) resistance [Ω].`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -167,14 +168,14 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`battery2rc`, `component`, `electrical`, `acausal`],
     ports: [`p`, `n`],
     params: [
-      { name: `Voc`, isString: false, isSelector: false, isMap: false, unit: `V`, description: `Open-circuit voltage [V].`, required: true, values: [], variants: [] },
-      { name: `R0`, isString: false, isSelector: false, isMap: false, unit: `ohm`, description: `Series (ohmic) resistance [Ω].`, required: true, values: [], variants: [] },
-      { name: `R1`, isString: false, isSelector: false, isMap: false, unit: `ohm`, description: `First RC-branch resistance [Ω].`, required: true, values: [], variants: [] },
-      { name: `C1`, isString: false, isSelector: false, isMap: false, unit: `F`, description: `First RC-branch capacitance [F].`, required: true, values: [], variants: [] },
-      { name: `R2`, isString: false, isSelector: false, isMap: false, unit: `ohm`, description: `Second RC-branch resistance [Ω].`, required: true, values: [], variants: [] },
-      { name: `C2`, isString: false, isSelector: false, isMap: false, unit: `F`, description: `Second RC-branch capacitance [F].`, required: true, values: [], variants: [] },
-      { name: `Vrc1_0`, isString: false, isSelector: false, isMap: false, unit: `V`, description: `Initial first-RC voltage [V].`, required: true, values: [], variants: [] },
-      { name: `Vrc2_0`, isString: false, isSelector: false, isMap: false, unit: `V`, description: `Initial second-RC voltage [V].`, required: true, values: [], variants: [] }
+      { name: `Voc`, isString: false, isSelector: false, isMap: false, unit: `V`, description: `Open-circuit voltage [V].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `R0`, isString: false, isSelector: false, isMap: false, unit: `ohm`, description: `Series (ohmic) resistance [Ω].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `R1`, isString: false, isSelector: false, isMap: false, unit: `ohm`, description: `First RC-branch resistance [Ω].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `C1`, isString: false, isSelector: false, isMap: false, unit: `F`, description: `First RC-branch capacitance [F].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `R2`, isString: false, isSelector: false, isMap: false, unit: `ohm`, description: `Second RC-branch resistance [Ω].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `C2`, isString: false, isSelector: false, isMap: false, unit: `F`, description: `Second RC-branch capacitance [F].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Vrc1_0`, isString: false, isSelector: false, isMap: false, unit: `V`, description: `Initial first-RC voltage [V].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Vrc2_0`, isString: false, isSelector: false, isMap: false, unit: `V`, description: `Initial second-RC voltage [V].`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -185,19 +186,23 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`batterycellmap`, `component`, `electrical`, `acausal`],
     ports: [`p`, `n`, `heat`],
     params: [
-      { name: `ocv$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `dudt$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `R0ref`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Tref`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Ea`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Q0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `C_th`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `SOC0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `T0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `k_age`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `model$`, isString: true, isSelector: true, isMap: false, unit: ``, description: ``, required: false, values: [`static`, `aging`], variants: [] }
+      { name: `ocv$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `dudt$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `R0ref`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Tref`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Ea`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Q0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `C_th`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `SOC0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `T0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `k_age`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [`aging`, `aging_cal`], defaultValue: `` },
+      { name: `R1`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [`rc_map`], defaultValue: `` },
+      { name: `C1`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [`rc_map`], defaultValue: `` },
+      { name: `k_cal`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [`aging_cal`], defaultValue: `` },
+      { name: `Ea_cal`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [`aging_cal`], defaultValue: `` },
+      { name: `model$`, isString: true, isSelector: true, isMap: false, unit: ``, description: ``, required: false, values: [`static`, `aging`, `rc_map`, `aging_cal`], variants: [], defaultValue: `static` }
     ],
-    variants: [{ name: `static`, requires: [] }, { name: `aging`, requires: [`k_age`] }],
+    variants: [{ name: `static`, requires: [] }, { name: `aging`, requires: [`k_age`] }, { name: `rc_map`, requires: [`R1`, `C1`] }, { name: `aging_cal`, requires: [`k_age`, `k_cal`, `Ea_cal`] }],
   },
   {
     type: `BatteryPack`,
@@ -206,17 +211,17 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`batterypack`, `component`, `electrical`, `acausal`],
     ports: [`p`, `n`, `heat`],
     params: [
-      { name: `Ns`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Np`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `ocv$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `dudt$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `R0ref`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Tref`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Ea`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Q0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `C_th`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `SOC0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `T0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `Ns`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Np`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `ocv$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `dudt$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `R0ref`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Tref`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Ea`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Q0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `C_th`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `SOC0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `T0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -227,11 +232,11 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`batteryrc`, `component`, `electrical`, `acausal`],
     ports: [`p`, `n`],
     params: [
-      { name: `Voc`, isString: false, isSelector: false, isMap: false, unit: `V`, description: `Open-circuit voltage [V].`, required: true, values: [], variants: [] },
-      { name: `R0`, isString: false, isSelector: false, isMap: false, unit: `ohm`, description: `Series (ohmic) resistance [Ω].`, required: true, values: [], variants: [] },
-      { name: `R1`, isString: false, isSelector: false, isMap: false, unit: `ohm`, description: `First RC-branch resistance [Ω].`, required: true, values: [], variants: [] },
-      { name: `C1`, isString: false, isSelector: false, isMap: false, unit: `F`, description: `First RC-branch capacitance [F].`, required: true, values: [], variants: [] },
-      { name: `Vrc0`, isString: false, isSelector: false, isMap: false, unit: `V`, description: `Initial RC-branch voltage [V].`, required: true, values: [], variants: [] }
+      { name: `Voc`, isString: false, isSelector: false, isMap: false, unit: `V`, description: `Open-circuit voltage [V].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `R0`, isString: false, isSelector: false, isMap: false, unit: `ohm`, description: `Series (ohmic) resistance [Ω].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `R1`, isString: false, isSelector: false, isMap: false, unit: `ohm`, description: `First RC-branch resistance [Ω].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `C1`, isString: false, isSelector: false, isMap: false, unit: `F`, description: `First RC-branch capacitance [F].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Vrc0`, isString: false, isSelector: false, isMap: false, unit: `V`, description: `Initial RC-branch voltage [V].`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -242,8 +247,8 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`batterythermal`, `component`, `electrical`, `acausal`],
     ports: [`p`, `n`, `heat`],
     params: [
-      { name: `Voc`, isString: false, isSelector: false, isMap: false, unit: `V`, description: `Open-circuit voltage [V].`, required: true, values: [], variants: [] },
-      { name: `R0`, isString: false, isSelector: false, isMap: false, unit: `ohm`, description: `Series (ohmic) resistance [Ω].`, required: true, values: [], variants: [] }
+      { name: `Voc`, isString: false, isSelector: false, isMap: false, unit: `V`, description: `Open-circuit voltage [V].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `R0`, isString: false, isSelector: false, isMap: false, unit: `ohm`, description: `Series (ohmic) resistance [Ω].`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -254,12 +259,12 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`batterytransient`, `component`, `electrical`, `acausal`],
     ports: [`p`, `n`, `heat`],
     params: [
-      { name: `Voc`, isString: false, isSelector: false, isMap: false, unit: `V`, description: `Open-circuit voltage [V].`, required: true, values: [], variants: [] },
-      { name: `R0`, isString: false, isSelector: false, isMap: false, unit: `ohm`, description: `Series (ohmic) resistance [Ω].`, required: true, values: [], variants: [] },
-      { name: `Q0`, isString: false, isSelector: false, isMap: false, unit: `W`, description: `Reference heat [W].`, required: true, values: [], variants: [] },
-      { name: `C_th`, isString: false, isSelector: false, isMap: false, unit: `J/K`, description: `Thermal capacitance [J/K].`, required: true, values: [], variants: [] },
-      { name: `SOC0`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Initial state of charge (0–1).`, required: true, values: [], variants: [] },
-      { name: `T0`, isString: false, isSelector: false, isMap: false, unit: `K`, description: `Reference/initial temperature [K].`, required: true, values: [], variants: [] }
+      { name: `Voc`, isString: false, isSelector: false, isMap: false, unit: `V`, description: `Open-circuit voltage [V].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `R0`, isString: false, isSelector: false, isMap: false, unit: `ohm`, description: `Series (ohmic) resistance [Ω].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Q0`, isString: false, isSelector: false, isMap: false, unit: `W`, description: `Reference heat [W].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `C_th`, isString: false, isSelector: false, isMap: false, unit: `J/K`, description: `Thermal capacitance [J/K].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `SOC0`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Initial state of charge (0–1).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `T0`, isString: false, isSelector: false, isMap: false, unit: `K`, description: `Reference/initial temperature [K].`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -270,8 +275,8 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`capacitor`, `component`, `electrical`, `acausal`],
     ports: [`p`, `n`],
     params: [
-      { name: `C`, isString: false, isSelector: false, isMap: false, unit: `F`, description: `Capacitance [F].`, required: true, values: [], variants: [] },
-      { name: `V0`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Initial voltage / volume.`, required: true, values: [], variants: [] }
+      { name: `C`, isString: false, isSelector: false, isMap: false, unit: `F`, description: `Capacitance [F].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `V0`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Initial voltage / volume.`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -282,9 +287,9 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`chargercccv`, `component`, `electrical`, `acausal`],
     ports: [`p`, `n`],
     params: [
-      { name: `Imax`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Vmax`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `epsV`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `Imax`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Vmax`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `epsV`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -295,7 +300,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`currentsource`, `component`, `electrical`, `acausal`],
     ports: [`p`, `n`],
     params: [
-      { name: `I`, isString: false, isSelector: false, isMap: false, unit: `A`, description: `Current [A].`, required: true, values: [], variants: [] }
+      { name: `I`, isString: false, isSelector: false, isMap: false, unit: `A`, description: `Current [A].`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -306,9 +311,9 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`dcdcconverter`, `component`, `electrical`, `acausal`],
     ports: [`in_p`, `in_n`, `out_p`, `out_n`],
     params: [
-      { name: `ratio`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `eta`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `epsP`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `ratio`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eta`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `epsP`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -319,9 +324,9 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`dcmotor`, `component`, `electrical`, `acausal`],
     ports: [`p`, `n`, `shaft`],
     params: [
-      { name: `Kt`, isString: false, isSelector: false, isMap: false, unit: `N-m/A`, description: `Torque constant [N·m/A].`, required: true, values: [], variants: [] },
-      { name: `Ke`, isString: false, isSelector: false, isMap: false, unit: `V-s/rad`, description: `Back-EMF constant [V·s/rad].`, required: true, values: [], variants: [] },
-      { name: `R`, isString: false, isSelector: false, isMap: false, unit: `ohm`, description: `Resistance [Ω].`, required: true, values: [], variants: [] }
+      { name: `Kt`, isString: false, isSelector: false, isMap: false, unit: `N-m/A`, description: `Torque constant [N·m/A].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Ke`, isString: false, isSelector: false, isMap: false, unit: `V-s/rad`, description: `Back-EMF constant [V·s/rad].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `R`, isString: false, isSelector: false, isMap: false, unit: `ohm`, description: `Resistance [Ω].`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -332,8 +337,8 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`diode`, `component`, `electrical`, `acausal`],
     ports: [`p`, `n`],
     params: [
-      { name: `Gon`, isString: false, isSelector: false, isMap: false, unit: `S`, description: `On-state conductance [S].`, required: true, values: [], variants: [] },
-      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Effectiveness / roughness.`, required: true, values: [], variants: [] }
+      { name: `Gon`, isString: false, isSelector: false, isMap: false, unit: `S`, description: `On-state conductance [S].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Effectiveness / roughness.`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -344,14 +349,14 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`electrolyzer`, `component`, `electrical`, `acausal`],
     ports: [`p`, `n`, `heat`],
     params: [
-      { name: `ncells`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `area`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `i0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Rohm`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `E0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `alpha`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Eth`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `T`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `ncells`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `area`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `i0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Rohm`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `E0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `alpha`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Eth`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `T`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -362,16 +367,16 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`electrolyzerthermal`, `component`, `electrical`, `acausal`],
     ports: [`p`, `n`, `cool_in`, `cool_out`],
     params: [
-      { name: `ncells`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `area`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `i0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Rohm`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `E0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `alpha`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Eth`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `T`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `UA`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `ncells`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `area`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `i0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Rohm`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `E0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `alpha`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Eth`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `T`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `UA`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -382,15 +387,15 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`fuelcellstack`, `component`, `electrical`, `acausal`],
     ports: [`p`, `n`, `heat`],
     params: [
-      { name: `ncells`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Number of cells.`, required: true, values: [], variants: [] },
-      { name: `area`, isString: false, isSelector: false, isMap: false, unit: `m^2`, description: `Area [m²].`, required: true, values: [], variants: [] },
-      { name: `i0`, isString: false, isSelector: false, isMap: false, unit: `A`, description: `Initial current [A].`, required: true, values: [], variants: [] },
-      { name: `ilim`, isString: false, isSelector: false, isMap: false, unit: `A`, description: `Current limit [A].`, required: true, values: [], variants: [] },
-      { name: `Rohm`, isString: false, isSelector: false, isMap: false, unit: `ohm`, description: `Ohmic resistance [Ω].`, required: true, values: [], variants: [] },
-      { name: `E0`, isString: false, isSelector: false, isMap: false, unit: `V`, description: `Reference EMF [V].`, required: true, values: [], variants: [] },
-      { name: `alpha`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Void fraction / coefficient.`, required: true, values: [], variants: [] },
-      { name: `Eth`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Activation/threshold energy.`, required: true, values: [], variants: [] },
-      { name: `T`, isString: false, isSelector: false, isMap: false, unit: `K`, description: `Temperature [K].`, required: true, values: [], variants: [] }
+      { name: `ncells`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Number of cells.`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `area`, isString: false, isSelector: false, isMap: false, unit: `m^2`, description: `Area [m²].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `i0`, isString: false, isSelector: false, isMap: false, unit: `A`, description: `Initial current [A].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `ilim`, isString: false, isSelector: false, isMap: false, unit: `A`, description: `Current limit [A].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Rohm`, isString: false, isSelector: false, isMap: false, unit: `ohm`, description: `Ohmic resistance [Ω].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `E0`, isString: false, isSelector: false, isMap: false, unit: `V`, description: `Reference EMF [V].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `alpha`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Void fraction / coefficient.`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Eth`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Activation/threshold energy.`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `T`, isString: false, isSelector: false, isMap: false, unit: `K`, description: `Temperature [K].`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -401,17 +406,17 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`fuelcellstackcooled`, `component`, `electrical`, `acausal`],
     ports: [`p`, `n`, `cool_in`, `cool_out`],
     params: [
-      { name: `ncells`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `area`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `i0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `ilim`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Rohm`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `E0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `alpha`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Eth`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `T`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `UA`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `ncells`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `area`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `i0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `ilim`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Rohm`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `E0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `alpha`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Eth`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `T`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `UA`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -433,8 +438,8 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`harnessresistance`, `component`, `electrical`, `acausal`],
     ports: [`a`, `b`, `heat`],
     params: [
-      { name: `R20`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `alphaT`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `R20`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `alphaT`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -445,7 +450,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`heatingresistor`, `component`, `electrical`, `acausal`],
     ports: [`p`, `n`, `heat`],
     params: [
-      { name: `R`, isString: false, isSelector: false, isMap: false, unit: `ohm`, description: `Resistance [Ω].`, required: true, values: [], variants: [] }
+      { name: `R`, isString: false, isSelector: false, isMap: false, unit: `ohm`, description: `Resistance [Ω].`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -456,8 +461,8 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`inductor`, `component`, `electrical`, `acausal`],
     ports: [`p`, `n`],
     params: [
-      { name: `L`, isString: false, isSelector: false, isMap: false, unit: `m`, description: `Length [m].`, required: true, values: [], variants: [] },
-      { name: `I0`, isString: false, isSelector: false, isMap: false, unit: `A`, description: `Saturation current [A].`, required: true, values: [], variants: [] }
+      { name: `L`, isString: false, isSelector: false, isMap: false, unit: `m`, description: `Length [m].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `I0`, isString: false, isSelector: false, isMap: false, unit: `A`, description: `Saturation current [A].`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -468,14 +473,14 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`inverterloss`, `component`, `electrical`, `acausal`],
     ports: [`in_p`, `out_p`, `heat`],
     params: [
-      { name: `V0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `r`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Esw`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `fsw`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Iref`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Vref`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Vnom`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `epsI`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `V0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `r`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Esw`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `fsw`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Iref`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Vref`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Vnom`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `epsI`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -486,8 +491,8 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`motormap`, `component`, `electrical`, `acausal`],
     ports: [`p`, `n`, `shaft`, `heat`, `u`],
     params: [
-      { name: `eff$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `epsP`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `eff$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `epsP`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -498,7 +503,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`mpptblock`, `component`, `electrical`, `acausal`],
     ports: [`G`, `out`],
     params: [
-      { name: `vmp$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `vmp$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -509,9 +514,9 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`pmsm`, `component`, `electrical`, `acausal`],
     ports: [`p`, `n`, `shaft`],
     params: [
-      { name: `Rs`, isString: false, isSelector: false, isMap: false, unit: `ohm`, description: `Series resistance [Ω].`, required: true, values: [], variants: [] },
-      { name: `lambda_pm`, isString: false, isSelector: false, isMap: false, unit: `Wb`, description: `PM flux linkage [Wb].`, required: true, values: [], variants: [] },
-      { name: `poles`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Number of magnetic pole pairs.`, required: true, values: [], variants: [] }
+      { name: `Rs`, isString: false, isSelector: false, isMap: false, unit: `ohm`, description: `Series resistance [Ω].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `lambda_pm`, isString: false, isSelector: false, isMap: false, unit: `Wb`, description: `PM flux linkage [Wb].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `poles`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Number of magnetic pole pairs.`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -522,13 +527,13 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`pvsinglediode`, `component`, `electrical`, `acausal`],
     ports: [`p`, `n`, `G`],
     params: [
-      { name: `Isc_ref`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Gref`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `I0d`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `n_d`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Vt`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Rs`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Rsh`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `Isc_ref`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Gref`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `I0d`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `n_d`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Vt`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Rs`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Rsh`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -539,7 +544,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`resistor`, `component`, `electrical`, `acausal`],
     ports: [`a`, `b`],
     params: [
-      { name: `R`, isString: false, isSelector: false, isMap: false, unit: `ohm`, description: `Resistance [Ω].`, required: true, values: [], variants: [] }
+      { name: `R`, isString: false, isSelector: false, isMap: false, unit: `ohm`, description: `Resistance [Ω].`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -550,10 +555,10 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`solararray`, `component`, `electrical`, `acausal`],
     ports: [`p`, `n`, `G`],
     params: [
-      { name: `Isc_ref`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Gref`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Voc`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `epsV`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `Isc_ref`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Gref`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Voc`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `epsV`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -564,9 +569,9 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`supercapacitor`, `component`, `electrical`, `acausal`],
     ports: [`p`, `n`],
     params: [
-      { name: `C`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `R_esr`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `V0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `C`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `R_esr`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `V0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -577,10 +582,10 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`thermalfuse`, `component`, `electrical`, `acausal`],
     ports: [`p`, `n`],
     params: [
-      { name: `R0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Iblow`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `kR`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `epsI`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `R0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Iblow`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `kR`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `epsI`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -591,7 +596,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`voltagesource`, `component`, `electrical`, `acausal`],
     ports: [`p`, `n`],
     params: [
-      { name: `E`, isString: false, isSelector: false, isMap: false, unit: `V`, description: `EMF / voltage [V].`, required: true, values: [], variants: [] }
+      { name: `E`, isString: false, isSelector: false, isMap: false, unit: `V`, description: `EMF / voltage [V].`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -602,8 +607,8 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`accumulator`, `component`, `fluid`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `C`, isString: false, isSelector: false, isMap: false, unit: `F`, description: `Capacitance [F].`, required: true, values: [], variants: [] },
-      { name: `P0`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Reference/initial pressure [Pa].`, required: true, values: [], variants: [] }
+      { name: `C`, isString: false, isSelector: false, isMap: false, unit: `F`, description: `Capacitance [F].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `P0`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Reference/initial pressure [Pa].`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -614,8 +619,8 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`atmospheresource`, `component`, `fluid`, `acausal`],
     ports: [`out`],
     params: [
-      { name: `alt`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `mdot`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `alt`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `mdot`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -637,10 +642,10 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`combustor`, `component`, `fluid`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `mdot_f`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `LHV`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `eta_b`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `dP`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `mdot_f`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `LHV`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eta_b`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `dP`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -651,13 +656,13 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`combustorspecies`, `component`, `fluid`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `mdot_f`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `LHV`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `eta_b`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `dP`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `xC`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `yH`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `mdot_f`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `LHV`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eta_b`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `dP`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `xC`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `yH`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `gas` }
     ],
     variants: [],
   },
@@ -665,29 +670,31 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     type: `Compressor`,
     library: `fluid`,
     summary: `Raises the pressure of a fluid stream, computing the work from an isentropic efficiency.`,
-    tags: [`compressor`, `component`, `fluid`, `acausal`],
+    tags: [`compressor`, `compressor-family`, `data:eta`, `ports:in-out`, `flow-closed`, `energy-work`, `steady`, `component`, `fluid`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `eta`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Efficiency (0–1).`, required: true, values: [], variants: [] },
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [] },
-      { name: `model$`, isString: true, isSelector: true, isMap: false, unit: ``, description: `Model variant — selects the physics body (see Model Variants).`, required: false, values: [`isentropic`, `volumetric`], variants: [] },
-      { name: `eta_v`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [`volumetric`] },
-      { name: `disp`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [`volumetric`] },
-      { name: `rpm`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [`volumetric`] }
+      { name: `eta`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Efficiency (0–1).`, required: true, values: [], variants: [`isentropic`, `volumetric`], defaultValue: `` },
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eta_v`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [`volumetric`], defaultValue: `` },
+      { name: `disp`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [`volumetric`], defaultValue: `` },
+      { name: `rpm`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [`volumetric`, `map`], defaultValue: `` },
+      { name: `map_eta$`, isString: true, isSelector: false, isMap: true, unit: ``, description: ``, required: true, values: [], variants: [`map`], defaultValue: `` },
+      { name: `model$`, isString: true, isSelector: true, isMap: false, unit: ``, description: `Model variant — selects the physics body (see Model Variants).`, required: false, values: [`isentropic`, `volumetric`, `map`], variants: [], defaultValue: `isentropic` }
     ],
-    variants: [{ name: `isentropic`, requires: [] }, { name: `volumetric`, requires: [`eta_v`, `disp`, `rpm`] }],
+    variants: [{ name: `isentropic`, requires: [`eta`] }, { name: `volumetric`, requires: [`eta`, `eta_v`, `disp`, `rpm`] }, { name: `map`, requires: [`map_eta$`, `rpm`] }],
   },
   {
     type: `CompressorMap`,
     library: `fluid`,
     summary: `A compressor whose isentropic efficiency comes from a tabulated map (eta vs pressure ratio).`,
-    tags: [`compressormap`, `compressor`, `map`, `component`, `fluid`, `acausal`],
+    tags: [`compressor`, `compressor-family`, `compressormap`, `map`, `data:map-eta`, `ports:in-out`, `flow-closed`, `energy-work`, `steady`, `map-driven`, `component`, `fluid`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. R134a, Air).`, required: true, values: [], variants: [] },
-      { name: `map_eta$`, isString: true, isSelector: false, isMap: true, unit: ``, description: `Name of a TABLE/FUNCTION giving isentropic efficiency (0–1) vs pressure ratio (out.P/in.P).`, required: true, values: [], variants: [] },
-      { name: `model$`, isString: true, isSelector: true, isMap: false, unit: ``, description: ``, required: false, values: [`eta`, `flow`], variants: [] },
-      { name: `map_mdot$`, isString: true, isSelector: false, isMap: true, unit: ``, description: ``, required: true, values: [], variants: [`flow`] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. R134a, Air).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `map_eta$`, isString: true, isSelector: false, isMap: true, unit: ``, description: `Name of a TABLE/FUNCTION giving isentropic efficiency (0–1) vs pressure ratio (out.P/in.P).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `map_mdot$`, isString: true, isSelector: false, isMap: true, unit: ``, description: ``, required: true, values: [], variants: [`flow`], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `fluid` },
+      { name: `model$`, isString: true, isSelector: true, isMap: false, unit: ``, description: ``, required: false, values: [`eta`, `flow`], variants: [], defaultValue: `eta` }
     ],
     variants: [{ name: `eta`, requires: [] }, { name: `flow`, requires: [`map_mdot$`] }],
   },
@@ -709,11 +716,11 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`duct`, `component`, `fluid`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: `kg/m^3`, description: `Density [kg/m³].`, required: true, values: [], variants: [] },
-      { name: `mu`, isString: false, isSelector: false, isMap: false, unit: `Pa-s`, description: `Dynamic viscosity [Pa·s].`, required: true, values: [], variants: [] },
-      { name: `L`, isString: false, isSelector: false, isMap: false, unit: `m`, description: `Length [m].`, required: true, values: [], variants: [] },
-      { name: `D`, isString: false, isSelector: false, isMap: false, unit: `m`, description: `Diameter [m].`, required: true, values: [], variants: [] },
-      { name: `rough`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Relative wall roughness.`, required: true, values: [], variants: [] }
+      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: `kg/m^3`, description: `Density [kg/m³].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `mu`, isString: false, isSelector: false, isMap: false, unit: `Pa-s`, description: `Dynamic viscosity [Pa·s].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `L`, isString: false, isSelector: false, isMap: false, unit: `m`, description: `Length [m].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `D`, isString: false, isSelector: false, isMap: false, unit: `m`, description: `Diameter [m].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `rough`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Relative wall roughness.`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -724,8 +731,8 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`expansionvalve`, `component`, `fluid`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `CdA`, isString: false, isSelector: false, isMap: false, unit: `m^2`, description: `Discharge coefficient × area Cd·A [m²].`, required: true, values: [], variants: [] },
-      { name: `rho_in`, isString: false, isSelector: false, isMap: false, unit: `kg/m^3`, description: `Inlet density [kg/m³].`, required: true, values: [], variants: [] }
+      { name: `CdA`, isString: false, isSelector: false, isMap: false, unit: `m^2`, description: `Discharge coefficient × area Cd·A [m²].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `rho_in`, isString: false, isSelector: false, isMap: false, unit: `kg/m^3`, description: `Inlet density [kg/m³].`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -733,13 +740,13 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     type: `Fan`,
     library: `fluid`,
     summary: `Adds a pressure rise to a gas/air stream, computing the fan work.`,
-    tags: [`fan`, `component`, `fluid`, `acausal`],
+    tags: [`fan`, `fan-family`, `constant-rise`, `data:dP0-Q0-eta`, `ports:in-out`, `flow-closed`, `energy-work`, `steady`, `component`, `fluid`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [] },
-      { name: `dP0`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Reference pressure drop [Pa].`, required: true, values: [], variants: [] },
-      { name: `Q0`, isString: false, isSelector: false, isMap: false, unit: `W`, description: `Reference heat [W].`, required: true, values: [], variants: [] },
-      { name: `eta`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Efficiency (0–1).`, required: true, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `dP0`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Reference pressure drop [Pa].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Q0`, isString: false, isSelector: false, isMap: false, unit: `W`, description: `Reference heat [W].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eta`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Efficiency (0–1).`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -747,12 +754,12 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     type: `FanCurve`,
     library: `fluid`,
     summary: `A fan whose pressure rise follows a tabulated pressure–flow performance curve.`,
-    tags: [`fancurve`, `component`, `fluid`, `acausal`],
+    tags: [`fan`, `fan-family`, `fancurve`, `curve`, `data:rho-dP0-Q0`, `ports:in-out`, `flow-closed`, `energy-pressure`, `steady`, `component`, `fluid`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: `kg/m^3`, description: `Density [kg/m³].`, required: true, values: [], variants: [] },
-      { name: `dP0`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Reference pressure drop [Pa].`, required: true, values: [], variants: [] },
-      { name: `Q0`, isString: false, isSelector: false, isMap: false, unit: `W`, description: `Reference heat [W].`, required: true, values: [], variants: [] }
+      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: `kg/m^3`, description: `Density [kg/m³].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `dP0`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Reference pressure drop [Pa].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Q0`, isString: false, isSelector: false, isMap: false, unit: `W`, description: `Reference heat [W].`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -760,11 +767,11 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     type: `FanMap`,
     library: `fluid`,
     summary: `A fan whose pressure rise comes from a tabulated performance map (ΔP vs volumetric flow).`,
-    tags: [`fanmap`, `fan`, `map`, `component`, `fluid`, `acausal`],
+    tags: [`fan`, `fan-family`, `fanmap`, `map`, `data:rho-map`, `ports:in-out`, `flow-closed`, `energy-pressure`, `steady`, `map-driven`, `component`, `fluid`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: `kg/m^3`, description: `Density [kg/m³].`, required: true, values: [], variants: [] },
-      { name: `map$`, isString: true, isSelector: false, isMap: true, unit: ``, description: `Name of a TABLE/FUNCTION giving pressure rise [Pa] vs volumetric flow [m³/s].`, required: true, values: [], variants: [] }
+      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: `kg/m^3`, description: `Density [kg/m³].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `map$`, isString: true, isSelector: false, isMap: true, unit: ``, description: `Name of a TABLE/FUNCTION giving pressure rise [Pa] vs volumetric flow [m³/s].`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -786,8 +793,8 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`heatedduct`, `component`, `fluid`, `acausal`],
     ports: [`in`, `out`, `wall`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `UA`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `UA`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -798,10 +805,10 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`heatexchanger`, `component`, `fluid`, `acausal`],
     ports: [`hot_in`, `hot_out`, `cold_in`, `cold_out`],
     params: [
-      { name: `UA`, isString: false, isSelector: false, isMap: false, unit: `W/K`, description: `Overall conductance UA [W/K].`, required: true, values: [], variants: [] },
-      { name: `hot$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Hot-side fluid name (e.g. Water).`, required: true, values: [], variants: [] },
-      { name: `cold$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Cold-side fluid name (e.g. EG50).`, required: true, values: [], variants: [] },
-      { name: `arr$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Flow arrangement (passed to hx_effectiveness) — one of \`counterflow\`, \`parallel\`.`, required: true, values: [], variants: [] }
+      { name: `UA`, isString: false, isSelector: false, isMap: false, unit: `W/K`, description: `Overall conductance UA [W/K].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `hot$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Hot-side fluid name (e.g. Water).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `cold$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Cold-side fluid name (e.g. EG50).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `arr$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Flow arrangement (passed to hx_effectiveness) — one of \`counterflow\`, \`parallel\`.`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -823,12 +830,12 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`nozzle`, `component`, `fluid`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `k`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Stiffness / conductivity.`, required: true, values: [], variants: [] },
-      { name: `R`, isString: false, isSelector: false, isMap: false, unit: `ohm`, description: `Resistance [Ω].`, required: true, values: [], variants: [] },
-      { name: `A_throat`, isString: false, isSelector: false, isMap: false, unit: `m^2`, description: `Throat area [m²].`, required: true, values: [], variants: [] },
-      { name: `A_exit`, isString: false, isSelector: false, isMap: false, unit: `m^2`, description: `Exit area [m²].`, required: true, values: [], variants: [] },
-      { name: `P_amb`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Ambient pressure [Pa].`, required: true, values: [], variants: [] },
-      { name: `T0`, isString: false, isSelector: false, isMap: false, unit: `K`, description: `Reference/initial temperature [K].`, required: true, values: [], variants: [] }
+      { name: `k`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Stiffness / conductivity.`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `R`, isString: false, isSelector: false, isMap: false, unit: `ohm`, description: `Resistance [Ω].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `A_throat`, isString: false, isSelector: false, isMap: false, unit: `m^2`, description: `Throat area [m²].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `A_exit`, isString: false, isSelector: false, isMap: false, unit: `m^2`, description: `Exit area [m²].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `P_amb`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Ambient pressure [Pa].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `T0`, isString: false, isSelector: false, isMap: false, unit: `K`, description: `Reference/initial temperature [K].`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -839,10 +846,10 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`pipe`, `component`, `fluid`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [] },
-      { name: `L`, isString: false, isSelector: false, isMap: false, unit: `m`, description: `Length [m].`, required: true, values: [], variants: [] },
-      { name: `D`, isString: false, isSelector: false, isMap: false, unit: `m`, description: `Diameter [m].`, required: true, values: [], variants: [] },
-      { name: `rough`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Relative wall roughness.`, required: true, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `L`, isString: false, isSelector: false, isMap: false, unit: `m`, description: `Length [m].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `D`, isString: false, isSelector: false, isMap: false, unit: `m`, description: `Diameter [m].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `rough`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Relative wall roughness.`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -853,11 +860,11 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`propeller`, `component`, `fluid`, `acausal`],
     ports: [`shaft`, `veh`],
     params: [
-      { name: `Dp`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `rhoA`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `ct$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `cpw$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `epsn`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `Dp`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `rhoA`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `ct$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `cpw$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `epsn`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -865,11 +872,11 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     type: `Pump`,
     library: `fluid`,
     summary: `Raises the pressure of a liquid stream, computing the work from a pump efficiency.`,
-    tags: [`pump`, `component`, `fluid`, `acausal`],
+    tags: [`pump`, `pump-family`, `data:eta`, `ports:in-out`, `flow-closed`, `energy-work`, `steady`, `component`, `fluid`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `eta`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Efficiency (0–1).`, required: true, values: [], variants: [] },
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [] }
+      { name: `eta`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Efficiency (0–1).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -877,11 +884,11 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     type: `PumpMap`,
     library: `fluid`,
     summary: `A pump whose head comes from a tabulated performance map (head vs volumetric flow).`,
-    tags: [`pumpmap`, `pump`, `map`, `component`, `fluid`, `acausal`],
+    tags: [`pump`, `pump-family`, `pumpmap`, `map`, `data:rho-map`, `ports:in-out`, `flow-closed`, `energy-pressure`, `steady`, `map-driven`, `component`, `fluid`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: `kg/m^3`, description: `Density [kg/m³].`, required: true, values: [], variants: [] },
-      { name: `map$`, isString: true, isSelector: false, isMap: true, unit: ``, description: `Name of a TABLE/FUNCTION giving head [m] vs volumetric flow [m³/s].`, required: true, values: [], variants: [] }
+      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: `kg/m^3`, description: `Density [kg/m³].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `map$`, isString: true, isSelector: false, isMap: true, unit: ``, description: `Name of a TABLE/FUNCTION giving head [m] vs volumetric flow [m³/s].`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -892,9 +899,9 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`regenerator`, `component`, `fluid`, `acausal`],
     ports: [`hot_in`, `hot_out`, `cold_in`, `cold_out`],
     params: [
-      { name: `hot$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `cold$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `hot$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `cold$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -916,10 +923,10 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`source`, `component`, `fluid`, `acausal`],
     ports: [`out`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [] },
-      { name: `mdot`, isString: false, isSelector: false, isMap: false, unit: `kg/s`, description: `Mass flow rate [kg/s].`, required: true, values: [], variants: [] },
-      { name: `P`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Pressure [Pa].`, required: true, values: [], variants: [] },
-      { name: `T`, isString: false, isSelector: false, isMap: false, unit: `K`, description: `Temperature [K].`, required: true, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `mdot`, isString: false, isSelector: false, isMap: false, unit: `kg/s`, description: `Mass flow rate [kg/s].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `P`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Pressure [Pa].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `T`, isString: false, isSelector: false, isMap: false, unit: `K`, description: `Temperature [K].`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -952,8 +959,8 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`turbine`, `component`, `fluid`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `eta`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Efficiency (0–1).`, required: true, values: [], variants: [] },
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [] }
+      { name: `eta`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Efficiency (0–1).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -964,10 +971,10 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`turbocharger`, `component`, `fluid`, `acausal`],
     ports: [`t_in`, `t_out`, `c_in`, `c_out`],
     params: [
-      { name: `cp`, isString: false, isSelector: false, isMap: false, unit: `J/kg-K`, description: `Specific heat [J/kg·K].`, required: true, values: [], variants: [] },
-      { name: `eta_t`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Turbine efficiency (0–1).`, required: true, values: [], variants: [] },
-      { name: `eta_c`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Compressor efficiency (0–1).`, required: true, values: [], variants: [] },
-      { name: `gam`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Ratio of specific heats.`, required: true, values: [], variants: [] }
+      { name: `cp`, isString: false, isSelector: false, isMap: false, unit: `J/kg-K`, description: `Specific heat [J/kg·K].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eta_t`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Turbine efficiency (0–1).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eta_c`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Compressor efficiency (0–1).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `gam`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Ratio of specific heats.`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -978,10 +985,10 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`twozonehx`, `component`, `fluid`, `acausal`],
     ports: [`hot_in`, `hot_out`, `cold_in`, `cold_out`],
     params: [
-      { name: `UA`, isString: false, isSelector: false, isMap: false, unit: `W/K`, description: `Overall conductance UA [W/K].`, required: true, values: [], variants: [] },
-      { name: `hot$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Hot-side fluid name (e.g. Water).`, required: true, values: [], variants: [] },
-      { name: `cold$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Cold-side fluid name (e.g. EG50).`, required: true, values: [], variants: [] },
-      { name: `arr$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Flow arrangement (passed to hx_effectiveness) — one of \`counterflow\`, \`parallel\`.`, required: true, values: [], variants: [] }
+      { name: `UA`, isString: false, isSelector: false, isMap: false, unit: `W/K`, description: `Overall conductance UA [W/K].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `hot$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Hot-side fluid name (e.g. Water).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `cold$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Cold-side fluid name (e.g. EG50).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `arr$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Flow arrangement (passed to hx_effectiveness) — one of \`counterflow\`, \`parallel\`.`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -992,10 +999,13 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`valve`, `component`, `fluid`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `Cv`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Flow coefficient.`, required: true, values: [], variants: [] },
-      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: `kg/m^3`, description: `Density [kg/m³].`, required: true, values: [], variants: [] }
+      { name: `Cv`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Flow coefficient.`, required: true, values: [], variants: [`fixed`, `linear`, `eqpct`], defaultValue: `` },
+      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: `kg/m^3`, description: `Density [kg/m³].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `u`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [`linear`, `eqpct`], defaultValue: `` },
+      { name: `R`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [`eqpct`], defaultValue: `` },
+      { name: `model$`, isString: true, isSelector: true, isMap: false, unit: ``, description: ``, required: false, values: [`fixed`, `linear`, `eqpct`], variants: [], defaultValue: `fixed` }
     ],
-    variants: [],
+    variants: [{ name: `fixed`, requires: [`Cv`] }, { name: `linear`, requires: [`Cv`, `u`] }, { name: `eqpct`, requires: [`Cv`, `u`, `R`] }],
   },
   {
     type: `CellToPackThermal`,
@@ -1004,9 +1014,9 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`celltopackthermal`, `component`, `heat`, `acausal`],
     ports: [`cell`, `plate`],
     params: [
-      { name: `Rcc`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Cpl`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `T0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `Rcc`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Cpl`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `T0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -1017,9 +1027,9 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`conduction`, `component`, `heat`, `acausal`],
     ports: [`a`, `b`],
     params: [
-      { name: `k`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Stiffness / conductivity.`, required: true, values: [], variants: [] },
-      { name: `area`, isString: false, isSelector: false, isMap: false, unit: `m^2`, description: `Area [m²].`, required: true, values: [], variants: [] },
-      { name: `L`, isString: false, isSelector: false, isMap: false, unit: `m`, description: `Length [m].`, required: true, values: [], variants: [] }
+      { name: `k`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Stiffness / conductivity.`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `area`, isString: false, isSelector: false, isMap: false, unit: `m^2`, description: `Area [m²].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `L`, isString: false, isSelector: false, isMap: false, unit: `m`, description: `Length [m].`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -1030,7 +1040,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`contactresistance`, `component`, `heat`, `acausal`],
     ports: [`a`, `b`],
     params: [
-      { name: `Rth`, isString: false, isSelector: false, isMap: false, unit: `K/W`, description: `Thermal resistance [K/W].`, required: true, values: [], variants: [] }
+      { name: `Rth`, isString: false, isSelector: false, isMap: false, unit: `K/W`, description: `Thermal resistance [K/W].`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -1041,8 +1051,8 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`convection`, `component`, `heat`, `acausal`],
     ports: [`a`, `b`],
     params: [
-      { name: `htc`, isString: false, isSelector: false, isMap: false, unit: `W/m^2-K`, description: `Heat-transfer coefficient [W/m²·K].`, required: true, values: [], variants: [] },
-      { name: `area`, isString: false, isSelector: false, isMap: false, unit: `m^2`, description: `Area [m²].`, required: true, values: [], variants: [] }
+      { name: `htc`, isString: false, isSelector: false, isMap: false, unit: `W/m^2-K`, description: `Heat-transfer coefficient [W/m²·K].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `area`, isString: false, isSelector: false, isMap: false, unit: `m^2`, description: `Area [m²].`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -1053,8 +1063,8 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`heatpipe`, `component`, `heat`, `acausal`],
     ports: [`a`, `b`],
     params: [
-      { name: `G`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Qmax`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `G`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Qmax`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -1065,7 +1075,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`heatsource`, `component`, `heat`, `acausal`],
     ports: [`port`],
     params: [
-      { name: `Q`, isString: false, isSelector: false, isMap: false, unit: `W`, description: `Heat input [W].`, required: true, values: [], variants: [] }
+      { name: `Q`, isString: false, isSelector: false, isMap: false, unit: `W`, description: `Heat input [W].`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -1076,9 +1086,9 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`massgen`, `component`, `heat`, `acausal`],
     ports: [`port`],
     params: [
-      { name: `C`, isString: false, isSelector: false, isMap: false, unit: `F`, description: `Capacitance [F].`, required: true, values: [], variants: [] },
-      { name: `Qgen`, isString: false, isSelector: false, isMap: false, unit: `W`, description: `Generated heat [W].`, required: true, values: [], variants: [] },
-      { name: `T0`, isString: false, isSelector: false, isMap: false, unit: `K`, description: `Reference/initial temperature [K].`, required: true, values: [], variants: [] }
+      { name: `C`, isString: false, isSelector: false, isMap: false, unit: `F`, description: `Capacitance [F].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Qgen`, isString: false, isSelector: false, isMap: false, unit: `W`, description: `Generated heat [W].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `T0`, isString: false, isSelector: false, isMap: false, unit: `K`, description: `Reference/initial temperature [K].`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -1089,14 +1099,14 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`multizonewall`, `component`, `heat`, `acausal`],
     ports: [`a`, `b`],
     params: [
-      { name: `h_a`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `h_b`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `U`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `A`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `C1`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `C2`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `T10`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `T20`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `h_a`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `h_b`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `U`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `A`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `C1`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `C2`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `T10`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `T20`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -1107,12 +1117,12 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`pcmmass`, `component`, `heat`, `acausal`],
     ports: [`port`],
     params: [
-      { name: `m`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `cp`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `L`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Tm`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `dTm`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `T0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `m`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `cp`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `L`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Tm`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `dTm`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `T0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -1123,9 +1133,9 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`peltiertec`, `component`, `heat`, `acausal`],
     ports: [`p`, `n`, `hot`, `cold`],
     params: [
-      { name: `Sab`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Rel`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Kth`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `Sab`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Rel`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Kth`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -1136,8 +1146,8 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`radiation`, `component`, `heat`, `acausal`],
     ports: [`a`, `b`],
     params: [
-      { name: `emis`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Emissivity (0–1).`, required: true, values: [], variants: [] },
-      { name: `area`, isString: false, isSelector: false, isMap: false, unit: `m^2`, description: `Area [m²].`, required: true, values: [], variants: [] }
+      { name: `emis`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Emissivity (0–1).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `area`, isString: false, isSelector: false, isMap: false, unit: `m^2`, description: `Area [m²].`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -1148,11 +1158,11 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`radiationtwosurface`, `component`, `heat`, `acausal`],
     ports: [`a`, `b`],
     params: [
-      { name: `e1`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `e2`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `A1`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `A2`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `F12`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `e1`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `e2`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `A1`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `A2`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `F12`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -1163,8 +1173,8 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`thermalmass`, `component`, `heat`, `acausal`],
     ports: [`port`],
     params: [
-      { name: `C`, isString: false, isSelector: false, isMap: false, unit: `F`, description: `Capacitance [F].`, required: true, values: [], variants: [] },
-      { name: `T0`, isString: false, isSelector: false, isMap: false, unit: `K`, description: `Reference/initial temperature [K].`, required: true, values: [], variants: [] }
+      { name: `C`, isString: false, isSelector: false, isMap: false, unit: `F`, description: `Capacitance [F].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `T0`, isString: false, isSelector: false, isMap: false, unit: `K`, description: `Reference/initial temperature [K].`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -1186,7 +1196,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`thermalsource`, `component`, `heat`, `acausal`],
     ports: [`port`],
     params: [
-      { name: `T`, isString: false, isSelector: false, isMap: false, unit: `K`, description: `Temperature [K].`, required: true, values: [], variants: [] }
+      { name: `T`, isString: false, isSelector: false, isMap: false, unit: `K`, description: `Temperature [K].`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -1197,9 +1207,9 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`thermalswitch`, `component`, `heat`, `acausal`],
     ports: [`a`, `b`],
     params: [
-      { name: `G`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Ton`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `band`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `G`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Ton`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `band`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -1210,11 +1220,11 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`wallrc`, `component`, `heat`, `acausal`],
     ports: [`a`, `b`],
     params: [
-      { name: `C1`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `C2`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `R`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `T10`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `T20`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `C1`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `C2`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `R`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `T10`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `T20`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -1225,12 +1235,12 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`counterbalancevalve`, `component`, `hydraulic`, `acausal`],
     ports: [`in`, `out`, `pilot`],
     params: [
-      { name: `CdA_max`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `P_set`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `R_p`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `eps_o`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `CdA_max`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `P_set`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `R_p`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eps_o`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `oil` }
     ],
     variants: [],
   },
@@ -1241,12 +1251,12 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`hydraulicaccumulator`, `component`, `hydraulic`, `acausal`],
     ports: [`port`],
     params: [
-      { name: `P0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `V0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `gamma`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Vg0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `P0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `V0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `gamma`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Vg0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `oil` }
     ],
     variants: [],
   },
@@ -1257,10 +1267,10 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`hydrauliccheckvalve`, `component`, `hydraulic`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `CdA`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `CdA`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `oil` }
     ],
     variants: [],
   },
@@ -1271,13 +1281,13 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`hydrauliccylinder`, `component`, `hydraulic`, `acausal`],
     ports: [`in`, `rod`],
     params: [
-      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: `kg/m^3`, description: `Density [kg/m³].`, required: true, values: [], variants: [] },
-      { name: `beta`, isString: false, isSelector: false, isMap: false, unit: `deg`, description: `Chevron angle [deg] / coefficient.`, required: true, values: [], variants: [] },
-      { name: `V0`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Initial voltage / volume.`, required: true, values: [], variants: [] },
-      { name: `area`, isString: false, isSelector: false, isMap: false, unit: `m^2`, description: `Area [m²].`, required: true, values: [], variants: [] },
-      { name: `Patm`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Atmospheric pressure [Pa].`, required: true, values: [], variants: [] },
-      { name: `P0`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Reference/initial pressure [Pa].`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: `kg/m^3`, description: `Density [kg/m³].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `beta`, isString: false, isSelector: false, isMap: false, unit: `deg`, description: `Chevron angle [deg] / coefficient.`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `V0`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Initial voltage / volume.`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `area`, isString: false, isSelector: false, isMap: false, unit: `m^2`, description: `Area [m²].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Patm`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Atmospheric pressure [Pa].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `P0`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Reference/initial pressure [Pa].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `oil` }
     ],
     variants: [],
   },
@@ -1288,15 +1298,15 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`hydraulicdoubleactingcylinder`, `component`, `hydraulic`, `acausal`],
     ports: [`a`, `b`, `rod`],
     params: [
-      { name: `Aa`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Ab`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `beta`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Va0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Vb0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Pa0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Pb0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `Aa`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Ab`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `beta`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Va0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Vb0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Pa0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Pb0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `oil` }
     ],
     variants: [],
   },
@@ -1307,9 +1317,9 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`hydraulicflowcontrol`, `component`, `hydraulic`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `Qset`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `Qset`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `oil` }
     ],
     variants: [],
   },
@@ -1320,8 +1330,8 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`hydraulicflowdivider`, `component`, `hydraulic`, `acausal`],
     ports: [`in`, `outa`, `outb`],
     params: [
-      { name: `frac`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `frac`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `oil` }
     ],
     variants: [],
   },
@@ -1332,11 +1342,11 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`hydraulicmotor`, `component`, `hydraulic`, `acausal`],
     ports: [`in`, `out`, `shaft`],
     params: [
-      { name: `disp`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `eta_v`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `eta_m`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `disp`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eta_v`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eta_m`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `oil` }
     ],
     variants: [],
   },
@@ -1347,11 +1357,18 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`hydraulicorifice`, `component`, `hydraulic`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `CdA`, isString: false, isSelector: false, isMap: false, unit: `m^2`, description: `Discharge coefficient × area Cd·A [m²].`, required: true, values: [], variants: [] },
-      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: `kg/m^3`, description: `Density [kg/m³].`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `CdA`, isString: false, isSelector: false, isMap: false, unit: `m^2`, description: `Discharge coefficient × area Cd·A [m²].`, required: true, values: [], variants: [`turbulent`], defaultValue: `` },
+      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: `kg/m^3`, description: `Density [kg/m³].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `A`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [`cq_lambda`], defaultValue: `` },
+      { name: `D`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [`cq_lambda`], defaultValue: `` },
+      { name: `nu`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [`cq_lambda`], defaultValue: `` },
+      { name: `Cqmax`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [`cq_lambda`], defaultValue: `` },
+      { name: `lamc`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [`cq_lambda`], defaultValue: `` },
+      { name: `epsP`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [`cq_lambda`], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `oil` },
+      { name: `model$`, isString: true, isSelector: true, isMap: false, unit: ``, description: ``, required: false, values: [`turbulent`, `cq_lambda`], variants: [], defaultValue: `turbulent` }
     ],
-    variants: [],
+    variants: [{ name: `turbulent`, requires: [`CdA`] }, { name: `cq_lambda`, requires: [`A`, `D`, `nu`, `Cqmax`, `lamc`, `epsP`] }],
   },
   {
     type: `HydraulicPilotCheckValve`,
@@ -1360,11 +1377,11 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`hydraulicpilotcheckvalve`, `component`, `hydraulic`, `acausal`],
     ports: [`in`, `out`, `pilot`],
     params: [
-      { name: `CdA`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `rp`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `CdA`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `rp`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `oil` }
     ],
     variants: [],
   },
@@ -1375,12 +1392,12 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`hydraulicpipe`, `component`, `hydraulic`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `nu`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `L`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `D`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `rough`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `nu`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `L`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `D`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `rough`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `oil` }
     ],
     variants: [],
   },
@@ -1391,11 +1408,11 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`hydraulicpump`, `component`, `hydraulic`, `acausal`],
     ports: [`in`, `out`, `shaft`],
     params: [
-      { name: `disp`, isString: false, isSelector: false, isMap: false, unit: `m^3`, description: `Displacement volume [m³].`, required: true, values: [], variants: [] },
-      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: `kg/m^3`, description: `Density [kg/m³].`, required: true, values: [], variants: [] },
-      { name: `eta_v`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Volumetric efficiency (0–1).`, required: true, values: [], variants: [] },
-      { name: `eta_m`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Mechanical efficiency (0–1).`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `disp`, isString: false, isSelector: false, isMap: false, unit: `m^3`, description: `Displacement volume [m³].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: `kg/m^3`, description: `Density [kg/m³].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eta_v`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Volumetric efficiency (0–1).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eta_m`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Mechanical efficiency (0–1).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `oil` }
     ],
     variants: [],
   },
@@ -1406,10 +1423,10 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`hydraulicresistance`, `component`, `hydraulic`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `K`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `D`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `K`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `D`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `oil` }
     ],
     variants: [],
   },
@@ -1420,11 +1437,11 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`hydraulicsequencevalve`, `component`, `hydraulic`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `Pset`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `CdA`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `Pset`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `CdA`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `oil` }
     ],
     variants: [],
   },
@@ -1435,8 +1452,8 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`hydraulicsupply`, `component`, `hydraulic`, `acausal`],
     ports: [`out`],
     params: [
-      { name: `P`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Pressure [Pa].`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `P`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Pressure [Pa].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `oil` }
     ],
     variants: [],
   },
@@ -1447,8 +1464,8 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`hydraulictank`, `component`, `hydraulic`, `acausal`],
     ports: [`port`],
     params: [
-      { name: `P`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Pressure [Pa].`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `P`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Pressure [Pa].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `oil` }
     ],
     variants: [],
   },
@@ -1459,17 +1476,17 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`hydraulicthermalvolume`, `component`, `hydraulic`, `acausal`],
     ports: [`in`, `out`, `wall`],
     params: [
-      { name: `V`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `cp_o`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `beta`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `hA`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `P0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `T0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Pvap`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `eps_c`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `model$`, isString: true, isSelector: true, isMap: false, unit: ``, description: ``, required: false, values: [`stiff`, `cav`], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `V`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `cp_o`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `beta`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `hA`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `P0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `T0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Pvap`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [`cav`], defaultValue: `` },
+      { name: `eps_c`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [`cav`], defaultValue: `` },
+      { name: `model$`, isString: true, isSelector: true, isMap: false, unit: ``, description: ``, required: false, values: [`stiff`, `cav`], variants: [], defaultValue: `stiff` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `oil` }
     ],
     variants: [{ name: `stiff`, requires: [] }, { name: `cav`, requires: [`Pvap`, `eps_c`] }],
   },
@@ -1480,10 +1497,10 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`hydraulicvalve`, `component`, `hydraulic`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `CdA_max`, isString: false, isSelector: false, isMap: false, unit: `m^2`, description: `Maximum Cd·A [m²].`, required: true, values: [], variants: [] },
-      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: `kg/m^3`, description: `Density [kg/m³].`, required: true, values: [], variants: [] },
-      { name: `u`, isString: false, isSelector: false, isMap: false, unit: `J/kg`, description: `Specific internal energy [J/kg].`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `CdA_max`, isString: false, isSelector: false, isMap: false, unit: `m^2`, description: `Maximum Cd·A [m²].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: `kg/m^3`, description: `Density [kg/m³].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `u`, isString: false, isSelector: false, isMap: false, unit: `J/kg`, description: `Specific internal energy [J/kg].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `oil` }
     ],
     variants: [],
   },
@@ -1494,9 +1511,9 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`hydraulicvalvecmd`, `component`, `hydraulic`, `acausal`],
     ports: [`in`, `out`, `u`],
     params: [
-      { name: `CdA_max`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `CdA_max`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `oil` }
     ],
     variants: [],
   },
@@ -1507,11 +1524,11 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`hydraulicvolume`, `component`, `hydraulic`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `V`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `beta`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `P0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `V`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `beta`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `P0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `oil` }
     ],
     variants: [],
   },
@@ -1522,13 +1539,13 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`loadsensingpump`, `component`, `hydraulic`, `acausal`],
     ports: [`in`, `out`, `ls`],
     params: [
-      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Dv`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `w_p`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `dP_margin`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `tau`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `d0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Dv`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `w_p`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `dP_margin`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `tau`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `d0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `oil` }
     ],
     variants: [],
   },
@@ -1539,10 +1556,10 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`reliefvalve`, `component`, `hydraulic`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `Pcrack`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Cracking (relief) pressure [Pa].`, required: true, values: [], variants: [] },
-      { name: `K`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Gain / coefficient.`, required: true, values: [], variants: [] },
-      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Effectiveness / roughness.`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `Pcrack`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Cracking (relief) pressure [Pa].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `K`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Gain / coefficient.`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Effectiveness / roughness.`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `oil` }
     ],
     variants: [],
   },
@@ -1553,12 +1570,12 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`servovalvedynamic`, `component`, `hydraulic`, `acausal`],
     ports: [`in`, `out`, `u`],
     params: [
-      { name: `CdA_max`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `wn`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `zeta`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `xs0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `CdA_max`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `wn`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `zeta`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `xs0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `oil` }
     ],
     variants: [],
   },
@@ -1569,11 +1586,11 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`coolingtower`, `component`, `liquid`, `acausal`],
     ports: [`in`, `out`, `wb`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `eps_t`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `mdot_a`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Patm`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eps_t`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `mdot_a`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Patm`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `liquid` }
     ],
     variants: [],
   },
@@ -1584,10 +1601,10 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`gravitydrain`, `component`, `liquid`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `Cd`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `A_d`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `Cd`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `A_d`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `liquid` }
     ],
     variants: [],
   },
@@ -1598,11 +1615,11 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`hydroturbine`, `component`, `liquid`, `acausal`],
     ports: [`in`, `out`, `shaft`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `eta$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `epsw`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eta$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `epsw`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `liquid` }
     ],
     variants: [],
   },
@@ -1613,14 +1630,14 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`icestoragebrine`, `component`, `liquid`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `UA`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `m`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `cp_p`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `L`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Tm`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `dTm`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `T0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `UA`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `m`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `cp_p`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `L`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Tm`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `dTm`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `T0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -1631,10 +1648,10 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`liquidcheckvalve`, `component`, `liquid`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `CdA`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `CdA`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `liquid` }
     ],
     variants: [],
   },
@@ -1645,8 +1662,8 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`liquidcoldplate`, `component`, `liquid`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `Q`, isString: false, isSelector: false, isMap: false, unit: `W`, description: `Heat input [W].`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `Q`, isString: false, isSelector: false, isMap: false, unit: `W`, description: `Heat input [W].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `liquid` }
     ],
     variants: [],
   },
@@ -1657,8 +1674,8 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`liquidexpansiontank`, `component`, `liquid`, `acausal`],
     ports: [`port`],
     params: [
-      { name: `P`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `P`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `liquid` }
     ],
     variants: [],
   },
@@ -1669,7 +1686,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`liquidmixer`, `component`, `liquid`, `acausal`],
     ports: [`in1`, `in2`, `out`],
     params: [
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `liquid` }
     ],
     variants: [],
   },
@@ -1680,11 +1697,11 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`liquidorifice`, `component`, `liquid`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `CdA`, isString: false, isSelector: false, isMap: false, unit: `m^2`, description: `Discharge coefficient × area Cd·A [m²].`, required: true, values: [], variants: [] },
-      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: `kg/m^3`, description: `Density [kg/m³].`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] },
-      { name: `model$`, isString: true, isSelector: true, isMap: false, unit: ``, description: `Model variant — selects the physics body (see Model Variants).`, required: false, values: [`incompressible`, `cavitating`], variants: [] },
-      { name: `Pvap`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [`cavitating`] }
+      { name: `CdA`, isString: false, isSelector: false, isMap: false, unit: `m^2`, description: `Discharge coefficient × area Cd·A [m²].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: `kg/m^3`, description: `Density [kg/m³].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `liquid` },
+      { name: `model$`, isString: true, isSelector: true, isMap: false, unit: ``, description: `Model variant — selects the physics body (see Model Variants).`, required: false, values: [`incompressible`, `cavitating`], variants: [], defaultValue: `incompressible` },
+      { name: `Pvap`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [`cavitating`], defaultValue: `` }
     ],
     variants: [{ name: `incompressible`, requires: [] }, { name: `cavitating`, requires: [`Pvap`] }],
   },
@@ -1695,11 +1712,11 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`liquidpipe`, `component`, `liquid`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [] },
-      { name: `L`, isString: false, isSelector: false, isMap: false, unit: `m`, description: `Length [m].`, required: true, values: [], variants: [] },
-      { name: `D`, isString: false, isSelector: false, isMap: false, unit: `m`, description: `Diameter [m].`, required: true, values: [], variants: [] },
-      { name: `rough`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Relative wall roughness.`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `L`, isString: false, isSelector: false, isMap: false, unit: `m`, description: `Length [m].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `D`, isString: false, isSelector: false, isMap: false, unit: `m`, description: `Diameter [m].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `rough`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Relative wall roughness.`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `liquid` }
     ],
     variants: [],
   },
@@ -1707,26 +1724,30 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     type: `LiquidPump`,
     library: `liquid`,
     summary: `A single-phase liquid pump.`,
-    tags: [`liquidpump`, `component`, `liquid`, `acausal`],
+    tags: [`pump`, `liquid-pump-family`, `liquidpump`, `data:eta`, `ports:in-out`, `flow-closed`, `energy-work`, `steady`, `liquid`, `component`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `eta`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Efficiency (0–1).`, required: true, values: [], variants: [] },
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `eta`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Efficiency (0–1).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Pvap`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [`npsh`], defaultValue: `` },
+      { name: `NPSHr`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [`npsh`], defaultValue: `` },
+      { name: `eps_n`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [`npsh`], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `liquid` },
+      { name: `model$`, isString: true, isSelector: true, isMap: false, unit: ``, description: ``, required: false, values: [`basic`, `npsh`], variants: [], defaultValue: `basic` }
     ],
-    variants: [],
+    variants: [{ name: `basic`, requires: [] }, { name: `npsh`, requires: [`Pvap`, `NPSHr`, `eps_n`] }],
   },
   {
     type: `LiquidPumpMap`,
     library: `liquid`,
     summary: `Acausal liquid-domain component LiquidPumpMap with ports in, out.`,
-    tags: [`liquidpumpmap`, `component`, `liquid`, `acausal`],
+    tags: [`pump`, `liquid-pump-family`, `liquidpumpmap`, `map`, `data:rho-map`, `ports:in-out`, `flow-closed`, `energy-work`, `steady`, `map-driven`, `liquid`, `component`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `eta`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `map$`, isString: true, isSelector: false, isMap: true, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eta`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `map$`, isString: true, isSelector: false, isMap: true, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `liquid` }
     ],
     variants: [],
   },
@@ -1737,7 +1758,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`liquidsink`, `component`, `liquid`, `acausal`],
     ports: [`in`],
     params: [
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `liquid` }
     ],
     variants: [],
   },
@@ -1748,11 +1769,11 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`liquidsource`, `component`, `liquid`, `acausal`],
     ports: [`out`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [] },
-      { name: `mdot`, isString: false, isSelector: false, isMap: false, unit: `kg/s`, description: `Mass flow rate [kg/s].`, required: true, values: [], variants: [] },
-      { name: `P`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Pressure [Pa].`, required: true, values: [], variants: [] },
-      { name: `T`, isString: false, isSelector: false, isMap: false, unit: `K`, description: `Temperature [K].`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `mdot`, isString: false, isSelector: false, isMap: false, unit: `kg/s`, description: `Mass flow rate [kg/s].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `P`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Pressure [Pa].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `T`, isString: false, isSelector: false, isMap: false, unit: `K`, description: `Temperature [K].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `liquid` }
     ],
     variants: [],
   },
@@ -1763,11 +1784,11 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`liquidtank`, `component`, `liquid`, `acausal`],
     ports: [`in`, `out`, `wall`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `m`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `UA`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `T0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `m`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `UA`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `T0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `liquid` }
     ],
     variants: [],
   },
@@ -1778,12 +1799,12 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`liquidthermostat`, `component`, `liquid`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `CdA`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Topen`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Tband`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `CdA`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Topen`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Tband`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `liquid` }
     ],
     variants: [],
   },
@@ -1794,8 +1815,8 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`liquidthreewayvalve`, `component`, `liquid`, `acausal`],
     ports: [`in`, `outa`, `outb`],
     params: [
-      { name: `u`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `u`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `liquid` }
     ],
     variants: [],
   },
@@ -1806,9 +1827,9 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`liquidvolume`, `component`, `liquid`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `C`, isString: false, isSelector: false, isMap: false, unit: `F`, description: `Capacitance [F].`, required: true, values: [], variants: [] },
-      { name: `P0`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Reference/initial pressure [Pa].`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `C`, isString: false, isSelector: false, isMap: false, unit: `F`, description: `Capacitance [F].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `P0`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Reference/initial pressure [Pa].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `liquid` }
     ],
     variants: [],
   },
@@ -1819,9 +1840,9 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`liquidwallhx`, `component`, `liquid`, `acausal`],
     ports: [`in`, `out`, `wall`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [] },
-      { name: `UA`, isString: false, isSelector: false, isMap: false, unit: `W/K`, description: `Overall conductance UA [W/K].`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `UA`, isString: false, isSelector: false, isMap: false, unit: `W/K`, description: `Overall conductance UA [W/K].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `liquid` }
     ],
     variants: [],
   },
@@ -1832,11 +1853,11 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`opentank`, `component`, `liquid`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `A_t`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `P0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `L0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `A_t`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `P0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `L0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `liquid` }
     ],
     variants: [],
   },
@@ -1847,16 +1868,16 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`thermalstoragetank`, `component`, `liquid`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `m_node`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `cp_f`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `UA_loss`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `T_amb`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `kmix`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `T10`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `T20`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `T30`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `m_node`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `cp_f`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `UA_loss`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `T_amb`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `kmix`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `T10`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `T20`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `T30`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `liquid` }
     ],
     variants: [],
   },
@@ -1867,8 +1888,8 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`beltdrive`, `component`, `mechanical`, `acausal`],
     ports: [`a`, `b`],
     params: [
-      { name: `ratio`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `eta`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `ratio`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eta`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -1879,8 +1900,8 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`brake`, `component`, `mechanical`, `acausal`],
     ports: [`a`, `b`, `u`],
     params: [
-      { name: `Tmax`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `Tmax`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -1891,8 +1912,8 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`cam`, `component`, `mechanical`, `acausal`],
     ports: [`shaft`, `rod`],
     params: [
-      { name: `prof$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `theta0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `prof$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `theta0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -1903,10 +1924,10 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`camfollower`, `component`, `mechanical`, `acausal`],
     ports: [`rod`],
     params: [
-      { name: `m`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `kspring`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `x0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `v0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `m`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `kspring`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `x0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `v0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -1917,9 +1938,9 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`clutch`, `component`, `mechanical`, `acausal`],
     ports: [`a`, `b`],
     params: [
-      { name: `Tmax`, isString: false, isSelector: false, isMap: false, unit: `K`, description: `Maximum temperature [K].`, required: true, values: [], variants: [] },
-      { name: `eng`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Engagement fraction (0–1).`, required: true, values: [], variants: [] },
-      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Effectiveness / roughness.`, required: true, values: [], variants: [] }
+      { name: `Tmax`, isString: false, isSelector: false, isMap: false, unit: `K`, description: `Maximum temperature [K].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eng`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Engagement fraction (0–1).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Effectiveness / roughness.`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -1930,8 +1951,8 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`clutchcmd`, `component`, `mechanical`, `acausal`],
     ports: [`a`, `b`, `u`],
     params: [
-      { name: `Tmax`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `Tmax`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -1942,11 +1963,11 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`endstop`, `component`, `mechanical`, `acausal`],
     ports: [`port`],
     params: [
-      { name: `gap`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `k`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `c`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `x0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `gap`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `k`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `c`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `x0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -1957,7 +1978,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`forcesource`, `component`, `mechanical`, `acausal`],
     ports: [`a`, `b`],
     params: [
-      { name: `F`, isString: false, isSelector: false, isMap: false, unit: `N`, description: `Force [N].`, required: true, values: [], variants: [] }
+      { name: `F`, isString: false, isSelector: false, isMap: false, unit: `N`, description: `Force [N].`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -1968,8 +1989,8 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`freewheel`, `component`, `mechanical`, `acausal`],
     ports: [`a`, `b`],
     params: [
-      { name: `k`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `k`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -1980,11 +2001,11 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`friction`, `component`, `mechanical`, `acausal`],
     ports: [`a`, `b`],
     params: [
-      { name: `Fc`, isString: false, isSelector: false, isMap: false, unit: `N`, description: `Coulomb friction force [N].`, required: true, values: [], variants: [] },
-      { name: `Fs`, isString: false, isSelector: false, isMap: false, unit: `N`, description: `Static friction force [N].`, required: true, values: [], variants: [] },
-      { name: `vs`, isString: false, isSelector: false, isMap: false, unit: `m/s`, description: `Reference / slip velocity [m/s].`, required: true, values: [], variants: [] },
-      { name: `bv`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Viscous-friction coefficient.`, required: true, values: [], variants: [] },
-      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Effectiveness / roughness.`, required: true, values: [], variants: [] }
+      { name: `Fc`, isString: false, isSelector: false, isMap: false, unit: `N`, description: `Coulomb friction force [N].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Fs`, isString: false, isSelector: false, isMap: false, unit: `N`, description: `Static friction force [N].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `vs`, isString: false, isSelector: false, isMap: false, unit: `m/s`, description: `Reference / slip velocity [m/s].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `bv`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Viscous-friction coefficient.`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Effectiveness / roughness.`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -1995,7 +2016,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`gear`, `component`, `mechanical`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `ratio`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Gear / split ratio.`, required: true, values: [], variants: [] }
+      { name: `ratio`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Gear / split ratio.`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -2006,8 +2027,8 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`inertia`, `component`, `mechanical`, `acausal`],
     ports: [`port`],
     params: [
-      { name: `J`, isString: false, isSelector: false, isMap: false, unit: `kg-m^2`, description: `Inertia [kg·m²].`, required: true, values: [], variants: [] },
-      { name: `w0`, isString: false, isSelector: false, isMap: false, unit: `rad/s`, description: `Natural frequency [rad/s].`, required: true, values: [], variants: [] }
+      { name: `J`, isString: false, isSelector: false, isMap: false, unit: `kg-m^2`, description: `Inertia [kg·m²].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `w0`, isString: false, isSelector: false, isMap: false, unit: `rad/s`, description: `Natural frequency [rad/s].`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -2018,7 +2039,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`lever`, `component`, `mechanical`, `acausal`],
     ports: [`a`, `b`],
     params: [
-      { name: `ratio`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `ratio`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -2040,7 +2061,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`planetary`, `component`, `mechanical`, `acausal`],
     ports: [`sun`, `ring`, `carrier`],
     params: [
-      { name: `g`, isString: false, isSelector: false, isMap: false, unit: `m/s^2`, description: `Gravitational acceleration [m/s²].`, required: true, values: [], variants: [] }
+      { name: `g`, isString: false, isSelector: false, isMap: false, unit: `m/s^2`, description: `Gravitational acceleration [m/s²].`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -2051,7 +2072,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`rackpinion`, `component`, `mechanical`, `acausal`],
     ports: [`shaft`, `rod`],
     params: [
-      { name: `r`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `r`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -2062,7 +2083,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`rotationaldamper`, `component`, `mechanical`, `acausal`],
     ports: [`a`, `b`],
     params: [
-      { name: `c`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Damping / specific-heat coefficient.`, required: true, values: [], variants: [] }
+      { name: `c`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Damping / specific-heat coefficient.`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -2073,8 +2094,8 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`rotationalspring`, `component`, `mechanical`, `acausal`],
     ports: [`a`, `b`],
     params: [
-      { name: `k`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Stiffness / conductivity.`, required: true, values: [], variants: [] },
-      { name: `theta0`, isString: false, isSelector: false, isMap: false, unit: `rad`, description: `Initial angle [rad].`, required: true, values: [], variants: [] }
+      { name: `k`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Stiffness / conductivity.`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `theta0`, isString: false, isSelector: false, isMap: false, unit: `rad`, description: `Initial angle [rad].`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -2085,7 +2106,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`screwdrive`, `component`, `mechanical`, `acausal`],
     ports: [`shaft`, `rod`],
     params: [
-      { name: `lead`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `lead`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -2096,7 +2117,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`speedsource`, `component`, `mechanical`, `acausal`],
     ports: [`a`, `b`],
     params: [
-      { name: `w`, isString: false, isSelector: false, isMap: false, unit: `rad/s`, description: `Frequency [rad/s].`, required: true, values: [], variants: [] }
+      { name: `w`, isString: false, isSelector: false, isMap: false, unit: `rad/s`, description: `Frequency [rad/s].`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -2107,7 +2128,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`torquesource`, `component`, `mechanical`, `acausal`],
     ports: [`a`, `b`],
     params: [
-      { name: `T`, isString: false, isSelector: false, isMap: false, unit: `K`, description: `Temperature [K].`, required: true, values: [], variants: [] }
+      { name: `T`, isString: false, isSelector: false, isMap: false, unit: `K`, description: `Temperature [K].`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -2118,10 +2139,10 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`torsionalbacklash`, `component`, `mechanical`, `acausal`],
     ports: [`a`, `b`],
     params: [
-      { name: `k`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `half`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `theta0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `k`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `half`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `theta0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -2132,7 +2153,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`transdamper`, `component`, `mechanical`, `acausal`],
     ports: [`a`, `b`],
     params: [
-      { name: `c`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Damping / specific-heat coefficient.`, required: true, values: [], variants: [] }
+      { name: `c`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Damping / specific-heat coefficient.`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -2154,8 +2175,8 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`transmass`, `component`, `mechanical`, `acausal`],
     ports: [`port`],
     params: [
-      { name: `m`, isString: false, isSelector: false, isMap: false, unit: `kg`, description: `Mass [kg].`, required: true, values: [], variants: [] },
-      { name: `v0`, isString: false, isSelector: false, isMap: false, unit: `m/s`, description: `Initial velocity [m/s].`, required: true, values: [], variants: [] }
+      { name: `m`, isString: false, isSelector: false, isMap: false, unit: `kg`, description: `Mass [kg].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `v0`, isString: false, isSelector: false, isMap: false, unit: `m/s`, description: `Initial velocity [m/s].`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -2166,8 +2187,8 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`transspring`, `component`, `mechanical`, `acausal`],
     ports: [`a`, `b`],
     params: [
-      { name: `k`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `x0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `k`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `x0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -2178,15 +2199,15 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`wheelbrakethermal`, `component`, `mechanical`, `acausal`],
     ports: [`a`, `b`, `u`],
     params: [
-      { name: `Tmax`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `C`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `hA`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `T_amb`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `T_fade`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `k_fade`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `eps_f`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `T0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `Tmax`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `C`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `hA`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `T_amb`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `T_fade`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `k_fade`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eps_f`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `T0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -2197,12 +2218,12 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`ahu`, `component`, `moistair`, `acausal`],
     ports: [`ret_in`, `oa_in`, `sup_out`],
     params: [
-      { name: `Kf`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `foul`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Tc`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Qh`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `dPfan`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `eta_fan`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `Kf`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `foul`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Tc`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Qh`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `dPfan`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eta_fan`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -2213,11 +2234,25 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`airfilter`, `component`, `moistair`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `K`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `foul`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `K`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `foul`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `moistair` }
     ],
     variants: [],
+  },
+  {
+    type: `ApparatusDewPointCoil`,
+    library: `moistair`,
+    summary: `Acausal moistair-domain component ApparatusDewPointCoil with ports in, out.`,
+    tags: [`apparatusdewpointcoil`, `component`, `moistair`, `acausal`],
+    ports: [`in`, `out`],
+    params: [
+      { name: `T_adp`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `BF`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `moistair` },
+      { name: `model$`, isString: true, isSelector: true, isMap: false, unit: ``, description: ``, required: false, values: [`wet`, `dry`], variants: [], defaultValue: `wet` }
+    ],
+    variants: [{ name: `wet`, requires: [] }, { name: `dry`, requires: [] }],
   },
   {
     type: `CabinZone`,
@@ -2226,14 +2261,26 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`cabinzone`, `component`, `moistair`, `acausal`],
     ports: [`in`, `out`, `wall`],
     params: [
-      { name: `Vz`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `T0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `W0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `n_occ`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `q_sens`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `mw_occ`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Q_aux`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `Vz`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `T0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `W0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `n_occ`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `q_sens`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `mw_occ`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Q_aux`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `moistair` }
+    ],
+    variants: [],
+  },
+  {
+    type: `ChilledBeam`,
+    library: `moistair`,
+    summary: `Acausal moistair-domain component ChilledBeam with ports in, out, wall.`,
+    tags: [`chilledbeam`, `component`, `moistair`, `acausal`],
+    ports: [`in`, `out`, `wall`],
+    params: [
+      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `moistair` }
     ],
     variants: [],
   },
@@ -2244,8 +2291,22 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`coolingcoil`, `component`, `moistair`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `Tout`, isString: false, isSelector: false, isMap: false, unit: `K`, description: `Outlet temperature [K].`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `Tout`, isString: false, isSelector: false, isMap: false, unit: `K`, description: `Outlet temperature [K].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `moistair` }
+    ],
+    variants: [],
+  },
+  {
+    type: `DesiccantWheel`,
+    library: `moistair`,
+    summary: `Acausal moistair-domain component DesiccantWheel with ports proc_in, proc_out, reg_in, reg_out.`,
+    tags: [`desiccantwheel`, `component`, `moistair`, `acausal`],
+    ports: [`proc_in`, `proc_out`, `reg_in`, `reg_out`],
+    params: [
+      { name: `eff_L`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `W_eq`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `f_carry`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `moistair` }
     ],
     variants: [],
   },
@@ -2256,12 +2317,43 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`diffuser`, `component`, `moistair`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `A1`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `A2`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `eta_rec`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `A1`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `A2`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eta_rec`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `moistair` }
     ],
     variants: [],
+  },
+  {
+    type: `DOAS`,
+    library: `moistair`,
+    summary: `Acausal moistair-domain component DOAS with ports oa_in, sup_out, exh_in, exh_out.`,
+    tags: [`doas`, `component`, `moistair`, `acausal`],
+    ports: [`oa_in`, `sup_out`, `exh_in`, `exh_out`],
+    params: [
+      { name: `eff_h`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eff_w`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `T_adp`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `BF`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Q_reheat`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
+    ],
+    variants: [],
+  },
+  {
+    type: `Economizer`,
+    library: `moistair`,
+    summary: `Acausal moistair-domain component Economizer with ports oa_in, ret_in, mix_out.`,
+    tags: [`economizer`, `component`, `moistair`, `acausal`],
+    ports: [`oa_in`, `ret_in`, `mix_out`],
+    params: [
+      { name: `mdot_sup`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `f_min`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `lim`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `band`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `moistair` },
+      { name: `model$`, isString: true, isSelector: true, isMap: false, unit: ``, description: ``, required: false, values: [`drybulb`, `enthalpy`], variants: [], defaultValue: `drybulb` }
+    ],
+    variants: [{ name: `drybulb`, requires: [] }, { name: `enthalpy`, requires: [] }],
   },
   {
     type: `EnthalpyWheel`,
@@ -2270,9 +2362,9 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`enthalpywheel`, `component`, `moistair`, `acausal`],
     ports: [`sup_in`, `sup_out`, `exh_in`, `exh_out`],
     params: [
-      { name: `eff_h`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `eff_w`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `eff_h`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eff_w`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `moistair` }
     ],
     variants: [],
   },
@@ -2283,8 +2375,49 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`evaporativecooler`, `component`, `moistair`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `eff`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `eff`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `moistair` }
+    ],
+    variants: [],
+  },
+  {
+    type: `FaceAndBypassCoil`,
+    library: `moistair`,
+    summary: `Acausal moistair-domain component FaceAndBypassCoil with ports in, out, wall.`,
+    tags: [`faceandbypasscoil`, `component`, `moistair`, `acausal`],
+    ports: [`in`, `out`, `wall`],
+    params: [
+      { name: `u_face`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `moistair` }
+    ],
+    variants: [],
+  },
+  {
+    type: `FanCoilUnit`,
+    library: `moistair`,
+    summary: `Acausal moistair-domain component FanCoilUnit with ports in, out, wall.`,
+    tags: [`fancoilunit`, `component`, `moistair`, `acausal`],
+    ports: [`in`, `out`, `wall`],
+    params: [
+      { name: `K`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `foul`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `dP`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eta`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
+    ],
+    variants: [],
+  },
+  {
+    type: `FanPoweredBox`,
+    library: `moistair`,
+    summary: `Acausal moistair-domain component FanPoweredBox with ports pri_in, ind_in, out.`,
+    tags: [`fanpoweredbox`, `component`, `moistair`, `acausal`],
+    ports: [`pri_in`, `ind_in`, `out`],
+    params: [
+      { name: `Q_fan`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Q_reheat`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `moistair` }
     ],
     variants: [],
   },
@@ -2295,8 +2428,20 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`heatingcoil`, `component`, `moistair`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `Q`, isString: false, isSelector: false, isMap: false, unit: `W`, description: `Heat input [W].`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `Q`, isString: false, isSelector: false, isMap: false, unit: `W`, description: `Heat input [W].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `moistair` }
+    ],
+    variants: [],
+  },
+  {
+    type: `HeatPipeWrapAround`,
+    library: `moistair`,
+    summary: `Acausal moistair-domain component HeatPipeWrapAround with ports pre_in, pre_out, re_in, re_out.`,
+    tags: [`heatpipewraparound`, `component`, `moistair`, `acausal`],
+    ports: [`pre_in`, `pre_out`, `re_in`, `re_out`],
+    params: [
+      { name: `eff`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `moistair` }
     ],
     variants: [],
   },
@@ -2307,9 +2452,48 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`humidifier`, `component`, `moistair`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `mdot_w`, isString: false, isSelector: false, isMap: false, unit: `kg/s`, description: `Water/coolant mass flow [kg/s].`, required: true, values: [], variants: [] },
-      { name: `h_w`, isString: false, isSelector: false, isMap: false, unit: `W/m^2-K`, description: `Wall heat-transfer coefficient [W/m²·K].`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `mdot_w`, isString: false, isSelector: false, isMap: false, unit: `kg/s`, description: `Water/coolant mass flow [kg/s].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `h_w`, isString: false, isSelector: false, isMap: false, unit: `W/m^2-K`, description: `Wall heat-transfer coefficient [W/m²·K].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `moistair` }
+    ],
+    variants: [],
+  },
+  {
+    type: `IndirectDirectEvaporativeCooler`,
+    library: `moistair`,
+    summary: `Acausal moistair-domain component IndirectDirectEvaporativeCooler with ports pri_in, pri_out, sec_in, sec_out.`,
+    tags: [`indirectdirectevaporativecooler`, `component`, `moistair`, `acausal`],
+    ports: [`pri_in`, `pri_out`, `sec_in`, `sec_out`],
+    params: [
+      { name: `wbde`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eff_sec`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eff_dir`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
+    ],
+    variants: [],
+  },
+  {
+    type: `IndirectEvaporativeCooler`,
+    library: `moistair`,
+    summary: `Acausal moistair-domain component IndirectEvaporativeCooler with ports pri_in, pri_out, sec_in, sec_out.`,
+    tags: [`indirectevaporativecooler`, `component`, `moistair`, `acausal`],
+    ports: [`pri_in`, `pri_out`, `sec_in`, `sec_out`],
+    params: [
+      { name: `wbde`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eff_sec`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `moistair` }
+    ],
+    variants: [],
+  },
+  {
+    type: `InductionUnit`,
+    library: `moistair`,
+    summary: `Acausal moistair-domain component InductionUnit with ports pri_in, ind_in, out, wall.`,
+    tags: [`inductionunit`, `component`, `moistair`, `acausal`],
+    ports: [`pri_in`, `ind_in`, `out`, `wall`],
+    params: [
+      { name: `ratio`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `moistair` }
     ],
     variants: [],
   },
@@ -2320,12 +2504,28 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`infiltration`, `component`, `moistair`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `C_inf`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `n_exp`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `C_inf`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `n_exp`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `moistair` }
     ],
     variants: [],
+  },
+  {
+    type: `LiquidDesiccantContactor`,
+    library: `moistair`,
+    summary: `Acausal moistair-domain component LiquidDesiccantContactor with ports in, out, wall.`,
+    tags: [`liquiddesiccantcontactor`, `component`, `moistair`, `acausal`],
+    ports: [`in`, `out`, `wall`],
+    params: [
+      { name: `eff_L`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `W_eq`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eps_T`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [`cooled`], defaultValue: `` },
+      { name: `f_excess`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [`adiabatic`], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `moistair` },
+      { name: `model$`, isString: true, isSelector: true, isMap: false, unit: ``, description: ``, required: false, values: [`cooled`, `adiabatic`], variants: [], defaultValue: `cooled` }
+    ],
+    variants: [{ name: `cooled`, requires: [`eps_T`] }, { name: `adiabatic`, requires: [`f_excess`] }],
   },
   {
     type: `MembraneHumidifier`,
@@ -2334,9 +2534,9 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`membranehumidifier`, `component`, `moistair`, `acausal`],
     ports: [`dry_in`, `dry_out`, `wet_in`, `wet_out`],
     params: [
-      { name: `eff_h`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `eff_w`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `eff_h`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eff_w`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `moistair` }
     ],
     variants: [],
   },
@@ -2347,7 +2547,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`mixingbox`, `component`, `moistair`, `acausal`],
     ports: [`in1`, `in2`, `out`],
     params: [
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `moistair` }
     ],
     variants: [],
   },
@@ -2358,8 +2558,8 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`moistairdamper`, `component`, `moistair`, `acausal`],
     ports: [`in`, `outa`, `outb`],
     params: [
-      { name: `u`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `u`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `moistair` }
     ],
     variants: [],
   },
@@ -2370,11 +2570,11 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`moistairduct`, `component`, `moistair`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `L`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `D`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `rough`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `mu_a`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `L`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `D`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `rough`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `mu_a`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `moistair` }
     ],
     variants: [],
   },
@@ -2385,9 +2585,9 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`moistairfan`, `component`, `moistair`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `dP`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `eta`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `dP`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eta`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `moistair` }
     ],
     variants: [],
   },
@@ -2398,7 +2598,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`moistairsink`, `component`, `moistair`, `acausal`],
     ports: [`in`],
     params: [
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `moistair` }
     ],
     variants: [],
   },
@@ -2409,11 +2609,11 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`moistairsource`, `component`, `moistair`, `acausal`],
     ports: [`out`],
     params: [
-      { name: `P`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Pressure [Pa].`, required: true, values: [], variants: [] },
-      { name: `T`, isString: false, isSelector: false, isMap: false, unit: `K`, description: `Temperature [K].`, required: true, values: [], variants: [] },
-      { name: `W`, isString: false, isSelector: false, isMap: false, unit: `W`, description: `Humidity ratio [kg/kg] / work [W].`, required: true, values: [], variants: [] },
-      { name: `mdot`, isString: false, isSelector: false, isMap: false, unit: `kg/s`, description: `Mass flow rate [kg/s].`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `P`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Pressure [Pa].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `T`, isString: false, isSelector: false, isMap: false, unit: `K`, description: `Temperature [K].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `W`, isString: false, isSelector: false, isMap: false, unit: `W`, description: `Humidity ratio [kg/kg] / work [W].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `mdot`, isString: false, isSelector: false, isMap: false, unit: `kg/s`, description: `Mass flow rate [kg/s].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `moistair` }
     ],
     variants: [],
   },
@@ -2424,8 +2624,68 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`moistairwallhx`, `component`, `moistair`, `acausal`],
     ports: [`in`, `out`, `wall`],
     params: [
-      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Effectiveness / roughness.`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Effectiveness / roughness.`, required: true, values: [], variants: [`eps_t`], defaultValue: `` },
+      { name: `NTU`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [`ntu_wet`], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `moistair` },
+      { name: `model$`, isString: true, isSelector: true, isMap: false, unit: ``, description: ``, required: false, values: [`eps_t`, `ntu_wet`], variants: [], defaultValue: `eps_t` }
+    ],
+    variants: [{ name: `eps_t`, requires: [`eps`] }, { name: `ntu_wet`, requires: [`NTU`] }],
+  },
+  {
+    type: `RadiantPanel`,
+    library: `moistair`,
+    summary: `Acausal moistair-domain component RadiantPanel with ports zone, wall.`,
+    tags: [`radiantpanel`, `component`, `moistair`, `acausal`],
+    ports: [`zone`, `wall`],
+    params: [
+      { name: `A`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `C`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `n`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eps_dT`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `W_room`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `P_room`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
+    ],
+    variants: [],
+  },
+  {
+    type: `SensibleAirToAirHX`,
+    library: `moistair`,
+    summary: `Acausal moistair-domain component SensibleAirToAirHX with ports sup_in, sup_out, exh_in, exh_out.`,
+    tags: [`sensibleairtoairhx`, `component`, `moistair`, `acausal`],
+    ports: [`sup_in`, `sup_out`, `exh_in`, `exh_out`],
+    params: [
+      { name: `eff`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eatr`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `oacf`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `moistair` }
+    ],
+    variants: [],
+  },
+  {
+    type: `SteamHumidifier`,
+    library: `moistair`,
+    summary: `Acausal moistair-domain component SteamHumidifier with ports in, out.`,
+    tags: [`steamhumidifier`, `component`, `moistair`, `acausal`],
+    ports: [`in`, `out`],
+    params: [
+      { name: `W_set`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `h_steam`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `moistair` }
+    ],
+    variants: [],
+  },
+  {
+    type: `TotalEnergyExchanger`,
+    library: `moistair`,
+    summary: `Acausal moistair-domain component TotalEnergyExchanger with ports sup_in, sup_out, exh_in, exh_out.`,
+    tags: [`totalenergyexchanger`, `component`, `moistair`, `acausal`],
+    ports: [`sup_in`, `sup_out`, `exh_in`, `exh_out`],
+    params: [
+      { name: `eps_s`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eps_L`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eatr`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `oacf`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `moistair` }
     ],
     variants: [],
   },
@@ -2436,9 +2696,9 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`vavbox`, `component`, `moistair`, `acausal`],
     ports: [`in`, `out`, `u`, `ur`],
     params: [
-      { name: `mdot_max`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Qr_max`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `mdot_max`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Qr_max`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `moistair` }
     ],
     variants: [],
   },
@@ -2449,11 +2709,11 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`anoderecirc`, `component`, `pneumatic`, `acausal`],
     ports: [`sup_in`, `ret_in`, `out`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `C`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `b`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `ER`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `C`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `b`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `ER`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `gas` }
     ],
     variants: [],
   },
@@ -2475,7 +2735,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`gasmixern`, `component`, `pneumatic`, `acausal`],
     ports: [`in1`, `in2`, `out`],
     params: [
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `gas` }
     ],
     variants: [],
   },
@@ -2497,10 +2757,10 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`gassource`, `component`, `pneumatic`, `acausal`],
     ports: [`out`],
     params: [
-      { name: `y`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Position / fraction.`, required: true, values: [], variants: [] },
-      { name: `mdot`, isString: false, isSelector: false, isMap: false, unit: `kg/s`, description: `Mass flow rate [kg/s].`, required: true, values: [], variants: [] },
-      { name: `P`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Pressure [Pa].`, required: true, values: [], variants: [] },
-      { name: `h0`, isString: false, isSelector: false, isMap: false, unit: `J/kg`, description: `Reference enthalpy [J/kg].`, required: true, values: [], variants: [] }
+      { name: `y`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Position / fraction.`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `mdot`, isString: false, isSelector: false, isMap: false, unit: `kg/s`, description: `Mass flow rate [kg/s].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `P`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Pressure [Pa].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `h0`, isString: false, isSelector: false, isMap: false, unit: `J/kg`, description: `Reference enthalpy [J/kg].`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -2511,10 +2771,10 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`pneumaticactuator`, `component`, `pneumatic`, `acausal`],
     ports: [`in`, `rod`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [] },
-      { name: `area`, isString: false, isSelector: false, isMap: false, unit: `m^2`, description: `Area [m²].`, required: true, values: [], variants: [] },
-      { name: `Patm`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Atmospheric pressure [Pa].`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `area`, isString: false, isSelector: false, isMap: false, unit: `m^2`, description: `Area [m²].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Patm`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Atmospheric pressure [Pa].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `gas` }
     ],
     variants: [],
   },
@@ -2525,8 +2785,8 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`pneumaticatmosphere`, `component`, `pneumatic`, `acausal`],
     ports: [`port`],
     params: [
-      { name: `P`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Pressure [Pa].`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `P`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Pressure [Pa].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `gas` }
     ],
     variants: [],
   },
@@ -2537,11 +2797,11 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`pneumaticcheckvalve`, `component`, `pneumatic`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `C`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `b`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `C`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `b`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `gas` }
     ],
     variants: [],
   },
@@ -2552,15 +2812,15 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`pneumaticdoubleactingcylinder`, `component`, `pneumatic`, `acausal`],
     ports: [`a`, `b`, `rod`],
     params: [
-      { name: `Aa`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Ab`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `R`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `T`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Va0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Vb0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Pa0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Pb0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `Aa`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Ab`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `R`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `T`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Va0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Vb0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Pa0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Pb0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `gas` }
     ],
     variants: [],
   },
@@ -2571,10 +2831,10 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`pneumaticorifice`, `component`, `pneumatic`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [] },
-      { name: `C`, isString: false, isSelector: false, isMap: false, unit: `F`, description: `Capacitance [F].`, required: true, values: [], variants: [] },
-      { name: `b`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Critical pressure ratio / coefficient.`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `C`, isString: false, isSelector: false, isMap: false, unit: `F`, description: `Capacitance [F].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `b`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Critical pressure ratio / coefficient.`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `gas` }
     ],
     variants: [],
   },
@@ -2585,11 +2845,11 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`pneumaticservovalve`, `component`, `pneumatic`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [] },
-      { name: `Cmax`, isString: false, isSelector: false, isMap: false, unit: `W/K`, description: `Maximum capacity rate [W/K].`, required: true, values: [], variants: [] },
-      { name: `b`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Critical pressure ratio / coefficient.`, required: true, values: [], variants: [] },
-      { name: `u`, isString: false, isSelector: false, isMap: false, unit: `J/kg`, description: `Specific internal energy [J/kg].`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Cmax`, isString: false, isSelector: false, isMap: false, unit: `W/K`, description: `Maximum capacity rate [W/K].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `b`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Critical pressure ratio / coefficient.`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `u`, isString: false, isSelector: false, isMap: false, unit: `J/kg`, description: `Specific internal energy [J/kg].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `gas` }
     ],
     variants: [],
   },
@@ -2600,10 +2860,10 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`pneumaticservovalvecmd`, `component`, `pneumatic`, `acausal`],
     ports: [`in`, `out`, `u`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Cmax`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `b`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Cmax`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `b`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `gas` }
     ],
     variants: [],
   },
@@ -2614,10 +2874,10 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`pneumaticsupply`, `component`, `pneumatic`, `acausal`],
     ports: [`out`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [] },
-      { name: `P`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Pressure [Pa].`, required: true, values: [], variants: [] },
-      { name: `T`, isString: false, isSelector: false, isMap: false, unit: `K`, description: `Temperature [K].`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `P`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Pressure [Pa].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `T`, isString: false, isSelector: false, isMap: false, unit: `K`, description: `Temperature [K].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `gas` }
     ],
     variants: [],
   },
@@ -2628,14 +2888,14 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`pneumaticthermalvolume`, `component`, `pneumatic`, `acausal`],
     ports: [`in`, `out`, `wall`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `V`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `R`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `cv`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `cp`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `m0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `T0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `V`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `R`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `cv`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `cp`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `m0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `T0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `gas` }
     ],
     variants: [],
   },
@@ -2646,10 +2906,10 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`pneumaticvalve32`, `component`, `pneumatic`, `acausal`],
     ports: [`sup_in`, `work`, `exh_out`, `u`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `C`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `b`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `C`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `b`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `gas` }
     ],
     variants: [],
   },
@@ -2660,10 +2920,10 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`pneumaticvalve52`, `component`, `pneumatic`, `acausal`],
     ports: [`sup_in`, `wa`, `wb`, `ea_out`, `eb_out`, `u`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `C`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `b`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `C`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `b`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `gas` }
     ],
     variants: [],
   },
@@ -2674,11 +2934,11 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`pneumaticvolume`, `component`, `pneumatic`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `V`, isString: false, isSelector: false, isMap: false, unit: `m^3`, description: `Volume [m³].`, required: true, values: [], variants: [] },
-      { name: `T`, isString: false, isSelector: false, isMap: false, unit: `K`, description: `Temperature [K].`, required: true, values: [], variants: [] },
-      { name: `R`, isString: false, isSelector: false, isMap: false, unit: `ohm`, description: `Resistance [Ω].`, required: true, values: [], variants: [] },
-      { name: `P0`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Reference/initial pressure [Pa].`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `V`, isString: false, isSelector: false, isMap: false, unit: `m^3`, description: `Volume [m³].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `T`, isString: false, isSelector: false, isMap: false, unit: `K`, description: `Temperature [K].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `R`, isString: false, isSelector: false, isMap: false, unit: `ohm`, description: `Resistance [Ω].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `P0`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Reference/initial pressure [Pa].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `gas` }
     ],
     variants: [],
   },
@@ -2689,11 +2949,11 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`vacuumejector`, `component`, `pneumatic`, `acausal`],
     ports: [`sup_in`, `suc_in`, `exh_out`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `C`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `b`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `ER`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `C`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `b`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `ER`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `gas` }
     ],
     variants: [],
   },
@@ -2704,11 +2964,11 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`automatictransmission`, `component`, `powertrain`, `acausal`],
     ports: [`in`, `out`, `gear`, `lock`],
     params: [
-      { name: `Kmap$`, isString: true, isSelector: false, isMap: true, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `TRmap$`, isString: true, isSelector: false, isMap: true, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `eta`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Tlock`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `Kmap$`, isString: true, isSelector: false, isMap: true, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `TRmap$`, isString: true, isSelector: false, isMap: true, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eta`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Tlock`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -2719,13 +2979,13 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`catalystlightoff`, `component`, `powertrain`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `C`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `UA`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `T50`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `k`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `q_exo`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `T0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `C`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `UA`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `T50`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `k`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `q_exo`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `T0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -2736,7 +2996,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`differential`, `component`, `powertrain`, `acausal`],
     ports: [`in`, `left`, `right`],
     params: [
-      { name: `ratio`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `ratio`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -2747,7 +3007,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`drivecyclesource`, `component`, `powertrain`, `acausal`],
     ports: [`port`],
     params: [
-      { name: `map$`, isString: true, isSelector: false, isMap: true, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `map$`, isString: true, isSelector: false, isMap: true, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -2758,9 +3018,9 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`engine`, `component`, `powertrain`, `acausal`],
     ports: [`shaft`],
     params: [
-      { name: `Tmax`, isString: false, isSelector: false, isMap: false, unit: `K`, description: `Maximum temperature [K].`, required: true, values: [], variants: [] },
-      { name: `throttle`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Throttle (0–1).`, required: true, values: [], variants: [] },
-      { name: `bf`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Friction coefficient.`, required: true, values: [], variants: [] }
+      { name: `Tmax`, isString: false, isSelector: false, isMap: false, unit: `K`, description: `Maximum temperature [K].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `throttle`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Throttle (0–1).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `bf`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Friction coefficient.`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -2771,14 +3031,14 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`exhaustpipethermal`, `component`, `powertrain`, `acausal`],
     ports: [`in`, `out`, `amb`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `UA`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `hA`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `C1`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `C2`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `R`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `T10`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `T20`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `UA`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `hA`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `C1`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `C2`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `R`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `T10`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `T20`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -2789,7 +3049,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`gearboxscheduled`, `component`, `powertrain`, `acausal`],
     ports: [`in`, `out`, `u`],
     params: [
-      { name: `eta`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `eta`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -2800,10 +3060,10 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`gradeprofile`, `component`, `powertrain`, `acausal`],
     ports: [`port`],
     params: [
-      { name: `m`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `g`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `map$`, isString: true, isSelector: false, isMap: true, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `s0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `m`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `g`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `map$`, isString: true, isSelector: false, isMap: true, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `s0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -2814,11 +3074,11 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`graderoadload`, `component`, `powertrain`, `acausal`],
     ports: [`shaft`],
     params: [
-      { name: `Crr`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Rolling-resistance coefficient.`, required: true, values: [], variants: [] },
-      { name: `Caero`, isString: false, isSelector: false, isMap: false, unit: `kg/m`, description: `Aerodynamic drag term ½ρCdA [kg/m].`, required: true, values: [], variants: [] },
-      { name: `m`, isString: false, isSelector: false, isMap: false, unit: `kg`, description: `Mass [kg].`, required: true, values: [], variants: [] },
-      { name: `g`, isString: false, isSelector: false, isMap: false, unit: `m/s^2`, description: `Gravitational acceleration [m/s²].`, required: true, values: [], variants: [] },
-      { name: `grade`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Road grade (rise/run).`, required: true, values: [], variants: [] }
+      { name: `Crr`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Rolling-resistance coefficient.`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Caero`, isString: false, isSelector: false, isMap: false, unit: `kg/m`, description: `Aerodynamic drag term ½ρCdA [kg/m].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `m`, isString: false, isSelector: false, isMap: false, unit: `kg`, description: `Mass [kg].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `g`, isString: false, isSelector: false, isMap: false, unit: `m/s^2`, description: `Gravitational acceleration [m/s²].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `grade`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Road grade (rise/run).`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -2829,10 +3089,10 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`hybridpowersplit`, `component`, `powertrain`, `acausal`],
     ports: [`eng`, `out`, `sun`, `p`, `n`, `u1`, `u2`, `heat`],
     params: [
-      { name: `g`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `eff1$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `eff2$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `epsP`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `g`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eff1$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eff2$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `epsP`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -2843,13 +3103,17 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`meanvalueengine`, `component`, `powertrain`, `acausal`],
     ports: [`shaft`],
     params: [
-      { name: `throttle`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Throttle (0–1).`, required: true, values: [], variants: [] },
-      { name: `Tpeak`, isString: false, isSelector: false, isMap: false, unit: `K`, description: `Peak temperature [K].`, required: true, values: [], variants: [] },
-      { name: `w_peak`, isString: false, isSelector: false, isMap: false, unit: `rad/s`, description: `Peak frequency [rad/s].`, required: true, values: [], variants: [] },
-      { name: `FMEP_a`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Friction-MEP constant [Pa].`, required: true, values: [], variants: [] },
-      { name: `FMEP_b`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Friction-MEP slope coefficient.`, required: true, values: [], variants: [] }
+      { name: `throttle`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Throttle (0–1).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Tpeak`, isString: false, isSelector: false, isMap: false, unit: `K`, description: `Peak temperature [K].`, required: true, values: [], variants: [`parabolic`, `chenflynn`], defaultValue: `` },
+      { name: `w_peak`, isString: false, isSelector: false, isMap: false, unit: `rad/s`, description: `Peak frequency [rad/s].`, required: true, values: [], variants: [`parabolic`, `chenflynn`], defaultValue: `` },
+      { name: `FMEP_a`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Friction-MEP constant [Pa].`, required: true, values: [], variants: [`parabolic`, `wotmap`, `bsfc`, `chenflynn`], defaultValue: `` },
+      { name: `FMEP_b`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Friction-MEP slope coefficient.`, required: true, values: [], variants: [`parabolic`, `wotmap`, `bsfc`, `chenflynn`], defaultValue: `` },
+      { name: `FMEP_c`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [`chenflynn`], defaultValue: `` },
+      { name: `map_wot$`, isString: true, isSelector: false, isMap: true, unit: ``, description: ``, required: true, values: [], variants: [`wotmap`, `bsfc`], defaultValue: `` },
+      { name: `bsfc$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [`bsfc`], defaultValue: `` },
+      { name: `model$`, isString: true, isSelector: true, isMap: false, unit: ``, description: ``, required: false, values: [`parabolic`, `wotmap`, `bsfc`, `chenflynn`], variants: [], defaultValue: `parabolic` }
     ],
-    variants: [],
+    variants: [{ name: `parabolic`, requires: [`Tpeak`, `w_peak`, `FMEP_a`, `FMEP_b`] }, { name: `wotmap`, requires: [`map_wot$`, `FMEP_a`, `FMEP_b`] }, { name: `bsfc`, requires: [`map_wot$`, `bsfc$`, `FMEP_a`, `FMEP_b`] }, { name: `chenflynn`, requires: [`Tpeak`, `w_peak`, `FMEP_a`, `FMEP_b`, `FMEP_c`] }],
   },
   {
     type: `QuarterCar`,
@@ -2858,11 +3122,11 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`quartercar`, `component`, `powertrain`, `acausal`],
     ports: [`road`],
     params: [
-      { name: `ms`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `mu`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `ks`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `cs`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `kt`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `ms`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `mu`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `ks`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `cs`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `kt`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -2873,8 +3137,8 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`roadload`, `component`, `powertrain`, `acausal`],
     ports: [`shaft`],
     params: [
-      { name: `Crr`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Rolling-resistance coefficient.`, required: true, values: [], variants: [] },
-      { name: `Caero`, isString: false, isSelector: false, isMap: false, unit: `kg/m`, description: `Aerodynamic drag term ½ρCdA [kg/m].`, required: true, values: [], variants: [] }
+      { name: `Crr`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Rolling-resistance coefficient.`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Caero`, isString: false, isSelector: false, isMap: false, unit: `kg/m`, description: `Aerodynamic drag term ½ρCdA [kg/m].`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -2885,12 +3149,12 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`tirelongitudinal`, `component`, `powertrain`, `acausal`],
     ports: [`wheel`, `veh`],
     params: [
-      { name: `r`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Fz`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `B`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `C`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `D`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `epsv`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `r`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Fz`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `B`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `C`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `D`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `epsv`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -2901,13 +3165,13 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`tirepacejka`, `component`, `powertrain`, `acausal`],
     ports: [`wheel`, `veh`],
     params: [
-      { name: `r`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Fz`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `B`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `C`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `D`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `E`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `epsv`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `r`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Fz`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `B`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `C`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `D`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `E`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `epsv`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -2918,8 +3182,8 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`torqueconverter`, `component`, `powertrain`, `acausal`],
     ports: [`pump`, `turb`],
     params: [
-      { name: `Kmap$`, isString: true, isSelector: false, isMap: true, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `TRmap$`, isString: true, isSelector: false, isMap: true, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `Kmap$`, isString: true, isSelector: false, isMap: true, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `TRmap$`, isString: true, isSelector: false, isMap: true, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -2930,8 +3194,8 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`transmission`, `component`, `powertrain`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `ratio`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Gear / split ratio.`, required: true, values: [], variants: [] },
-      { name: `eta`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Efficiency (0–1).`, required: true, values: [], variants: [] }
+      { name: `ratio`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Gear / split ratio.`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eta`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Efficiency (0–1).`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -2942,13 +3206,13 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`vehiclebody`, `component`, `powertrain`, `acausal`],
     ports: [`port`],
     params: [
-      { name: `m`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Cd`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Af`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `rhoA`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Crr`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `grade`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `v0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `m`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Cd`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Af`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `rhoA`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Crr`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `grade`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `v0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -2959,11 +3223,11 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`windrotor`, `component`, `powertrain`, `acausal`],
     ports: [`shaft`, `wind`, `pitch`],
     params: [
-      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `R`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `cp$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `epsv`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `epsw`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `rho`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `R`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `cp$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `epsv`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `epsw`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -2974,7 +3238,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`sigabs`, `component`, `signal`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `param = value`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+
     ],
     variants: [],
   },
@@ -2985,7 +3249,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`sigbias`, `component`, `signal`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `b`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `b`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -2996,7 +3260,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`sigconstant`, `component`, `signal`, `acausal`],
     ports: [`out`],
     params: [
-      { name: `k`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `k`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -3007,8 +3271,8 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`sigdeadband`, `component`, `signal`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `w`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `w`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -3019,8 +3283,8 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`sigderivative`, `component`, `signal`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `tau`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `y0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `tau`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `y0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -3031,7 +3295,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`sigdiff`, `component`, `signal`, `acausal`],
     ports: [`in1`, `in2`, `out`],
     params: [
-      { name: `param = value`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+
     ],
     variants: [],
   },
@@ -3042,7 +3306,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`sigdivide`, `component`, `signal`, `acausal`],
     ports: [`in1`, `in2`, `out`],
     params: [
-      { name: `param = value`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+
     ],
     variants: [],
   },
@@ -3053,8 +3317,8 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`sigfirstorder`, `component`, `signal`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `tau`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `y0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `tau`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `y0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -3065,7 +3329,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`siggain`, `component`, `signal`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `k`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `k`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -3076,7 +3340,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`sigintegrator`, `component`, `signal`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `y0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `y0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -3087,9 +3351,9 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`sigleadlag`, `component`, `signal`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `T1`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `T2`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `y0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `T1`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `T2`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `y0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -3100,7 +3364,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`sigmap`, `component`, `signal`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `map$`, isString: true, isSelector: false, isMap: true, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `map$`, isString: true, isSelector: false, isMap: true, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -3111,7 +3375,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`sigmap2`, `component`, `signal`, `acausal`],
     ports: [`in1`, `in2`, `out`],
     params: [
-      { name: `map$`, isString: true, isSelector: false, isMap: true, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `map$`, isString: true, isSelector: false, isMap: true, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -3122,7 +3386,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`sigmax`, `component`, `signal`, `acausal`],
     ports: [`in1`, `in2`, `out`],
     params: [
-      { name: `param = value`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+
     ],
     variants: [],
   },
@@ -3133,7 +3397,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`sigmin`, `component`, `signal`, `acausal`],
     ports: [`in1`, `in2`, `out`],
     params: [
-      { name: `param = value`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+
     ],
     variants: [],
   },
@@ -3144,16 +3408,16 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`sigpid`, `component`, `signal`, `acausal`],
     ports: [`sp`, `pv`, `out`],
     params: [
-      { name: `Kp`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Ki`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Kd`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `tau`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `i0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `d0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `model$`, isString: true, isSelector: true, isMap: false, unit: ``, description: ``, required: false, values: [`basic`, `clamped`], variants: [] },
-      { name: `umin`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [`clamped`] },
-      { name: `umax`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [`clamped`] },
-      { name: `Taw`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [`clamped`] }
+      { name: `Kp`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Ki`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Kd`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `tau`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `i0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `d0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `model$`, isString: true, isSelector: true, isMap: false, unit: ``, description: ``, required: false, values: [`basic`, `clamped`], variants: [], defaultValue: `basic` },
+      { name: `umin`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [`clamped`], defaultValue: `` },
+      { name: `umax`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [`clamped`], defaultValue: `` },
+      { name: `Taw`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [`clamped`], defaultValue: `` }
     ],
     variants: [{ name: `basic`, requires: [] }, { name: `clamped`, requires: [`umin`, `umax`, `Taw`] }],
   },
@@ -3164,7 +3428,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`sigproduct`, `component`, `signal`, `acausal`],
     ports: [`in1`, `in2`, `out`],
     params: [
-      { name: `param = value`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+
     ],
     variants: [],
   },
@@ -3175,11 +3439,11 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`sigpulse`, `component`, `signal`, `acausal`],
     ports: [`out`],
     params: [
-      { name: `t0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `width`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `high`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `low`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `t0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `width`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `high`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `low`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -3190,9 +3454,9 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`sigramp`, `component`, `signal`, `acausal`],
     ports: [`out`],
     params: [
-      { name: `t0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `slope`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `t0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `slope`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -3203,9 +3467,9 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`sigratelimiter`, `component`, `signal`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `rate`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `tau`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `y0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `rate`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `tau`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `y0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -3216,10 +3480,10 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`sigrelay`, `component`, `signal`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `thresh`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `low`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `high`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `thresh`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `low`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `high`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -3230,8 +3494,8 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`sigsaturation`, `component`, `signal`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `lo`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `hi`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `lo`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `hi`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -3242,10 +3506,10 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`sigsecondorder`, `component`, `signal`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `wn`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `zeta`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `y0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `v0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `wn`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `zeta`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `y0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `v0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -3256,10 +3520,10 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`sigsine`, `component`, `signal`, `acausal`],
     ports: [`out`],
     params: [
-      { name: `amp`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `freq`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `phase`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `bias`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `amp`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `freq`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `phase`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `bias`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -3270,7 +3534,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`sigspeedprobe`, `component`, `signal`, `acausal`],
     ports: [`shaft`, `out`],
     params: [
-      { name: `param = value`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+
     ],
     variants: [],
   },
@@ -3281,10 +3545,10 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`sigstep`, `component`, `signal`, `acausal`],
     ports: [`out`],
     params: [
-      { name: `t0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `before`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `after`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `t0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `before`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `after`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -3295,7 +3559,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`sigsum`, `component`, `signal`, `acausal`],
     ports: [`in1`, `in2`, `out`],
     params: [
-      { name: `param = value`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+
     ],
     variants: [],
   },
@@ -3306,8 +3570,8 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`sigswitch`, `component`, `signal`, `acausal`],
     ports: [`in1`, `in2`, `ctrl`, `out`],
     params: [
-      { name: `thresh`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `thresh`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -3318,7 +3582,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`sigtable`, `component`, `signal`, `acausal`],
     ports: [`out`],
     params: [
-      { name: `map$`, isString: true, isSelector: false, isMap: true, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `map$`, isString: true, isSelector: false, isMap: true, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -3329,7 +3593,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`sigthermalprobe`, `component`, `signal`, `acausal`],
     ports: [`port`, `out`],
     params: [
-      { name: `param = value`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+
     ],
     variants: [],
   },
@@ -3340,7 +3604,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`sigtime`, `component`, `signal`, `acausal`],
     ports: [`out`],
     params: [
-      { name: `param = value`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+
     ],
     variants: [],
   },
@@ -3351,7 +3615,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`sigvelprobe`, `component`, `signal`, `acausal`],
     ports: [`port`, `out`],
     params: [
-      { name: `param = value`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+
     ],
     variants: [],
   },
@@ -3362,8 +3626,8 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`supervisoryecms`, `component`, `signal`, `acausal`],
     ports: [`soc`, `dem`, `eng`, `mot`],
     params: [
-      { name: `soc_ref`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `soc_ref`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -3374,10 +3638,10 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`zoneco2`, `component`, `signal`, `acausal`],
     ports: [`vent`, `occ`, `out`],
     params: [
-      { name: `Vz`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `c_amb`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `gen_occ`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `c0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] }
+      { name: `Vz`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `c_amb`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `gen_occ`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `c0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -3388,7 +3652,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`blendmixer`, `component`, `twophase`, `acausal`],
     ports: [`in1`, `in2`, `out`],
     params: [
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `twophase` }
     ],
     variants: [],
   },
@@ -3399,8 +3663,8 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`blendsensor`, `component`, `twophase`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `twophase` }
     ],
     variants: [],
   },
@@ -3411,7 +3675,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`blendsink`, `component`, `twophase`, `acausal`],
     ports: [`in`],
     params: [
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `twophase` }
     ],
     variants: [],
   },
@@ -3422,12 +3686,12 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`blendsource`, `component`, `twophase`, `acausal`],
     ports: [`out`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [] },
-      { name: `mdot`, isString: false, isSelector: false, isMap: false, unit: `kg/s`, description: `Mass flow rate [kg/s].`, required: true, values: [], variants: [] },
-      { name: `P`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Pressure [Pa].`, required: true, values: [], variants: [] },
-      { name: `x`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Vapor quality / fraction (0–1).`, required: true, values: [], variants: [] },
-      { name: `z`, isString: false, isSelector: false, isMap: false, unit: `m`, description: `Elevation [m].`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `mdot`, isString: false, isSelector: false, isMap: false, unit: `kg/s`, description: `Mass flow rate [kg/s].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `P`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Pressure [Pa].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `x`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Vapor quality / fraction (0–1).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `z`, isString: false, isSelector: false, isMap: false, unit: `m`, description: `Elevation [m].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `twophase` }
     ],
     variants: [],
   },
@@ -3438,11 +3702,11 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`boilingvessel`, `component`, `twophase`, `acausal`],
     ports: [`vent`, `wall`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [] },
-      { name: `V`, isString: false, isSelector: false, isMap: false, unit: `m^3`, description: `Volume [m³].`, required: true, values: [], variants: [] },
-      { name: `m0`, isString: false, isSelector: false, isMap: false, unit: `kg`, description: `Initial mass [kg].`, required: true, values: [], variants: [] },
-      { name: `T0`, isString: false, isSelector: false, isMap: false, unit: `K`, description: `Reference/initial temperature [K].`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `V`, isString: false, isSelector: false, isMap: false, unit: `m^3`, description: `Volume [m³].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `m0`, isString: false, isSelector: false, isMap: false, unit: `kg`, description: `Initial mass [kg].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `T0`, isString: false, isSelector: false, isMap: false, unit: `K`, description: `Reference/initial temperature [K].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `twophase` }
     ],
     variants: [],
   },
@@ -3453,10 +3717,10 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`capillarytube`, `component`, `twophase`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `C`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `n`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `C`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `n`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `twophase` }
     ],
     variants: [],
   },
@@ -3467,10 +3731,10 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`ejectormomentum`, `component`, `twophase`, `acausal`],
     ports: [`mot_in`, `suc_in`, `out`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `eta_n`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `eta_m`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eta_n`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eta_m`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `twophase` }
     ],
     variants: [],
   },
@@ -3481,14 +3745,14 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`fewcellcondenser`, `component`, `twophase`, `acausal`],
     ports: [`in`, `out`, `w1`, `w2`, `w3`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `V`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Cc`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `UA`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Kv`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `P0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `h0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `V`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Cc`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `UA`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Kv`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `P0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `h0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `twophase` }
     ],
     variants: [],
   },
@@ -3499,14 +3763,14 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`fewcellevaporator`, `component`, `twophase`, `acausal`],
     ports: [`in`, `out`, `w1`, `w2`, `w3`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `V`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Cc`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `UA`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `Kv`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `P0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `h0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `V`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Cc`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `UA`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Kv`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `P0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `h0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `twophase` }
     ],
     variants: [],
   },
@@ -3517,8 +3781,8 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`flashtank`, `component`, `twophase`, `acausal`],
     ports: [`in`, `liq`, `vap`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `twophase` }
     ],
     variants: [],
   },
@@ -3529,10 +3793,10 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`gascooler`, `component`, `twophase`, `acausal`],
     ports: [`in`, `out`, `wall`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `UA`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `dP`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `UA`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `dP`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `twophase` }
     ],
     variants: [],
   },
@@ -3543,13 +3807,13 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`movingboundarycondenser`, `component`, `twophase`, `acausal`],
     ports: [`in`, `out`, `wall`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [] },
-      { name: `U_cond`, isString: false, isSelector: false, isMap: false, unit: `W/m^2-K`, description: `Condenser-zone overall coefficient [W/m²·K].`, required: true, values: [], variants: [] },
-      { name: `U_sc`, isString: false, isSelector: false, isMap: false, unit: `W/m^2-K`, description: `Subcool-zone overall coefficient [W/m²·K].`, required: true, values: [], variants: [] },
-      { name: `D`, isString: false, isSelector: false, isMap: false, unit: `m`, description: `Diameter [m].`, required: true, values: [], variants: [] },
-      { name: `L`, isString: false, isSelector: false, isMap: false, unit: `m`, description: `Length [m].`, required: true, values: [], variants: [] },
-      { name: `eps_zone`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Zone-collapse smoothing width.`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `U_cond`, isString: false, isSelector: false, isMap: false, unit: `W/m^2-K`, description: `Condenser-zone overall coefficient [W/m²·K].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `U_sc`, isString: false, isSelector: false, isMap: false, unit: `W/m^2-K`, description: `Subcool-zone overall coefficient [W/m²·K].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `D`, isString: false, isSelector: false, isMap: false, unit: `m`, description: `Diameter [m].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `L`, isString: false, isSelector: false, isMap: false, unit: `m`, description: `Length [m].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eps_zone`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Zone-collapse smoothing width.`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `twophase` }
     ],
     variants: [],
   },
@@ -3560,13 +3824,13 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`movingboundaryevaporator`, `component`, `twophase`, `acausal`],
     ports: [`in`, `out`, `wall`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [] },
-      { name: `U_tp`, isString: false, isSelector: false, isMap: false, unit: `W/m^2-K`, description: `Two-phase-zone overall coefficient [W/m²·K].`, required: true, values: [], variants: [] },
-      { name: `U_sh`, isString: false, isSelector: false, isMap: false, unit: `W/m^2-K`, description: `Superheat-zone overall coefficient [W/m²·K].`, required: true, values: [], variants: [] },
-      { name: `D`, isString: false, isSelector: false, isMap: false, unit: `m`, description: `Diameter [m].`, required: true, values: [], variants: [] },
-      { name: `L`, isString: false, isSelector: false, isMap: false, unit: `m`, description: `Length [m].`, required: true, values: [], variants: [] },
-      { name: `eps_zone`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Zone-collapse smoothing width.`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `U_tp`, isString: false, isSelector: false, isMap: false, unit: `W/m^2-K`, description: `Two-phase-zone overall coefficient [W/m²·K].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `U_sh`, isString: false, isSelector: false, isMap: false, unit: `W/m^2-K`, description: `Superheat-zone overall coefficient [W/m²·K].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `D`, isString: false, isSelector: false, isMap: false, unit: `m`, description: `Diameter [m].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `L`, isString: false, isSelector: false, isMap: false, unit: `m`, description: `Length [m].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eps_zone`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Zone-collapse smoothing width.`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `twophase` }
     ],
     variants: [],
   },
@@ -3577,9 +3841,9 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`oilseparator`, `component`, `twophase`, `acausal`],
     ports: [`in`, `out`, `bleed`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `f`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `f`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `twophase` }
     ],
     variants: [],
   },
@@ -3590,11 +3854,11 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`proportionalreliefvalve`, `component`, `twophase`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [] },
-      { name: `Pcrack`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Cracking (relief) pressure [Pa].`, required: true, values: [], variants: [] },
-      { name: `grad`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Road grade (rise/run).`, required: true, values: [], variants: [] },
-      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Effectiveness / roughness.`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Pcrack`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Cracking (relief) pressure [Pa].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `grad`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Road grade (rise/run).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Effectiveness / roughness.`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `twophase` }
     ],
     variants: [],
   },
@@ -3605,8 +3869,8 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`reversingvalve`, `component`, `twophase`, `acausal`],
     ports: [`d`, `s`, `i`, `o`],
     params: [
-      { name: `mode`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `mode`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `twophase` }
     ],
     variants: [],
   },
@@ -3617,14 +3881,14 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`steamreliefvalve`, `component`, `twophase`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [] },
-      { name: `A`, isString: false, isSelector: false, isMap: false, unit: `m^2`, description: `Area [m²].`, required: true, values: [], variants: [] },
-      { name: `Pset`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Set pressure [Pa].`, required: true, values: [], variants: [] },
-      { name: `Cd`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Discharge coefficient.`, required: true, values: [], variants: [] },
-      { name: `kgas`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Gas specific-heat ratio.`, required: true, values: [], variants: [] },
-      { name: `Rgas`, isString: false, isSelector: false, isMap: false, unit: `J/kg-K`, description: `Specific gas constant [J/kg·K].`, required: true, values: [], variants: [] },
-      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Effectiveness / roughness.`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `A`, isString: false, isSelector: false, isMap: false, unit: `m^2`, description: `Area [m²].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Pset`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Set pressure [Pa].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Cd`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Discharge coefficient.`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `kgas`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Gas specific-heat ratio.`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Rgas`, isString: false, isSelector: false, isMap: false, unit: `J/kg-K`, description: `Specific gas constant [J/kg·K].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Effectiveness / roughness.`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `twophase` }
     ],
     variants: [],
   },
@@ -3635,9 +3899,9 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`suctionaccumulator`, `component`, `twophase`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `m0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `m0`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `twophase` }
     ],
     variants: [],
   },
@@ -3648,10 +3912,10 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`threezonehx`, `component`, `twophase`, `acausal`],
     ports: [`hot_in`, `hot_out`, `cold_in`, `cold_out`],
     params: [
-      { name: `UA`, isString: false, isSelector: false, isMap: false, unit: `W/K`, description: `Overall conductance UA [W/K].`, required: true, values: [], variants: [] },
-      { name: `hot$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Hot-side fluid name (e.g. Water).`, required: true, values: [], variants: [] },
-      { name: `cold$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Cold-side fluid name (e.g. EG50).`, required: true, values: [], variants: [] },
-      { name: `arr$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Flow arrangement (passed to hx_effectiveness) — one of \`counterflow\`, \`parallel\`.`, required: true, values: [], variants: [] }
+      { name: `UA`, isString: false, isSelector: false, isMap: false, unit: `W/K`, description: `Overall conductance UA [W/K].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `hot$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Hot-side fluid name (e.g. Water).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `cold$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Cold-side fluid name (e.g. EG50).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `arr$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Flow arrangement (passed to hx_effectiveness) — one of \`counterflow\`, \`parallel\`.`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -3662,9 +3926,9 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`transcriticalbackpressurevalve`, `component`, `twophase`, `acausal`],
     ports: [`in`, `out`, `u`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `CdA_max`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `CdA_max`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `twophase` }
     ],
     variants: [],
   },
@@ -3675,7 +3939,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`twophasecap`, `component`, `twophase`, `acausal`],
     ports: [`in`],
     params: [
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `twophase` }
     ],
     variants: [],
   },
@@ -3686,13 +3950,13 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`twophasechamber`, `component`, `twophase`, `acausal`],
     ports: [`in`, `out`, `wall`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [] },
-      { name: `V`, isString: false, isSelector: false, isMap: false, unit: `m^3`, description: `Volume [m³].`, required: true, values: [], variants: [] },
-      { name: `C`, isString: false, isSelector: false, isMap: false, unit: `F`, description: `Capacitance [F].`, required: true, values: [], variants: [] },
-      { name: `UA`, isString: false, isSelector: false, isMap: false, unit: `W/K`, description: `Overall conductance UA [W/K].`, required: true, values: [], variants: [] },
-      { name: `P0`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Reference/initial pressure [Pa].`, required: true, values: [], variants: [] },
-      { name: `h0`, isString: false, isSelector: false, isMap: false, unit: `J/kg`, description: `Reference enthalpy [J/kg].`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `V`, isString: false, isSelector: false, isMap: false, unit: `m^3`, description: `Volume [m³].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `C`, isString: false, isSelector: false, isMap: false, unit: `F`, description: `Capacitance [F].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `UA`, isString: false, isSelector: false, isMap: false, unit: `W/K`, description: `Overall conductance UA [W/K].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `P0`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Reference/initial pressure [Pa].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `h0`, isString: false, isSelector: false, isMap: false, unit: `J/kg`, description: `Reference enthalpy [J/kg].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `twophase` }
     ],
     variants: [],
   },
@@ -3700,18 +3964,20 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     type: `TwoPhaseCompressor`,
     library: `twophase`,
     summary: `A refrigerant compressor with selectable isentropic/volumetric variants.`,
-    tags: [`twophasecompressor`, `component`, `twophase`, `acausal`],
+    tags: [`compressor`, `compressor-family`, `twophasecompressor`, `ports:in-out`, `flow-closed`, `energy-work`, `steady`, `twophase`, `component`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [] },
-      { name: `eta`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Efficiency (0–1).`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] },
-      { name: `model$`, isString: true, isSelector: true, isMap: false, unit: ``, description: `Model variant — selects the physics body (see Model Variants).`, required: false, values: [`isentropic`, `volumetric`], variants: [] },
-      { name: `eta_v`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [`volumetric`] },
-      { name: `disp`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [`volumetric`] },
-      { name: `rpm`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [`volumetric`] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eta`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Efficiency (0–1).`, required: true, values: [], variants: [`isentropic`, `volumetric`], defaultValue: `` },
+      { name: `eta_v`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [`volumetric`], defaultValue: `` },
+      { name: `disp`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [`volumetric`, `map2d`], defaultValue: `` },
+      { name: `rpm`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [`volumetric`, `map2d`], defaultValue: `` },
+      { name: `map_etas$`, isString: true, isSelector: false, isMap: true, unit: ``, description: ``, required: true, values: [], variants: [`map2d`], defaultValue: `` },
+      { name: `map_etav$`, isString: true, isSelector: false, isMap: true, unit: ``, description: ``, required: true, values: [], variants: [`map2d`], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `twophase` },
+      { name: `model$`, isString: true, isSelector: true, isMap: false, unit: ``, description: `Model variant — selects the physics body (see Model Variants).`, required: false, values: [`isentropic`, `volumetric`, `map2d`], variants: [], defaultValue: `isentropic` }
     ],
-    variants: [{ name: `isentropic`, requires: [] }, { name: `volumetric`, requires: [`eta_v`, `disp`, `rpm`] }],
+    variants: [{ name: `isentropic`, requires: [`eta`] }, { name: `volumetric`, requires: [`eta`, `eta_v`, `disp`, `rpm`] }, { name: `map2d`, requires: [`map_etas$`, `map_etav$`, `disp`, `rpm`] }],
   },
   {
     type: `TwoPhaseCondenser`,
@@ -3720,10 +3986,10 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`twophasecondenser`, `component`, `twophase`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [] },
-      { name: `SC_set`, isString: false, isSelector: false, isMap: false, unit: `K`, description: `Target subcooling [K].`, required: true, values: [], variants: [] },
-      { name: `dP`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Nominal pressure drop [Pa].`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `SC_set`, isString: false, isSelector: false, isMap: false, unit: `K`, description: `Target subcooling [K].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `dP`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Nominal pressure drop [Pa].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `twophase` }
     ],
     variants: [],
   },
@@ -3734,10 +4000,10 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`twophasecondenserfloat`, `component`, `twophase`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [] },
-      { name: `UA`, isString: false, isSelector: false, isMap: false, unit: `W/K`, description: `Overall conductance UA [W/K].`, required: true, values: [], variants: [] },
-      { name: `T_amb`, isString: false, isSelector: false, isMap: false, unit: `K`, description: `Ambient temperature [K].`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `UA`, isString: false, isSelector: false, isMap: false, unit: `W/K`, description: `Overall conductance UA [W/K].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `T_amb`, isString: false, isSelector: false, isMap: false, unit: `K`, description: `Ambient temperature [K].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `twophase` }
     ],
     variants: [],
   },
@@ -3748,11 +4014,11 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`twophasecondenserua`, `component`, `twophase`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [] },
-      { name: `UA`, isString: false, isSelector: false, isMap: false, unit: `W/K`, description: `Overall conductance UA [W/K].`, required: true, values: [], variants: [] },
-      { name: `T_amb`, isString: false, isSelector: false, isMap: false, unit: `K`, description: `Ambient temperature [K].`, required: true, values: [], variants: [] },
-      { name: `V`, isString: false, isSelector: false, isMap: false, unit: `m^3`, description: `Volume [m³].`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `UA`, isString: false, isSelector: false, isMap: false, unit: `W/K`, description: `Overall conductance UA [W/K].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `T_amb`, isString: false, isSelector: false, isMap: false, unit: `K`, description: `Ambient temperature [K].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `V`, isString: false, isSelector: false, isMap: false, unit: `m^3`, description: `Volume [m³].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `twophase` }
     ],
     variants: [],
   },
@@ -3763,8 +4029,8 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`twophaseejector`, `component`, `twophase`, `acausal`],
     ports: [`m`, `s`, `out`],
     params: [
-      { name: `PLR`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `PLR`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `twophase` }
     ],
     variants: [],
   },
@@ -3775,9 +4041,9 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`twophaseenthalpysource`, `component`, `twophase`, `acausal`],
     ports: [`out`],
     params: [
-      { name: `mdot`, isString: false, isSelector: false, isMap: false, unit: `kg/s`, description: `Mass flow rate [kg/s].`, required: true, values: [], variants: [] },
-      { name: `h`, isString: false, isSelector: false, isMap: false, unit: `W/m^2-K`, description: `Heat-transfer coefficient [W/m²·K].`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `mdot`, isString: false, isSelector: false, isMap: false, unit: `kg/s`, description: `Mass flow rate [kg/s].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `h`, isString: false, isSelector: false, isMap: false, unit: `W/m^2-K`, description: `Heat-transfer coefficient [W/m²·K].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `twophase` }
     ],
     variants: [],
   },
@@ -3788,10 +4054,10 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`twophaseevaporator`, `component`, `twophase`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [] },
-      { name: `SH_set`, isString: false, isSelector: false, isMap: false, unit: `K`, description: `Target superheat [K].`, required: true, values: [], variants: [] },
-      { name: `dP`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Nominal pressure drop [Pa].`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `SH_set`, isString: false, isSelector: false, isMap: false, unit: `K`, description: `Target superheat [K].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `dP`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Nominal pressure drop [Pa].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `twophase` }
     ],
     variants: [],
   },
@@ -3802,11 +4068,11 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`twophaseevaporatorua`, `component`, `twophase`, `acausal`],
     ports: [`in`, `out`, `wall`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [] },
-      { name: `UA`, isString: false, isSelector: false, isMap: false, unit: `W/K`, description: `Overall conductance UA [W/K].`, required: true, values: [], variants: [] },
-      { name: `dP`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Nominal pressure drop [Pa].`, required: true, values: [], variants: [] },
-      { name: `SH`, isString: false, isSelector: false, isMap: false, unit: `K`, description: `Superheat [K].`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `UA`, isString: false, isSelector: false, isMap: false, unit: `W/K`, description: `Overall conductance UA [W/K].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `dP`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Nominal pressure drop [Pa].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `SH`, isString: false, isSelector: false, isMap: false, unit: `K`, description: `Superheat [K].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `twophase` }
     ],
     variants: [],
   },
@@ -3817,9 +4083,9 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`twophaseexpansionvalve`, `component`, `twophase`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [] },
-      { name: `Cv`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Flow coefficient.`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Cv`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Flow coefficient.`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `twophase` }
     ],
     variants: [],
   },
@@ -3830,10 +4096,10 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`twophaseflowres`, `component`, `twophase`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [] },
-      { name: `L`, isString: false, isSelector: false, isMap: false, unit: `m`, description: `Length [m].`, required: true, values: [], variants: [] },
-      { name: `D`, isString: false, isSelector: false, isMap: false, unit: `m`, description: `Diameter [m].`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `L`, isString: false, isSelector: false, isMap: false, unit: `m`, description: `Length [m].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `D`, isString: false, isSelector: false, isMap: false, unit: `m`, description: `Diameter [m].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `twophase` }
     ],
     variants: [],
   },
@@ -3844,9 +4110,9 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`twophaseinternalhx`, `component`, `twophase`, `acausal`],
     ports: [`liq_in`, `liq_out`, `vap_in`, `vap_out`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `eps`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `twophase` }
     ],
     variants: [],
   },
@@ -3857,9 +4123,9 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`twophaseinventory`, `component`, `twophase`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [] },
-      { name: `V`, isString: false, isSelector: false, isMap: false, unit: `m^3`, description: `Volume [m³].`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `V`, isString: false, isSelector: false, isMap: false, unit: `m^3`, description: `Volume [m³].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `twophase` }
     ],
     variants: [],
   },
@@ -3870,7 +4136,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`twophasemixer`, `component`, `twophase`, `acausal`],
     ports: [`in1`, `in2`, `out`],
     params: [
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `twophase` }
     ],
     variants: [],
   },
@@ -3881,9 +4147,9 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`twophaseoilrider`, `component`, `twophase`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `oc_set`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `k_deg`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `oc_set`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `k_deg`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `twophase` }
     ],
     variants: [],
   },
@@ -3894,15 +4160,15 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`twophasepipe`, `component`, `twophase`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [] },
-      { name: `L`, isString: false, isSelector: false, isMap: false, unit: `m`, description: `Length [m].`, required: true, values: [], variants: [] },
-      { name: `D`, isString: false, isSelector: false, isMap: false, unit: `m`, description: `Diameter [m].`, required: true, values: [], variants: [] },
-      { name: `rough`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Relative wall roughness.`, required: true, values: [], variants: [] },
-      { name: `x`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Vapor quality / fraction (0–1).`, required: true, values: [], variants: [] },
-      { name: `rho_l`, isString: false, isSelector: false, isMap: false, unit: `kg/m^3`, description: `Liquid density [kg/m³].`, required: true, values: [], variants: [] },
-      { name: `rho_g`, isString: false, isSelector: false, isMap: false, unit: `kg/m^3`, description: `Vapor density [kg/m³].`, required: true, values: [], variants: [] },
-      { name: `mu_l`, isString: false, isSelector: false, isMap: false, unit: `Pa-s`, description: `Liquid viscosity [Pa·s].`, required: true, values: [], variants: [] },
-      { name: `mu_g`, isString: false, isSelector: false, isMap: false, unit: `Pa-s`, description: `Vapor viscosity [Pa·s].`, required: true, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `L`, isString: false, isSelector: false, isMap: false, unit: `m`, description: `Length [m].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `D`, isString: false, isSelector: false, isMap: false, unit: `m`, description: `Diameter [m].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `rough`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Relative wall roughness.`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `x`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Vapor quality / fraction (0–1).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `rho_l`, isString: false, isSelector: false, isMap: false, unit: `kg/m^3`, description: `Liquid density [kg/m³].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `rho_g`, isString: false, isSelector: false, isMap: false, unit: `kg/m^3`, description: `Vapor density [kg/m³].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `mu_l`, isString: false, isSelector: false, isMap: false, unit: `Pa-s`, description: `Liquid viscosity [Pa·s].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `mu_g`, isString: false, isSelector: false, isMap: false, unit: `Pa-s`, description: `Vapor viscosity [Pa·s].`, required: true, values: [], variants: [], defaultValue: `` }
     ],
     variants: [],
   },
@@ -3913,8 +4179,8 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`twophasepressuresink`, `component`, `twophase`, `acausal`],
     ports: [`in`],
     params: [
-      { name: `P`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Pressure [Pa].`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `P`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Pressure [Pa].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `twophase` }
     ],
     variants: [],
   },
@@ -3925,10 +4191,10 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`twophasepressuresource`, `component`, `twophase`, `acausal`],
     ports: [`out`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [] },
-      { name: `P`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Pressure [Pa].`, required: true, values: [], variants: [] },
-      { name: `x`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Vapor quality / fraction (0–1).`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `P`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Pressure [Pa].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `x`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Vapor quality / fraction (0–1).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `twophase` }
     ],
     variants: [],
   },
@@ -3939,9 +4205,9 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`twophasereceiver`, `component`, `twophase`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [] },
-      { name: `V`, isString: false, isSelector: false, isMap: false, unit: `m^3`, description: `Volume [m³].`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `V`, isString: false, isSelector: false, isMap: false, unit: `m^3`, description: `Volume [m³].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `twophase` }
     ],
     variants: [],
   },
@@ -3952,8 +4218,8 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`twophasesensor`, `component`, `twophase`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `twophase` }
     ],
     variants: [],
   },
@@ -3964,9 +4230,9 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`twophaseshorttube`, `component`, `twophase`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `CdA`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `CdA`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: ``, required: false, values: [], variants: [], defaultValue: `twophase` }
     ],
     variants: [],
   },
@@ -3977,7 +4243,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`twophasesink`, `component`, `twophase`, `acausal`],
     ports: [`in`],
     params: [
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `twophase` }
     ],
     variants: [],
   },
@@ -3988,11 +4254,11 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`twophasesource`, `component`, `twophase`, `acausal`],
     ports: [`out`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [] },
-      { name: `mdot`, isString: false, isSelector: false, isMap: false, unit: `kg/s`, description: `Mass flow rate [kg/s].`, required: true, values: [], variants: [] },
-      { name: `P`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Pressure [Pa].`, required: true, values: [], variants: [] },
-      { name: `x`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Vapor quality / fraction (0–1).`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `mdot`, isString: false, isSelector: false, isMap: false, unit: `kg/s`, description: `Mass flow rate [kg/s].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `P`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Pressure [Pa].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `x`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Vapor quality / fraction (0–1).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `twophase` }
     ],
     variants: [],
   },
@@ -4003,10 +4269,10 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`twophasesourceph`, `component`, `twophase`, `acausal`],
     ports: [`out`],
     params: [
-      { name: `mdot`, isString: false, isSelector: false, isMap: false, unit: `kg/s`, description: `Mass flow rate [kg/s].`, required: true, values: [], variants: [] },
-      { name: `P`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Pressure [Pa].`, required: true, values: [], variants: [] },
-      { name: `h`, isString: false, isSelector: false, isMap: false, unit: `W/m^2-K`, description: `Heat-transfer coefficient [W/m²·K].`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `mdot`, isString: false, isSelector: false, isMap: false, unit: `kg/s`, description: `Mass flow rate [kg/s].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `P`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Pressure [Pa].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `h`, isString: false, isSelector: false, isMap: false, unit: `W/m^2-K`, description: `Heat-transfer coefficient [W/m²·K].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `twophase` }
     ],
     variants: [],
   },
@@ -4017,11 +4283,11 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`twophasevolume`, `component`, `twophase`, `acausal`],
     ports: [`in`, `out`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [] },
-      { name: `V`, isString: false, isSelector: false, isMap: false, unit: `m^3`, description: `Volume [m³].`, required: true, values: [], variants: [] },
-      { name: `C`, isString: false, isSelector: false, isMap: false, unit: `F`, description: `Capacitance [F].`, required: true, values: [], variants: [] },
-      { name: `P0`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Reference/initial pressure [Pa].`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `V`, isString: false, isSelector: false, isMap: false, unit: `m^3`, description: `Volume [m³].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `C`, isString: false, isSelector: false, isMap: false, unit: `F`, description: `Capacitance [F].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `P0`, isString: false, isSelector: false, isMap: false, unit: `Pa`, description: `Reference/initial pressure [Pa].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `twophase` }
     ],
     variants: [],
   },
@@ -4032,10 +4298,10 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     tags: [`txvsuperheat`, `component`, `twophase`, `acausal`],
     ports: [`in`, `out`, `bulb`],
     params: [
-      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [] },
-      { name: `Kv`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Flow coefficient.`, required: true, values: [], variants: [] },
-      { name: `SH_set`, isString: false, isSelector: false, isMap: false, unit: `K`, description: `Target superheat [K].`, required: true, values: [], variants: [] },
-      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [] }
+      { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `Kv`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Flow coefficient.`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `SH_set`, isString: false, isSelector: false, isMap: false, unit: `K`, description: `Target superheat [K].`, required: true, values: [], variants: [], defaultValue: `` },
+      { name: `domain$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Connector fluid family — one of \`fluid\`, \`gas\`, \`oil\`, \`moistair\`, \`liquid\`, \`twophase\`.`, required: false, values: [], variants: [], defaultValue: `twophase` }
     ],
     variants: [],
   }

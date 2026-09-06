@@ -104,6 +104,8 @@ import { applyColumnFill } from './tablesGrid/tableGridModel'
 // sessions never open, so they are code-split and only fetched when their tab
 // is first shown (wrapped in <Suspense> at their render sites below).
 const SchematicTab = lazy(() => import('./schematic/SchematicTab'))
+import { declaredInstances } from './schematic/declaration'
+import { instancesInDiagnosis, LOCAL_ENGINE_FAILURE } from './schematic/wiring'
 import type { SchematicOffsets } from './schematic/layout'
 const DigitizerTab = lazy(() =>
   import('./DigitizerTab').then((m) => ({ default: m.DigitizerTab })),
@@ -175,6 +177,8 @@ import {
   loadProjectLocal,
   ProjectSlices,
   readProjectFile,
+  downloadEquationText,
+  projectOnlyNotes,
   saveProject,
   saveProjectLocal,
   saveProjectToHandle,
@@ -631,13 +635,17 @@ export default function App() {
   // the wizard's insertion this must NOT pull focus to the editor. The live
   // lint re-checks shortly after, which is what redraws the canvas.
   const emitFromSchematic = useCallback((statement: string) => {
-    editorRef.current?.insertStatement(statement)
+    editorRef.current?.insertStatement(statement, { focus: false })
   }, [])
 
   const insertComponentBlock = useCallback((block: string) => {
     setActiveTab('equations')
     setTimeout(() => editorRef.current?.insertStatement(block), 50)
   }, [])
+  const existingInstanceNames = useMemo(
+    () => [...declaredInstances(text).values()].map((hit) => hit.label),
+    [text],
+  )
   // Programmatic document replacement (project load, new/example, generated
   // equations): updates the ref + state and pushes the doc into the uncontrolled
   // editor. setDoc does not echo back through onTextChange.
@@ -1090,6 +1098,18 @@ export default function App() {
   }, [])
 
   const handleSaveProjectAs = useCallback(() => setSaveAsOpen(true), [])
+
+  const handleExportEquations = useCallback(() => {
+    const notes = projectOnlyNotes(buildProject(currentSlices()))
+    downloadEquationText(textRef.current, projectName)
+    notifications.show({
+      color: 'blue',
+      title: 'Exported equation text',
+      message: notes.length
+        ? `Not included (save the project to keep them): ${notes.join('; ')}.`
+        : 'This document has no project-only inputs — the text is the whole model.',
+    })
+  }, [currentSlices, projectName])
 
   // Save As always picks (never the kept handle) — but the file it picks
   // becomes the project's new home, so a following Save writes there.
@@ -1586,7 +1606,7 @@ export default function App() {
         variables: [],
         unitWarnings: [],
         inferredUnits: {},
-        message: `Could not reach the solver backend: ${String(e)}`,
+        message: LOCAL_ENGINE_FAILURE,
       }
       setCheckResult(errorResponse)
       return errorResponse
@@ -1750,7 +1770,7 @@ export default function App() {
       updateParamTable(tableId, (t) => ({
         ...t,
         checkResult: null,
-        checkMessage: `Could not reach the solver backend: ${String(e)}`,
+        checkMessage: LOCAL_ENGINE_FAILURE,
       }))
       return null
     } finally {
@@ -1829,7 +1849,7 @@ export default function App() {
         results: t.rows.map(() => ({
           success: false,
           values: {},
-          error: `Could not reach the solver backend: ${String(e)}`,
+          error: LOCAL_ENGINE_FAILURE,
         })),
       }))
       return false
@@ -1939,7 +1959,7 @@ export default function App() {
         stats: null,
         solutions: [],
         unitWarnings: [],
-        error: `Could not reach the solver backend: ${String(e)}`,
+        error: LOCAL_ENGINE_FAILURE,
       })
       setLastSolvedWithFillMissing(false)
       return false
@@ -2283,6 +2303,7 @@ export default function App() {
         { id: 'proj-open', label: 'Open Project…', leftSection: <IconFolderOpen size={18} />, onClick: handleOpenProject },
         { id: 'proj-save', label: 'Save Project', leftSection: <IconDeviceFloppy size={18} />, onClick: handleSaveProject },
         { id: 'proj-saveas', label: 'Save Project As…', leftSection: <IconDeviceFloppy size={18} />, onClick: handleSaveProjectAs },
+        { id: 'proj-export-text', label: 'Export equation text…', description: 'Download the editor document only — tables, maps, and layout stay in Save project', leftSection: <IconDeviceFloppy size={18} />, onClick: handleExportEquations },
         { id: 'proj-library', label: 'Browser Projects…', description: 'Projects saved in this browser — no server, no files', leftSection: <IconDatabase size={18} />, onClick: () => setLibraryOpen(true) },
         { id: 'proj-save-browser', label: 'Save to Browser', description: 'Keep this project in the browser under its current name', leftSection: <IconDatabase size={18} />, onClick: () => { void handleSaveToBrowser().then((ok) => notifications.show(ok ? { color: 'teal', title: 'Saved to browser', message: `“${projectName}” is stored in this browser.` } : { color: 'yellow', title: 'Could not save to browser', message: 'Browser storage may be unavailable in this browsing mode.' })) } },
       ],
@@ -2394,7 +2415,7 @@ export default function App() {
             mb={6}
             withCloseButton
             onClose={() => setDismissedWarnings(true)}
-            title={`${unitWarnings.length} unit consistency warning${unitWarnings.length === 1 ? '' : 's'}`}
+            title={`${unitWarnings.length} warning${unitWarnings.length === 1 ? '' : 's'}`}
           >
             <Stack gap={2} mah={120} style={{ overflowY: 'auto' }}>
               {withStableKeys(unitWarnings).map((w) => (
@@ -2474,6 +2495,7 @@ export default function App() {
             onEmitStatement={emitFromSchematic}
             offsets={schematicOffsets}
             onOffsetsChange={setSchematicOffsets}
+            highlightIds={instancesInDiagnosis(checkResult?.message ?? '')}
           />
         </Suspense>
       </div>
@@ -2913,6 +2935,7 @@ export default function App() {
           onOpenLibrary={() => setLibraryOpen(true)}
           onSaveProject={handleSaveProject}
           onSaveProjectAs={handleSaveProjectAs}
+          onExportEquations={handleExportEquations}
           onInsertFunction={insertFunction}
           onInsertComponent={() => setShowComponentWizard(true)}
           onOpenExamples={() => setShowExamples(true)}
@@ -3080,6 +3103,7 @@ export default function App() {
             opened={showComponentWizard}
             onClose={() => setShowComponentWizard(false)}
             onInsert={insertComponentBlock}
+            existingNames={existingInstanceNames}
           />
         )}
       </Suspense>

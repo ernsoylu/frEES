@@ -11,6 +11,14 @@ import { CompletionContext, CompletionResult } from '@codemirror/autocomplete'
 import { tags } from '@lezer/highlight'
 import { catalogFunctionNames, FUNCTION_CATEGORIES } from './functionCatalog'
 import { COMPONENT_NAMES } from './componentNames'
+import { activeCallAt, highlightArgIndex } from './signatureHelp'
+import {
+  completionsForPrefix,
+  localSignature,
+  localTypeCompletions,
+  namedArgsAlreadyPresent,
+  parameterCompletions,
+} from './editorCompletion'
 
 // Imperative handle the parent uses to drive the editor (insert at caret, jump
 // to a line) without reaching into the DOM, mirroring the old textareaRef ops.
@@ -18,7 +26,7 @@ export interface EquationEditorHandle {
   insertSnippet: (snippet: string) => void
   /** Append `text` as its own line at the end of the document, guaranteeing a
    *  line break before and after so repeated calls each land on a fresh line. */
-  insertStatement: (text: string) => void
+  insertStatement: (text: string, opts?: { focus?: boolean }) => void
   /** Replace the whole document (project load, examples, generated equations).
    *  Does NOT fire onChange — the caller already holds the new text. */
   setDoc: (text: string) => void
@@ -32,6 +40,8 @@ const KEYWORDS = new Set([
   'END', 'FUNCTION', 'PROCEDURE', 'MODULE', 'CALL', 'PARAMETRIC', 'TABLE',
   'PLOT', 'DUPLICATE', 'AND', 'OR', 'NOT', 'DYNAMIC', 'STATE', 'EVENT',
   'SYMBOLIC',
+  'COMPONENT', 'PARAM', 'VARIANT', 'REQUIRE', 'CONNECT', 'LINEARIZE', 'GUESS',
+  'INPUT', 'OUTPUT',
 ])
 
 // Built-in function names from the Functions-menu catalog (callee of each CALL
@@ -80,26 +90,7 @@ const SIGNATURES: Map<string, SignatureInfo> = (() => {
   return map
 })()
 
-/** The call the caret sits inside on its line: callee name + 0-based active
- *  argument index (top-level commas between the unbalanced '(' and the caret). */
-function activeCallAt(doc: string, caret: number, lineFrom: number): { name: string; argIndex: number } | null {
-  const text = doc.slice(lineFrom, caret)
-  let depth = 0
-  let argIndex = 0
-  for (let i = text.length - 1; i >= 0; i--) {
-    const ch = text[i]
-    if (ch === ')') depth++
-    else if (ch === '(') {
-      if (depth === 0) {
-        const head = /([A-Za-z_][A-Za-z0-9_]*\$?)\s*$/.exec(text.slice(0, i))
-        return head ? { name: head[1], argIndex } : null
-      }
-      depth--
-    } else if (ch === ',' && depth === 0) argIndex++
-    else if (ch === '{' || ch === '}') return null // inside/near a comment: stay quiet
-  }
-  return null
-}
+
 
 /** DOM for the tooltip: usage line with the active argument bold (when the
  *  usage's parenthesis list parses), plus a dimmed one-line detail. */
@@ -154,42 +145,49 @@ const signatureField = StateField.define<Tooltip | null>({
     const state = tr.state
     const caret = state.selection.main.head
     if (!state.selection.main.empty) return null
-    const line = state.doc.lineAt(caret)
-    const call = activeCallAt(state.sliceDoc(line.from, caret), caret - line.from, 0)
+    const call = activeCallAt(state.sliceDoc(0, caret), caret)
     if (!call) return null
-    const sig = SIGNATURES.get(call.name.toLowerCase())
+    const local = localSignature(state.doc.toString(), call.name)
+    const lib = SIGNATURES.get(call.name.toLowerCase())
+    const sig = local
+      ? lib
+        ? { usage: local.usage, detail: `${local.detail} (overrides standard library)` }
+        : local
+      : lib
     if (!sig) return null
     return {
       pos: caret,
       above: true,
-      create: () => ({ dom: renderSignature(sig, call.argIndex) }),
+      create: () => ({ dom: renderSignature(sig, highlightArgIndex(sig.usage, call)) }),
     }
   },
   provide: (field) => showTooltip.from(field),
 })
 
 interface StreamState {
-  inComment: boolean
+  /** Closer of an unclosed `{…}` or `"…"` comment; null when in code. */
+  commentClose: '}' | '"' | null
 }
 
-/** Consumes the remainder of an open {comment}, clearing the flag at its '}'. */
+/** Consumes the remainder of an open comment, clearing the flag at its closer. */
 function continueComment(stream: StringStream, state: StreamState): string {
+  const close = state.commentClose
   while (!stream.eol()) {
-    if (stream.next() === '}') {
-      state.inComment = false
+    if (stream.next() === close) {
+      state.commentClose = null
       break
     }
   }
   return 'comment'
 }
 
-/** Starts a {comment}; sets the multi-line flag if it does not close on this line. */
-function startComment(stream: StringStream, state: StreamState): string {
+/** Starts a `{…}` or `"…"` comment; sets the multi-line flag if it does not close. */
+function startComment(stream: StringStream, state: StreamState, close: '}' | '"'): string {
   stream.next()
   while (!stream.eol()) {
-    if (stream.next() === '}') return 'comment'
+    if (stream.next() === close) return 'comment'
   }
-  state.inComment = true
+  state.commentClose = close
   return 'comment'
 }
 
@@ -217,15 +215,17 @@ function scanWord(stream: StringStream): string | null {
 // Exported for other frees-DSL inputs (the REPL terminal, the component
 // wizard) — anywhere a field takes frees source rather than a bare number.
 export const freesLanguage = StreamLanguage.define<StreamState>({
-  startState: () => ({ inComment: false }),
+  startState: () => ({ commentClose: null }),
   token(stream, state) {
-    if (state.inComment) return continueComment(stream, state)
+    if (state.commentClose) return continueComment(stream, state)
     if (stream.eatSpace()) return null
     if (stream.eol()) return null
 
     const ch = stream.peek() ?? ''
-    if (ch === '{') return startComment(stream, state)
-    if (ch === '"' || ch === "'") return scanString(stream, ch)
+    if (ch === '{') return startComment(stream, state, '}')
+    // Double quotes delimit comments in frees, not strings. Strings are `'…'`.
+    if (ch === '"') return startComment(stream, state, '"')
+    if (ch === "'") return scanString(stream, ch)
     if (/\d/.test(ch) || (ch === '.' && /\d/.test(stream.string.charAt(stream.pos + 1)))) {
       if (!stream.match(/^\d*\.?\d+([eE][+-]?\d+)?[ij]?/)) stream.next()
       return 'number'
@@ -404,6 +404,25 @@ function makeCompletionSource(
   namesRef: React.MutableRefObject<{ functions: string[]; variables: string[] }>,
 ) {
   return (context: CompletionContext): CompletionResult | null => {
+    const doc = context.state.doc.toString()
+    const before = context.state.doc.sliceString(0, context.pos)
+    const dotted = /([A-Za-z_][\w]*(?:\.[A-Za-z_][\w]*)*)\.([A-Za-z_][\w]*)?$/.exec(before)
+    if (dotted) {
+      const items = completionsForPrefix(doc, dotted[0].endsWith('.') ? dotted[0] : `${dotted[1]}.`)
+      if (items && items.length) {
+        const from = dotted[2] ? context.pos - dotted[2].length : context.pos
+        return { from, options: items }
+      }
+    }
+    const call = activeCallAt(before, context.pos)
+    if (call) {
+      const open = before.lastIndexOf('(')
+      const items = parameterCompletions(doc, call.name, namedArgsAlreadyPresent(before.slice(open + 1)))
+      if (items.length) {
+        const word = context.matchBefore(/[A-Za-z_$][\w$]*$/)
+        return { from: word?.from ?? context.pos, options: items }
+      }
+    }
     const word = context.matchBefore(/[A-Za-z_](?=([A-Za-z0-9_]*))\1$/)
     if (!word || (word.from === word.to && !context.explicit)) return null
     const { functions, variables } = namesRef.current
@@ -411,6 +430,7 @@ function makeCompletionSource(
       ...functions.map((name) => ({ label: name, type: 'function', apply: `${name}(` })),
       ...variables.map((name) => ({ label: name, type: 'variable' })),
       ...COMPONENT_COMPLETIONS,
+      ...localTypeCompletions(doc),
     ]
     return { from: word.from, options }
   }
@@ -517,7 +537,7 @@ function EquationEditorInner(
         })
         view.focus()
       },
-      insertStatement(text: string) {
+      insertStatement(text: string, opts?: { focus?: boolean }) {
         const view = viewRef.current
         if (!view) return
         const doc = view.state.doc
@@ -532,7 +552,9 @@ function EquationEditorInner(
           changes: { from: end, to: end, insert },
           selection: { anchor: caret },
         })
-        view.focus()
+        if (opts?.focus !== false) {
+          view.focus()
+        }
       },
       setDoc(text: string) {
         const view = viewRef.current

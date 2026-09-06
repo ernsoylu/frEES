@@ -7,6 +7,8 @@
 // typed back into it — after which the values travel with the file, diff, and
 // survive copy-paste, which values living only in a modal never do.
 
+import { NUMERIC_LITERAL_SRC } from './freesTokens'
+
 export interface GuessDirective {
   /** Name as written in the document. */
   name: string
@@ -17,10 +19,9 @@ export interface GuessDirective {
   line: number
 }
 
-const NUM = String.raw`[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?`
 const GUESS_LINE = new RegExp(
-  String.raw`^\s*GUESS\s+([A-Za-z_]\w*)\s*(?:=\s*(` + NUM + String.raw`))?` +
-    String.raw`\s*(?:\[\s*(` + NUM + String.raw`)\s*,\s*(` + NUM + String.raw`)\s*\])?\s*$`,
+  String.raw`^\s*GUESS\s+([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)\s*(?:=\s*(` + NUMERIC_LITERAL_SRC + String.raw`))?` +
+    String.raw`\s*(?:\[\s*(` + NUMERIC_LITERAL_SRC + String.raw`)\s*,\s*(` + NUMERIC_LITERAL_SRC + String.raw`)\s*\])?\s*$`,
   'i',
 )
 

@@ -2,9 +2,9 @@
 name: TwoPhaseCompressor
 category: Component (twophase)
 summary: A refrigerant compressor with selectable isentropic/volumetric variants.
-related: []
+related: [Compressor, CompressorMap]
 examples: [ev-thermal-management]
-tags: [twophasecompressor, component, twophase, acausal]
+tags: [compressor, compressor-family, twophasecompressor, ports:in-out, flow-closed, energy-work, steady, twophase, component, acausal]
 ---
 
 # TwoPhaseCompressor

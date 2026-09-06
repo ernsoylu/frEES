@@ -19,6 +19,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { parseLibrary } from './parse-library.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SRC = path.join(__dirname, '../src');
@@ -171,9 +172,33 @@ if (stubs.length) {
   console.log('    ' + stubs.map((p) => p.name).sort().join(', '));
 }
 
+// Exact engine ↔ catalog ↔ page name-set for components. Do not hard-code a count.
+const library = parseLibrary();
+const libNames = new Set(library.map((c) => c.name.toLowerCase()));
+const componentPages = pages.filter((p) => p.file.includes(`${path.sep}components${path.sep}`) || p.file.includes('/components/'));
+const pageCompNames = new Set(componentPages.map((p) => p.name.toLowerCase()));
+const catalogPath = path.join(SRC, 'componentCatalog.ts');
+if (fs.existsSync(catalogPath)) {
+  const catalogSrc = read(catalogPath);
+  const catalogNames = new Set([...catalogSrc.matchAll(/type:\s*`([^`]+)`/g)].map((m) => m[1].toLowerCase()));
+  for (const name of libNames) {
+    if (!catalogNames.has(name)) errors.push(`component catalog missing engine component "${name}" (run npm run compile-docs)`);
+    if (!pageCompNames.has(name)) errors.push(`no reference page for engine component "${name}" (run node scripts/scaffold-reference-pages.mjs)`);
+  }
+  for (const name of catalogNames) {
+    if (!libNames.has(name)) errors.push(`component catalog has "${name}" which is not in the engine library`);
+  }
+  for (const name of pageCompNames) {
+    if (!libNames.has(name)) errors.push(`component page "${name}" is not in the engine library`);
+  }
+}
+
 if (errors.length) {
   console.error(`\n✗ ${errors.length} coverage error(s):`);
   for (const e of errors) console.error('  - ' + e);
   process.exit(1);
 }
-console.log('\n✓ all reference pages name real symbols, bind real examples, cross-link real pages, and guides cite real functions.');
+console.log(
+  `\n✓ all reference pages name real symbols, bind real examples, cross-link real pages, and guides cite real functions. ` +
+    `Component inventory: ${library.length} engine = catalog = pages.`,
+);

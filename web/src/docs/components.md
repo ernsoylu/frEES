@@ -1,14 +1,26 @@
 [Topic: comp-first-network]
 # Your First Component Network
 
-frees has a library of ~295 **components** — reusable, parameterized blocks of physics (pumps, pipes, heat exchangers, resistors, gears, cooling coils …) with typed **ports**. You instantiate them, wire the ports together, and frees expands the network into ordinary scalar equations solved by the same Newton/Tarjan pipeline as everything else. There is no separate "simulation mode": components and plain equations mix freely in one document.
+frees has a library of **312 components** — reusable, parameterized blocks of physics (pumps, pipes, heat exchangers, resistors, gears, cooling coils …) with typed **ports**. You instantiate them, wire the ports together, and frees expands the network into ordinary scalar equations solved by the same Newton/Tarjan pipeline as everything else. There is no separate "simulation mode": components and plain equations mix freely in one document.
+
+## Default authoring style
+
+Write **named parameters**, **explicit `connect`**, and **single-quoted strings**. The wizard emits this shape; positional stream names are a compact alternative taught after the first network.
+
+```
+Source SUP(fluid$='Water', mdot=2 [kg/s], P=300000 [Pa], T=298 [K])
+Pipe   LINE(fluid$='Water', L=50 [m], D=0.05 [m], rough=0.0001)
+connect(SUP.out, LINE.in)
+```
+
+`"Water"` is a comment, not a fluid name. Prefer `'Water'`.
 
 ## Water through a pipe
 
 ```run
 { Supply -> pipe -> return: what pressure is lost to friction? }
-Source  SUP(fluid$=Water, mdot=2 [kg/s], P=300000 [Pa], T=298 [K])
-Pipe    LINE(fluid$=Water, L=50 [m], D=0.05 [m], rough=0.0001)
+Source  SUP(fluid$='Water', mdot=2 [kg/s], P=300000 [Pa], T=298 [K])
+Pipe    LINE(fluid$='Water', L=50 [m], D=0.05 [m], rough=0.0001)
 Sink    RET()
 
 connect(SUP.out, LINE.in)
@@ -58,9 +70,28 @@ At a node, frees emits the **junction rules** for the ports' domain (see *Domain
 
 Loops close the same way — connecting the last component back to the first is legal and is how closed circuits (refrigeration loops, coolant circuits) are built.
 
-## Style 2 — shared stream names
+## Mixing and closing a loop
 
-For simple series chains there is a terser form: bind ports **positionally** to named streams. Two instances that name the same stream are connected.
+A `connect` of three ports is a legal **branch** (one pressure, mass conserved), but it **does not mix enthalpy**. Two streams at different states that join need an explicit mixer (`Mixer`, `LiquidMixer`, `MixingBox`, …):
+
+```
+connect(SRC.out, MIX.in1)
+connect(RECIRC.out, MIX.in2)
+connect(MIX.out, LINE.in)
+```
+
+A **closed loop** is `connect` back through the load — legal, and how a refrigeration or coolant circuit is written:
+
+```
+connect(PUMP.out, HX.in)
+connect(HX.out, PUMP.in)
+```
+
+See *Connections & Junctions* for the two-port limit on shared stream names, and the mixer pages in the Reference for parameters.
+
+## Style 2 — shared stream names (advanced)
+
+For simple series chains there is a terser form: bind ports **positionally** to named streams. Two instances that name the same stream are connected. Learn `connect` first; use this when a two-port chain is easier to read than two statements.
 
 ```
 Source SUP(s1, fluid$=Water, mdot=2, P=300000, T=298)
@@ -229,7 +260,7 @@ The `moistair` family conserves **two** masses. Its basis is `(P, mdot_da, h, W)
 [Topic: comp-library]
 # The Component Library
 
-The standard library ships ~295 components across thirteen domain libraries. This page is a map, not a catalog — every component's authoritative page (ports, parameters, variants, governing equations) lives in the **Reference**; find it by name in the A–Z index, or browse it from the Component Wizard.
+The standard library ships 312 components across thirteen domain libraries. This page is a map, not a catalog — every component's authoritative page (ports, parameters, variants, governing equations) lives in the **Reference**; find it by name in the A–Z index, or browse it from the Component Wizard. The Component Wizard and editor completion are generated from this port's parsed library, so a standalone checkout stays in agreement with the engine.
 
 | Library | What's in it |
 | --- | --- |
@@ -273,7 +304,7 @@ Because the component and its ports don't change, **the network around it doesn'
 
 ## Per-variant required parameters
 
-Each variant declares the parameters it needs (`REQUIRE`), validated only when that variant is selected. Choosing `model$=volumetric` without `disp` is an immediate, named error; the same parameter is not even accepted noise for `model$=isentropic`. The reference page of every multi-model component lists its variants and their requirements under **Model Variants**, and the Component Wizard shows and requires exactly the parameters the selected variant needs.
+Each variant declares the parameters it needs (`REQUIRE`), validated only when that variant is selected. Choosing `model$=volumetric` without `disp` is an immediate, named error. Supplying `rpm` on an isentropic compressor is accepted for compatibility — Check reports a nonblocking advisory that the parameter is inactive, and the wizard omits inactive drafts from newly generated code. The reference page of every multi-model component lists its variants and their requirements under **Model Variants**, and the Component Wizard shows and requires exactly the parameters the selected variant needs. The default `model$` is the engine's declared default, not whichever variant happens to be documented first.
 
 Variants of your own components use the `VARIANT ... REQUIRE ... END` construct — see *Writing Your Own Component*.
 

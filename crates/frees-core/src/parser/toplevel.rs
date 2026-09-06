@@ -572,7 +572,9 @@ impl<'a> Parser<'a> {
     fn guess_directive(&mut self) -> Result<GuessDirective> {
         let start_pos = self.c.pos();
         self.c.expect(&TokenKind::Guess)?;
-        let name = self.c.expect_ident()?.to_ascii_lowercase();
+        // Public member paths (`HX.in.P`) are the same dotted names equations
+        // already accept; the expander maps them onto the flattened scalar.
+        let name = self.guess_name()?;
 
         let guess = if self.c.eat(&TokenKind::Eq) {
             Some(self.signed_number()?)
@@ -621,6 +623,17 @@ impl<'a> Parser<'a> {
             lower,
             upper,
         })
+    }
+
+    /// `IDENT (DOT IDENT)*`, lowercased, kept dotted so a later pass can map
+    /// `hx.in.p` onto the expanded `hx$in$p` without exposing mangled names.
+    fn guess_name(&mut self) -> Result<String> {
+        let mut name = self.c.expect_ident()?.to_ascii_lowercase();
+        while self.c.eat(&TokenKind::Dot) {
+            name.push('.');
+            name.push_str(&self.c.expect_ident()?.to_ascii_lowercase());
+        }
+        Ok(name)
     }
 
     // ── FUNCTION / PROCEDURE / MODULE / TABLE definitions ───────────────────
@@ -1925,12 +1938,15 @@ impl<'a> Parser<'a> {
         }
         self.c.expect(&TokenKind::RParen)?;
 
+        let source_text = self.text_since(start_pos);
+        let (line, _) = self.span_since(start_pos).line_col(self.c.source());
         Ok(ComponentInst {
             type_name,
             name,
             port_args,
             params,
-            source_text: self.text_since(start_pos),
+            source_text,
+            line,
         })
     }
 
@@ -3645,6 +3661,20 @@ mod tests {
     fn a_malformed_guess_bound_list_is_rejected() {
         assert!(err("GUESS x [0 10]").contains("expected `,`"));
         assert!(err("GUESS x = ").contains("expected a number"));
+    }
+
+    #[test]
+    fn guess_accepts_a_public_member_path() {
+        let doc = ok("GUESS HX.in.P = 200000 [1e5, 5e5]");
+        assert_eq!(
+            doc.guesses[0],
+            GuessDirective {
+                name: "hx.in.p".into(),
+                guess: Some(200_000.0),
+                lower: Some(1e5),
+                upper: Some(5e5),
+            }
+        );
     }
 
     // ── unsupported constructs ──────────────────────────────────────────────

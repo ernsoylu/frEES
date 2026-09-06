@@ -2,9 +2,9 @@
 name: CompressorMap
 category: Component (fluid)
 summary: A compressor whose isentropic efficiency comes from a tabulated map (eta vs pressure ratio).
-related: []
+related: [Compressor, TwoPhaseCompressor]
 examples: []
-tags: [compressormap, compressor, map, component, fluid, acausal]
+tags: [compressor, compressor-family, compressormap, map, data:map-eta, ports:in-out, flow-closed, energy-work, steady, map-driven, component, fluid, acausal]
 ---
 
 # CompressorMap

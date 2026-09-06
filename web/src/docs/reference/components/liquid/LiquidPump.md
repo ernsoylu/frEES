@@ -2,9 +2,9 @@
 name: LiquidPump
 category: Component (liquid)
 summary: A single-phase liquid pump.
-related: []
+related: [LiquidPumpMap, Pump]
 examples: [ev-thermal-management]
-tags: [liquidpump, component, liquid, acausal]
+tags: [pump, liquid-pump-family, liquidpump, data:eta, ports:in-out, flow-closed, energy-work, steady, liquid, component, acausal]
 ---
 
 # LiquidPump

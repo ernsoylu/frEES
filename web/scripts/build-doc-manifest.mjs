@@ -20,6 +20,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { parseLibrary } from './parse-library.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WASM_REPO = path.resolve(__dirname, '../..');
@@ -46,26 +47,16 @@ const REF_DIR = path.join(__dirname, '../src/docs/reference');
 const OUT = path.join(REF_DIR, 'function-manifest.json');
 
 const REFERENCE = findReferenceRepo();
-if (!REFERENCE) {
-  // Not an error, and deliberately exit 0. `function-manifest.json` is
-  // COMMITTED, and the coverage check that follows in `npm run check-docs`
-  // reads that file, not the Java. A checkout without the reference repo can
-  // still check its docs against the last generated manifest; only the refresh
-  // is unavailable. Failing here would take the checker down with the
-  // generator, which is exactly what used to happen.
-  console.warn(
-    'build-doc-manifest: reference repo not found (set $FREES_HOME, or put it ' +
-      'beside this one as ../frees). Keeping the committed function-manifest.json ' +
-      '— the coverage check still runs against it.',
-  );
-  process.exit(0);
-}
 
 // Post core/web split: pure computation (parser/ast/props/...) lives in core,
 // the Spring web layer (controllers, ReplEvaluator — which needs the Redis-backed
 // session cache) lives in web.
-const BK = path.join(REFERENCE, 'backend/core/src/main/java/com/frees/backend');
-const BK_WEB = path.join(REFERENCE, 'backend/web/src/main/java/com/frees/backend');
+const BK = REFERENCE
+  ? path.join(REFERENCE, 'backend/core/src/main/java/com/frees/backend')
+  : '';
+const BK_WEB = REFERENCE
+  ? path.join(REFERENCE, 'backend/web/src/main/java/com/frees/backend')
+  : '';
 
 const read = (p) => fs.readFileSync(p, 'utf-8');
 
@@ -122,18 +113,11 @@ const NON_FUNCTION_TOKENS = new Set([
 
 // ── 3. Name-set-routed families the Evaluator switch does NOT carry as cases ──
 
-// Components: every `COMPONENT <Name>` in the std-lib resources, grouped by domain file.
+// Components: every `COMPONENT <Name>` in THIS port's embedded library.
 function parseComponents() {
-  const dir = path.join(REFERENCE, 'backend/core/src/main/resources/components');
-  const out = [];
-  for (const file of fs.readdirSync(dir).filter((f) => f.endsWith('.frees'))) {
-    const domain = file.replace(/\.frees$/, '');
-    const src = read(path.join(dir, file));
-    const re = /^\s*COMPONENT\s+(\w+)/gm;
-    let m;
-    while ((m = re.exec(src)) !== null) out.push({ name: m[1], domain });
-  }
-  return out.sort((a, b) => a.name.localeCompare(b.name));
+  return parseLibrary()
+    .map((c) => ({ name: c.name, domain: c.domain }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 // Fluid + humid-air property functions: the OUTPUTS / HA_OUTPUTS map keys.
@@ -220,6 +204,72 @@ function authoredPages() {
   };
   walk(REF_DIR);
   return names;
+}
+
+function writeManifest(manifest) {
+  fs.mkdirSync(REF_DIR, { recursive: true });
+  const rendered = JSON.stringify(manifest, null, 2) + '\n';
+  const stripDate = (s) => s.replace(/^\s*"generatedAt":.*$/m, '');
+  const previous = fs.existsSync(OUT) ? read(OUT) : null;
+  if (previous !== null && stripDate(previous) === stripDate(rendered)) {
+    console.log('doc-manifest: unchanged against the backend registries — not rewritten.');
+  } else {
+    fs.writeFileSync(OUT, rendered);
+  }
+}
+
+function recountCoverage(manifest) {
+  const pages = authoredPages();
+  const all = new Map();
+  const note = (name, documented) => {
+    const k = String(name).toLowerCase();
+    all.set(k, (all.get(k) || false) || documented);
+  };
+  for (const f of manifest.functions || []) note(f.name, pages.has(f.name.toLowerCase()));
+  for (const f of manifest.matrixFunctions || []) note(f.name, pages.has(f.name.toLowerCase()));
+  for (const p of manifest.callProcedures || []) note(p.name, pages.has(p.name.toLowerCase()));
+  for (const p of manifest.propertyFunctions || []) note(p.name, pages.has(String(p.name).toLowerCase()));
+  for (const c of manifest.components || []) note(c.name, pages.has(c.name.toLowerCase()));
+  for (const f of manifest.materials?.functions || []) note(f, pages.has(String(f).toLowerCase()));
+  for (const r of manifest.replCasOps || []) note(r, pages.has(String(r).toLowerCase()));
+  manifest.coverage.documentableSurfaceTotal = all.size;
+  manifest.coverage.components = (manifest.components || []).length;
+  manifest.coverage.documented = [...all.values()].filter(Boolean).length;
+}
+
+/** No Java sibling: keep committed function families, refresh components from this library. */
+function refreshComponentsOnly() {
+  if (!fs.existsSync(OUT)) {
+    console.warn(
+      'build-doc-manifest: reference repo not found and no committed function-manifest.json.',
+    );
+    process.exit(0);
+  }
+  const manifest = JSON.parse(read(OUT));
+  const pages = authoredPages();
+  manifest.components = parseComponents().map((c) => ({
+    ...c,
+    documented: pages.has(c.name.toLowerCase()),
+  }));
+  manifest.note = 'GENERATED by scripts/build-doc-manifest.mjs from the backend registries + this port\'s std-lib. Do not edit by hand.';
+  recountCoverage(manifest);
+  writeManifest(manifest);
+  const cov = manifest.coverage;
+  console.log(
+    `doc-manifest: no Java reference repo — refreshed ${cov.components} components from this ` +
+      `port's library (${cov.documentableSurfaceTotal} documentable, ${cov.documented} documented) → ` +
+      `${path.relative(WASM_REPO, OUT)}`,
+  );
+}
+
+if (!REFERENCE) {
+  console.warn(
+    'build-doc-manifest: reference repo not found (set $FREES_HOME, or put it ' +
+      'beside this one as ../frees). Refreshing component inventory from this ' +
+      'port\'s library; other families stay as last generated.',
+  );
+  refreshComponentsOnly();
+  process.exit(0);
 }
 
 // ── Build ────────────────────────────────────────────────────────────────────

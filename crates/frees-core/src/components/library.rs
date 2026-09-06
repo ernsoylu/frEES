@@ -1,4 +1,4 @@
-//! The built-in standard component library — 295 components, embedded as
+//! The built-in standard component library — 312 components, embedded as
 //! `.frees` text and parsed by the ordinary front end.
 //!
 //! Port of

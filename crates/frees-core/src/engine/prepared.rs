@@ -8,10 +8,11 @@ use crate::diag::Diagnostic;
 use crate::engine::{
     block_equation_texts, block_system, builtin_constants, check_bounds, collect_unit_warnings,
     complete_display_names, declared_units, dense_export, dense_plan, initial_guess,
-    override_uncertainties, pinned_block_cache, relaxed_ode_settings, residuals_at, run_blocks,
-    seed_property_argument_guesses, solve_dynamic_systems, solve_equation_list, surfaced_count,
-    unknowns, variable_specs, BlockLoopFailure, DensePlan, DenseRun, Missing, PartialDiagnostics,
-    PinnedBlockCache, Solution, SolveFailure, SolveStats, VarSpec, VariableOverride,
+    merge_advisory_warnings, override_uncertainties, pinned_block_cache, relaxed_ode_settings,
+    residuals_at, run_blocks, seed_property_argument_guesses, solve_dynamic_systems,
+    solve_equation_list, surfaced_count, unknowns, variable_specs, BlockLoopFailure, DensePlan,
+    DenseRun, Missing, PartialDiagnostics, PinnedBlockCache, Solution, SolveFailure, SolveStats,
+    VarSpec, VariableOverride,
 };
 use crate::eval::{EvalContext, Scope};
 use crate::ode::accessors::OdeTableAccessors;
@@ -574,7 +575,7 @@ impl PreparedDocument {
                 elapsed_ms: None,
             },
             inferred_units,
-            unit_warnings: prep.unit_report.warnings.clone(),
+            unit_warnings: merge_advisory_warnings(prep.unit_report.warnings.clone(), &diagnostics),
             diagnostics,
             iterations,
             component_instances: component_instances.to_vec(),

@@ -28,7 +28,7 @@
 //!
 //! # The library is data
 //!
-//! All 295 shipped components are `.frees` DSL text (148 KB across 13 files in
+//! All 312 shipped components are `.frees` DSL text (148 KB across 13 files in
 //! the reference repo's `resources/components/`). They are embedded with
 //! `include_str!` and parsed by the same front end as user text — there is no
 //! second grammar and no hand-translated component.

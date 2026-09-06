@@ -55,6 +55,7 @@ import {
   IconVariable,
   IconLink,
   IconPrinter,
+  IconFileExport,
 } from '@tabler/icons-react'
 import { spotlight } from '@mantine/spotlight'
 import { useState } from 'react'
@@ -584,38 +585,66 @@ function helpHrefForMessage(msg: string): string {
 function solvePill(result: SolveResponse): PillContent {
   if (!result.success) {
     const message = result.error || 'Solve failed'
+    const engine = /in-browser solver failed/i.test(message)
     return {
       color: 'red',
-      label: 'Solve failed',
+      label: engine ? 'Engine failed' : 'Did not converge',
       message,
       warnings: [],
       helpHref: helpHrefForMessage(message),
     }
   }
   const warnings = result.unitWarnings
+  const unknown = warnings.some((w) => /unknown unit/i.test(w))
   return {
     color: warnings.length > 0 ? 'yellow' : 'green',
-    label: warnings.length > 0 ? `Solved · ${warnings.length} warnings` : 'Solved',
-    message: 'Solve successful',
+    label: unknown
+      ? 'Solved · unconverted units'
+      : warnings.length > 0
+        ? `Solved · ${warnings.length} warnings`
+        : 'Solved',
+    message: unknown
+      ? 'The solve converged. Some literals used unknown units and were left unconverted — those values are not verified SI.'
+      : 'Solve converged.',
     warnings,
   }
 }
 
 function checkPill(checkResult: CheckResponse): PillContent {
-  if (!checkResult.solvable) {
+  const warnings = checkResult.unitWarnings
+  const syntax =
+    (checkResult.errors && checkResult.errors.length > 0) || /syntax error/i.test(checkResult.message)
+  if (syntax) {
     return {
       color: 'red',
-      label: 'Check errors',
+      label: 'Syntax error',
       message: checkResult.message,
-      warnings: checkResult.unitWarnings,
+      warnings,
       helpHref: helpHrefForMessage(checkResult.message),
     }
   }
-  const warnings = checkResult.unitWarnings
+  if (!checkResult.solvable) {
+    const under = /underspecified/i.test(checkResult.message)
+    const over = /overspecified/i.test(checkResult.message)
+    return {
+      color: 'red',
+      label: under ? 'Underspecified' : over ? 'Overspecified' : 'Not solvable',
+      message: checkResult.message,
+      warnings,
+      helpHref: helpHrefForMessage(checkResult.message),
+    }
+  }
+  const unknown = warnings.some((w) => /unknown unit/i.test(w))
   return {
     color: warnings.length > 0 ? 'yellow' : 'green',
-    label: warnings.length > 0 ? `Check OK · ${warnings.length} warnings` : 'Check OK',
-    message: checkResult.message,
+    label: unknown
+      ? 'Structurally solvable · unconverted units'
+      : warnings.length > 0
+        ? `Structurally solvable · ${warnings.length} warnings`
+        : 'Structurally solvable',
+    message: unknown
+      ? `${checkResult.message} Unknown units were left unconverted and are not verified SI.`
+      : checkResult.message,
     warnings,
   }
 }
@@ -729,6 +758,8 @@ interface TopBarProps {
   onOpenLibrary: () => void
   onSaveProject: () => void
   onSaveProjectAs: () => void
+  /** File menu: download equation text only (no project tables/layout). */
+  onExportEquations: () => void
   onInsertFunction: (snippet: string) => void
   onInsertComponent: () => void
   onOpenExamples: () => void
@@ -830,12 +861,24 @@ export function TopBar(props: Readonly<TopBarProps>) {
               Print Report…
             </Menu.Item>
             <Menu.Divider />
-            <Menu.Item leftSection={<IconDeviceFloppy size={14} />} onClick={props.onSaveProject}>
+            <Menu.Item
+              leftSection={<IconDeviceFloppy size={14} />}
+              onClick={props.onSaveProject}
+            >
               Save Project
             </Menu.Item>
+            <Text size="xs" c="dimmed" px="sm" pb={4}>
+              .frees file: equations, tables, maps, plots, layout, guesses
+            </Text>
             <Menu.Item leftSection={<IconDeviceFloppy size={14} />} onClick={props.onSaveProjectAs}>
               Save Project As…
             </Menu.Item>
+            <Menu.Item leftSection={<IconFileExport size={14} />} onClick={props.onExportEquations}>
+              Export equation text…
+            </Menu.Item>
+            <Text size="xs" c="dimmed" px="sm" pb={4}>
+              Editor document only — GUI tables, maps, and layout stay in the project
+            </Text>
           </Menu.Dropdown>
         </Menu>
 

@@ -9,6 +9,7 @@ frees parses standard mathematical notation with a few rules worth knowing up fr
 - **No implicit multiplication** — write `2 * x`, not `2x`. Likewise `a(b+c)` is a function call, not `a*(b+c)`.
 - **Operators** — `+`, `-`, `*`, `/`, `^` (exponentiation), and `%` (modulo). `^` is right-binding: `2^3^2 = 2^9`.
 - **Comments** — `{ … }` or `"…"` are inline comments; `//` at the start of a line makes the whole line narrative (markdown). Use comments to label states and document assumptions.
+- **Strings** — prefer **single quotes** for values the solver reads (`fluid$='Water'`, `INCOMP::MEG[0.50]`). A double-quoted `"…"` span is a comment, the same as `{ … }`, so `"Water"` is not a fluid name.
 
 ## Built-in constants
 Physical constants are available with a trailing `#` (by long-standing convention) and substituted at parse time:
@@ -134,12 +135,20 @@ A system is solvable only when the number of equations equals the number of unkn
 
 [Diagram: DoF]
 
+## Bounds versus units
+`T = 25 [C]` is a **unit annotation**: the compiler converts the literal to SI (298.15 K) before solving. `GUESS T [250, 400]` is a **solver bound** on that same SI value — it does not convert, and it is not a unit. Mixing the two (`GUESS T [0, 100]` intending Celsius) boxes the Newton iterate in kelvin.
+
+In-text `GUESS` wins over Variable Information on conflict; the window is a view of the same scalars, including public member paths such as `HX.in.P`.
+
 ## The Variable Information panel
 Open it with `Ctrl + I`. For every variable you can set:
 
 - **Guess** — the starting point for the Newton-Raphson solver. Required for nonlinear equations; a poor guess is the most common cause of non-convergence.
 - **Lower / Upper bounds** — physical limits that keep the solver out of invalid domains (e.g. `T ≥ 0`, `0 ≤ x ≤ 1` for a quality or fraction, `P > 0`).
 - **Fixed** — locks the variable to its guess, removing it from the unknowns. Handy for "what if I hold this constant" studies.
+
+## `time` versus temperature names
+Names are case-insensitive, so a state `T` and a time `t` are **one variable**. In a `DYNAMIC` block, name the independent axis `time` (the default) and keep temperatures as `Temp` / `T_wall` / `T_inf`. See *Transient / ODE Systems* for the collision that follows from calling both `t`.
 
 ## Why guesses matter
 The Colebrook friction equation is transcendental — it has no closed form, so frees iterates from a guess. Without a guess it may diverge or land on the wrong branch:
@@ -230,6 +239,9 @@ P_kPa = P * Convert(Pa, kPa)  { converts SI Pa to kPa: 689.5 kPa }
 ```
 
 > **Common pitfall:** `Convert` works for differences and ratios (kPa, ft², mph); it does **not** handle temperature offsets. Mixing them — e.g. `Convert(C, K)` — gives a wrong result. Always use `ConvertTemp` for absolute temperatures.
+
+## Absolute temperatures versus differences
+`T = 25 [C]` is an **absolute** temperature (stored as 298.15 K). A *difference* such as a 10 °C rise is 10 K — annotate it `[deltaC]` / `[deltaK]`, or write the kelvin difference directly. `Convert(C, K)` is the wrong tool for either: it has no offset, so it cannot turn 25 °C into 298.15 K, and it is unnecessary for a difference that is already 10 K.
 
 [Component: UnitsReference]
 

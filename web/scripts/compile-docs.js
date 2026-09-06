@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { parseLibrary } from './parse-library.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -211,11 +212,14 @@ ${body}
 `;
 }
 
-// ── Component catalog: src/docs/reference/components/**/*.md → componentCatalog.ts
-// Structured, machine-readable specs for the Component Browser/Wizard. Parsed
-// ONLY from files under src/docs (compile-docs runs inside the frontend Docker
-// build, where backend/ is not present), so the component markdown is the
-// single source of truth here.
+// ── Component catalog
+// Structural facts (names, ports, PARAM defaults, VARIANT REQUIRE) come from
+// this port's parsed library (`scripts/parse-library.mjs` over
+// crates/frees-core/src/components/library-data). Authored Markdown keeps
+// descriptions, units, summaries, and tags. Regenerate with:
+//   npm run compile-docs
+// After adding a library component: node scripts/scaffold-reference-pages.mjs
+// then npm run compile-docs && npm run check-docs.
 const COMP_OUTPUT = path.join(__dirname, '../src/componentCatalog.ts');
 
 // Normalize a unit string from a parameter description (unicode → frees-safe
@@ -306,13 +310,9 @@ function parseVariants(body) {
   }));
 }
 
-function compileComponents() {
-  if (!fs.existsSync(REF_DIR)) {
-    fs.writeFileSync(COMP_OUTPUT, componentModule([]), 'utf-8');
-    fs.writeFileSync(NAMES_OUTPUT, componentNamesModule([]), 'utf-8');
-    return;
-  }
-  const specs = [];
+function markdownComponentPages() {
+  const pages = new Map();
+  if (!fs.existsSync(REF_DIR)) return pages;
   const walk = (dir) => {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
       const p = path.join(dir, entry.name);
@@ -323,65 +323,73 @@ function compileComponents() {
       if (!m) continue;
       const fm = parseFrontmatter(m[1]);
       const libMatch = (fm.category || '').match(/^Component\s*\(([^)]+)\)/);
-      if (!libMatch) continue; // not a component page
+      if (!libMatch) continue;
       const body = m[2];
-      const { type, paramOrder } = parseUsage(body);
-      if (!type) continue;
-      const meta = parseParamTable(body);
-      const variants = parseVariants(body);
-      const variantNames = variants.map((v) => v.name);
-      const mkParam = (name, requiredByVariants) => {
-        const info = meta.get(name) || { description: '', unit: '' };
-        const isString = name.endsWith('$');
-        const isSelector = /model\$$/.test(name);
-        return {
-          name,
-          isString,
-          isSelector,
-          // A string param naming a TABLE/FUNCTION map (map$, map_eta$, …): the
-          // wizard offers a "Build a map" affordance for these.
-          isMap: isString && /map.*\$$/.test(name),
-          unit: info.unit || '',
-          description: info.description || '',
-          // Selector (model$) and the internal connector-type guard (domain$)
-          // carry std-library defaults; everything else is required.
-          required: !isSelector && name !== 'domain$',
-          // model$ selector lists the variant names; everything else lists nothing.
-          values: isSelector ? variantNames : [],
-          // Which variants require this param. [] = a shared/always-shown param;
-          // non-empty = shown (and required) only when one of these variants is
-          // the active model$.
-          variants: requiredByVariants,
-        };
-      };
-      const params = paramOrder.map((name) => mkParam(name, []));
-      // Variant-REQUIRE params (eta_v, disp, rpm, Pvap, …) live ONLY in the Model
-      // Variants headings — never in the Usage line or Parameters table — so add
-      // them here, tagged with the variants that require them.
-      const known = new Set(paramOrder);
-      const byVariant = new Map();
-      for (const v of variants) {
-        for (const p of v.requires) {
-          if (!byVariant.has(p)) byVariant.set(p, []);
-          byVariant.get(p).push(v.name);
-        }
-      }
-      for (const [name, reqVariants] of byVariant) {
-        if (known.has(name)) continue;
-        params.push(mkParam(name, reqVariants));
-      }
-      specs.push({
-        type,
+      const { type } = parseUsage(body);
+      const name = type || (fm.name || '').trim();
+      if (!name) continue;
+      pages.set(name.toLowerCase(), {
+        type: name,
         library: libMatch[1].trim(),
         summary: fm.summary || '',
         tags: fm.tags || [],
         ports: parsePorts(body),
-        params,
-        variants,
+        paramMeta: parseParamTable(body),
+        variants: parseVariants(body),
+        paramOrder: parseUsage(body).paramOrder,
       });
     }
   };
   walk(REF_DIR);
+  return pages;
+}
+
+function compileComponents() {
+  const library = parseLibrary();
+  const pages = markdownComponentPages();
+  const specs = library.map((eng) => {
+    const md = pages.get(eng.name.toLowerCase());
+    const variants = eng.variants;
+    const variantNames = variants.map((v) => v.name);
+    const byVariant = new Map();
+    for (const v of variants) {
+      for (const p of v.requires) {
+        const key = p.toLowerCase();
+        if (!byVariant.has(key)) byVariant.set(key, []);
+        byVariant.get(key).push(v.name);
+      }
+    }
+    const paramMeta = md?.paramMeta || new Map();
+    const params = eng.params.map((p) => {
+      const info = paramMeta.get(p.name) || { description: '', unit: '' };
+      const isString = p.name.endsWith('$');
+      const isSelector = /model\$$/.test(p.name);
+      // Empty = shared/always-shown. Non-empty = shown only for those variants
+      // (engine: a REQUIRE-scoped param is optional when another variant is active).
+      const requiredByVariants = byVariant.get(p.name.toLowerCase()) || [];
+      return {
+        name: p.name,
+        isString,
+        isSelector,
+        isMap: isString && /map.*\$$/.test(p.name),
+        unit: info.unit || '',
+        description: info.description || '',
+        required: !isSelector && p.name !== 'domain$',
+        values: isSelector ? variantNames : [],
+        variants: requiredByVariants,
+        defaultValue: p.defaultValue || '',
+      };
+    });
+    return {
+      type: eng.name,
+      library: eng.domain,
+      summary: md?.summary || `Acausal ${eng.domain}-domain component ${eng.name}.`,
+      tags: md?.tags?.length ? md.tags : [eng.name.toLowerCase(), 'component', eng.domain, 'acausal'],
+      ports: eng.ports.length ? eng.ports : (md?.ports || []),
+      params,
+      variants,
+    };
+  });
   specs.sort((a, b) => a.library.localeCompare(b.library) || a.type.localeCompare(b.type));
   fs.writeFileSync(COMP_OUTPUT, componentModule(specs), 'utf-8');
   console.log(`Successfully compiled ${specs.length} component specs to ${COMP_OUTPUT}`);
@@ -422,7 +430,7 @@ ${rows}
 function componentModule(specs) {
   const esc = (s) => String(s).replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$\{/g, '\\${');
   const arr = (a) => '[' + a.map((x) => `\`${esc(x)}\``).join(', ') + ']';
-  const paramObj = (p) => `{ name: \`${esc(p.name)}\`, isString: ${p.isString}, isSelector: ${p.isSelector}, isMap: ${p.isMap}, unit: \`${esc(p.unit)}\`, description: \`${esc(p.description)}\`, required: ${p.required}, values: ${arr(p.values)}, variants: ${arr(p.variants)} }`;
+  const paramObj = (p) => `{ name: \`${esc(p.name)}\`, isString: ${p.isString}, isSelector: ${p.isSelector}, isMap: ${p.isMap}, unit: \`${esc(p.unit)}\`, description: \`${esc(p.description)}\`, required: ${p.required}, values: ${arr(p.values)}, variants: ${arr(p.variants)}, defaultValue: \`${esc(p.defaultValue || '')}\` }`;
   const variantObj = (v) => `{ name: \`${esc(v.name)}\`, requires: ${arr(v.requires)} }`;
   const body = specs.map((s) => `  {
     type: \`${esc(s.type)}\`,
@@ -436,8 +444,8 @@ ${s.params.map((p) => `      ${paramObj(p)}`).join(',\n')}
     variants: [${s.variants.map(variantObj).join(', ')}],
   }`).join(',\n');
   return `// GENERATED FILE - DO NOT EDIT DIRECTLY.
-// Compiled from src/docs/reference/components/**/*.md by scripts/compile-docs.js
-// (npm run compile-docs). Structured specs for the Component Browser/Wizard.
+// Compiled by scripts/compile-docs.js from this port's parsed component library
+// plus authored Markdown descriptions (npm run compile-docs).
 
 export interface ComponentParam {
   name: string;          // e.g. "U_tp", "fluid$"
@@ -449,6 +457,7 @@ export interface ComponentParam {
   required: boolean;
   values: string[];      // selector option values (model variants), else []
   variants: string[];    // variants that require this param; [] = shared/always-shown
+  defaultValue?: string; // engine-declared default (PARAM model$ = isentropic), else ""
 }
 
 export interface ComponentVariant {

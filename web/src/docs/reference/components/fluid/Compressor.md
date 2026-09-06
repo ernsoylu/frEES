@@ -2,9 +2,9 @@
 name: Compressor
 category: Component (fluid)
 summary: Raises the pressure of a fluid stream, computing the work from an isentropic efficiency.
-related: []
+related: [CompressorMap, TwoPhaseCompressor]
 examples: [ev-thermal-management]
-tags: [compressor, component, fluid, acausal]
+tags: [compressor, compressor-family, data:eta, ports:in-out, flow-closed, energy-work, steady, component, fluid, acausal]
 ---
 
 # Compressor

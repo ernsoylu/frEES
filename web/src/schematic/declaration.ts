@@ -48,6 +48,21 @@ export function stripComments(text: string): string {
  * `{ … }` block — and ignores a match inside a `connect(…)` or an equation,
  * where the name appears as a reference rather than a declaration.
  */
+/** Prefer Check identity lines when present; nested names are scoped (`a.inner`). */
+export function declarationLineFromCheck(
+  instances: readonly { name: string; label: string; line: number }[] | undefined,
+  instance: string,
+): number | null {
+  if (!instances || !instance) {
+    return null
+  }
+  const key = instance.toLowerCase()
+  const hit = instances.find(
+    (i) => i.name.toLowerCase() === key || i.label.toLowerCase() === key,
+  )
+  return hit && hit.line > 0 ? hit.line : null
+}
+
 export function declarationLine(text: string, instance: string): number | null {
   if (!text || !instance) {
     return null

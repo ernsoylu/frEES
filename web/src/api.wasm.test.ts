@@ -242,7 +242,9 @@ describe('check() over the wasm boundary payloads', () => {
     checkMock.mockRejectedValueOnce(new Error('wasm failed to load'))
     const r = await check('x = 1\n', [], false)
     expect(r.solvable).toBe(false)
-    expect(r.message).toBe('Browser engine error: wasm failed to load')
+    expect(r.message).toBe(
+      'The in-browser solver failed (wasm failed to load). Use Stop to reset the worker, then Check again.',
+    )
     expect(r.variables).toEqual([])
     expect(r.inferredUnits).toEqual({})
   })

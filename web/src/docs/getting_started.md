@@ -173,9 +173,9 @@ You now know the whole loop: describe equations, Check (F4), Solve (F2), sweep a
 - **Run it yourself** — the async architecture, the REST API, Docker, and Railway: *Architecture & Deployment*.
 
 ## Learn by example
-**Examples & Tutorials** has both: guided, multi-stage tutorials that build a real engineering problem step by step, and a library of verified, ready-to-run examples across every discipline — each lists the result you should get. When you need the exact signature of a function, the **Reference** A–Z index is the canonical home for every symbol.
+Three short journeys — a scalar with units, a component chain, and a map or transient upgrade — are in *Journey 1 — A scalar equation with units*. **Examples & Tutorials** has longer guided problems and a library of verified examples. When you need the exact signature of a function, the **Reference** A–Z index is the canonical home for every symbol.
 
-[Related: lang-overview, fluids-overview, components-overview, examples]
+[Related: journey-scalar, journey-chain, journey-upgrade, lang-overview, fluids-overview, components-overview, examples]
 
 [Topic: repl]
 # REPL Terminal & Workspace

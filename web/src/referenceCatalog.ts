@@ -3498,9 +3498,9 @@ out.mdot * out.yn2  = in.mdot * in.yn2
     slug: `compressor`,
     category: `Component (fluid)`,
     summary: `Raises the pressure of a fluid stream, computing the work from an isentropic efficiency.`,
-    related: [],
+    related: [`CompressorMap`, `TwoPhaseCompressor`],
     examples: [`ev-thermal-management`],
-    tags: [`compressor`, `component`, `fluid`, `acausal`],
+    tags: [`compressor`, `compressor-family`, `data:eta`, `ports:in-out`, `flow-closed`, `energy-work`, `steady`, `component`, `fluid`, `acausal`],
     references: [],
     guides: [],
     body: `Raises the pressure of a fluid stream, computing the work from an isentropic efficiency.
@@ -3565,9 +3565,9 @@ Instantiated in the verified example below:
     slug: `compressormap`,
     category: `Component (fluid)`,
     summary: `A compressor whose isentropic efficiency comes from a tabulated map (eta vs pressure ratio).`,
-    related: [],
+    related: [`Compressor`, `TwoPhaseCompressor`],
     examples: [],
-    tags: [`compressormap`, `compressor`, `map`, `component`, `fluid`, `acausal`],
+    tags: [`compressor`, `compressor-family`, `compressormap`, `map`, `data:map-eta`, `ports:in-out`, `flow-closed`, `energy-work`, `steady`, `map-driven`, `component`, `fluid`, `acausal`],
     references: [],
     guides: [],
     body: `A compressor whose isentropic efficiency comes from a tabulated map (eta vs pressure ratio).
@@ -3758,9 +3758,9 @@ in.mdot * abs(in.mdot) = CdA^2 * 2 * rho_in * (in.P - out.P)
     slug: `fan`,
     category: `Component (fluid)`,
     summary: `Adds a pressure rise to a gas/air stream, computing the fan work.`,
-    related: [],
+    related: [`FanCurve`, `FanMap`],
     examples: [],
-    tags: [`fan`, `component`, `fluid`, `acausal`],
+    tags: [`fan`, `fan-family`, `constant-rise`, `data:dP0-Q0-eta`, `ports:in-out`, `flow-closed`, `energy-work`, `steady`, `component`, `fluid`, `acausal`],
     references: [],
     guides: [],
     body: `Adds a pressure rise to a gas/air stream, computing the fan work.
@@ -3806,9 +3806,9 @@ out.h    = in.h + dP / (rho * eta)
     slug: `fancurve`,
     category: `Component (fluid)`,
     summary: `A fan whose pressure rise follows a tabulated pressure–flow performance curve.`,
-    related: [],
+    related: [`Fan`, `FanMap`],
     examples: [],
-    tags: [`fancurve`, `component`, `fluid`, `acausal`],
+    tags: [`fan`, `fan-family`, `fancurve`, `curve`, `data:rho-dP0-Q0`, `ports:in-out`, `flow-closed`, `energy-pressure`, `steady`, `component`, `fluid`, `acausal`],
     references: [],
     guides: [],
     body: `A fan whose pressure rise follows a tabulated pressure–flow performance curve.
@@ -3851,9 +3851,9 @@ out.P    = in.P + dP
     slug: `fanmap`,
     category: `Component (fluid)`,
     summary: `A fan whose pressure rise comes from a tabulated performance map (ΔP vs volumetric flow).`,
-    related: [],
+    related: [`Fan`, `FanCurve`],
     examples: [],
-    tags: [`fanmap`, `fan`, `map`, `component`, `fluid`, `acausal`],
+    tags: [`fan`, `fan-family`, `fanmap`, `map`, `data:rho-map`, `ports:in-out`, `flow-closed`, `energy-pressure`, `steady`, `map-driven`, `component`, `fluid`, `acausal`],
     references: [],
     guides: [],
     body: `A fan whose pressure rise comes from a tabulated performance map (ΔP vs volumetric flow).
@@ -4223,9 +4223,9 @@ shaft.tau = cpw$(J) * rhoA * n^2 * Dp^5 / (2 * pi#)
     slug: `pump`,
     category: `Component (fluid)`,
     summary: `Raises the pressure of a liquid stream, computing the work from a pump efficiency.`,
-    related: [],
+    related: [`PumpMap`, `LiquidPump`],
     examples: [`pump-sizing`, `rankine-cycle`],
-    tags: [`pump`, `component`, `fluid`, `acausal`],
+    tags: [`pump`, `pump-family`, `data:eta`, `ports:in-out`, `flow-closed`, `energy-work`, `steady`, `component`, `fluid`, `acausal`],
     references: [],
     guides: [],
     body: `Raises the pressure of a liquid stream, computing the work from a pump efficiency.
@@ -4273,9 +4273,9 @@ Instantiated in the verified example below:
     slug: `pumpmap`,
     category: `Component (fluid)`,
     summary: `A pump whose head comes from a tabulated performance map (head vs volumetric flow).`,
-    related: [],
+    related: [`Pump`, `LiquidPumpMap`],
     examples: [],
-    tags: [`pumpmap`, `pump`, `map`, `component`, `fluid`, `acausal`],
+    tags: [`pump`, `pump-family`, `pumpmap`, `map`, `data:rho-map`, `ports:in-out`, `flow-closed`, `energy-pressure`, `steady`, `map-driven`, `component`, `fluid`, `acausal`],
     references: [],
     guides: [],
     body: `A pump whose head comes from a tabulated performance map (head vs volumetric flow).
@@ -7039,9 +7039,9 @@ out.P    = in.P - f * (L / D) * rho * V^2 / 2
     slug: `liquidpump`,
     category: `Component (liquid)`,
     summary: `A single-phase liquid pump.`,
-    related: [],
+    related: [`LiquidPumpMap`, `Pump`],
     examples: [`ev-thermal-management`],
-    tags: [`liquidpump`, `component`, `liquid`, `acausal`],
+    tags: [`pump`, `liquid-pump-family`, `liquidpump`, `data:eta`, `ports:in-out`, `flow-closed`, `energy-work`, `steady`, `liquid`, `component`, `acausal`],
     references: [],
     guides: [],
     body: `A single-phase liquid pump.
@@ -7090,9 +7090,9 @@ Instantiated in the verified example below:
     slug: `liquidpumpmap`,
     category: `Component (liquid)`,
     summary: `Acausal liquid-domain component LiquidPumpMap with ports in, out.`,
-    related: [],
+    related: [`LiquidPump`, `PumpMap`],
     examples: [],
-    tags: [`liquidpumpmap`, `component`, `liquid`, `acausal`],
+    tags: [`pump`, `liquid-pump-family`, `liquidpumpmap`, `map`, `data:rho-map`, `ports:in-out`, `flow-closed`, `energy-work`, `steady`, `map-driven`, `liquid`, `component`, `acausal`],
     references: [],
     guides: [],
     body: `Reusable acausal **liquid-domain** component. Instantiate it and connect its ports; instantiation expands the constitutive equations below into scalar equations solved by the standard Newton/Tarjan pipeline.
@@ -8797,6 +8797,78 @@ out.P    = in.P - foul * K * in.mdot^2
 \`\`\``,
   },
   {
+    name: `ApparatusDewPointCoil`,
+    slug: `apparatusdewpointcoil`,
+    category: `Component (moistair)`,
+    summary: `Acausal moistair-domain component ApparatusDewPointCoil with ports in, out.`,
+    related: [],
+    examples: [],
+    tags: [`apparatusdewpointcoil`, `component`, `moistair`, `acausal`],
+    references: [],
+    guides: [],
+    body: `Reusable acausal **moistair-domain** component. Instantiate it and connect its ports; instantiation expands the constitutive equations below into scalar equations solved by the standard Newton/Tarjan pipeline.
+
+> **Auto-generated** from this port's component library (\`crates/frees-core/src/components/library-data/\`). The ports, parameters, and variants are taken from the component definition; a worked example and prose discussion are added as the page is curated.
+
+## Usage
+
+\`\`\`
+ApparatusDewPointCoil inst(T_adp, BF, domain$, model$)
+\`\`\`
+
+## Ports
+
+\`in\`, \`out\`
+
+## Parameters
+
+| Parameter | Type |
+| --- | --- |
+| \`T_adp\` | Number |
+| \`BF\` | Number |
+| \`domain$\` | String |
+| \`model$\` | String |
+
+## Constitutive Equations
+
+The acausal equations this component expands into (over its port members and parameters):
+
+\`\`\`
+out.mdot   = in.mdot
+out.P      = in.P
+T_in       = Temperature(AirH2O, h=in.h, P=in.P, W=in.W)
+T_out      = Temperature(AirH2O, h=out.h, P=in.P, W=out.W)
+T_dp_in    = DewPoint(AirH2O, h=in.h, P=in.P, W=in.W)
+margin_adp = T_dp_in - T_adp
+mdot_w     = in.mdot * (in.W - out.W)
+h_f        = 4186 * (T_out - 273.15)
+Q_air      = in.mdot * (in.h - out.h)
+Q          = Q_air - mdot_w * h_f
+Q_sens     = in.mdot * Cp(AirH2O, T=T_in, P=in.P, W=in.W) * (T_in - T_out)
+SHR        = Q_sens / Q_air
+\`\`\`
+
+## Model Variants
+
+Selected via the \`model$\` parameter; each adds its own equations (and \`REQUIRE\`d parameters):
+
+### \`wet\`
+
+\`\`\`
+W_adp = HumRat(AirH2O, T=T_adp, P=in.P, R=1)
+h_adp = Enthalpy(AirH2O, T=T_adp, P=in.P, W=W_adp)
+out.W = W_adp + BF * (in.W - W_adp)
+out.h = h_adp + BF * (in.h - h_adp)
+\`\`\`
+
+### \`dry\`
+
+\`\`\`
+out.W = in.W
+out.h = Enthalpy(AirH2O, T=T_adp + BF * (T_in - T_adp), P=in.P, W=in.W)
+\`\`\``,
+  },
+  {
     name: `CabinZone`,
     slug: `cabinzone`,
     category: `Component (moistair)`,
@@ -8853,6 +8925,54 @@ wall.T    = Tz
 \`\`\``,
   },
   {
+    name: `ChilledBeam`,
+    slug: `chilledbeam`,
+    category: `Component (moistair)`,
+    summary: `Acausal moistair-domain component ChilledBeam with ports in, out, wall.`,
+    related: [],
+    examples: [],
+    tags: [`chilledbeam`, `component`, `moistair`, `acausal`],
+    references: [],
+    guides: [],
+    body: `Reusable acausal **moistair-domain** component. Instantiate it and connect its ports; instantiation expands the constitutive equations below into scalar equations solved by the standard Newton/Tarjan pipeline.
+
+> **Auto-generated** from this port's component library (\`crates/frees-core/src/components/library-data/\`). The ports, parameters, and variants are taken from the component definition; a worked example and prose discussion are added as the page is curated.
+
+## Usage
+
+\`\`\`
+ChilledBeam inst(eps, domain$)
+\`\`\`
+
+## Ports
+
+\`in\`, \`out\`, \`wall\`
+
+## Parameters
+
+| Parameter | Type |
+| --- | --- |
+| \`eps\` | Number |
+| \`domain$\` | String |
+
+## Constitutive Equations
+
+The acausal equations this component expands into (over its port members and parameters):
+
+\`\`\`
+out.mdot  = in.mdot
+out.P     = in.P
+out.W     = in.W
+T_in      = Temperature(AirH2O, h=in.h, P=in.P, W=in.W)
+T_out     = T_in - eps * (T_in - wall.T)
+out.h     = Enthalpy(AirH2O, T=T_out, P=in.P, W=in.W)
+Q         = in.mdot * (in.h - out.h)
+wall.Qdot = -Q
+T_dp_in   = DewPoint(AirH2O, h=in.h, P=in.P, W=in.W)
+margin_dp = wall.T - T_dp_in
+\`\`\``,
+  },
+  {
     name: `CoolingCoil`,
     slug: `coolingcoil`,
     category: `Component (moistair)`,
@@ -8899,6 +9019,54 @@ Q_lat    = in.mdot * 2.501e6 * (in.W - out.W)
 \`\`\``,
   },
   {
+    name: `DesiccantWheel`,
+    slug: `desiccantwheel`,
+    category: `Component (moistair)`,
+    summary: `Acausal moistair-domain component DesiccantWheel with ports proc_in, proc_out, reg_in, reg_out.`,
+    related: [],
+    examples: [],
+    tags: [`desiccantwheel`, `component`, `moistair`, `acausal`],
+    references: [],
+    guides: [],
+    body: `Reusable acausal **moistair-domain** component. Instantiate it and connect its ports; instantiation expands the constitutive equations below into scalar equations solved by the standard Newton/Tarjan pipeline.
+
+> **Auto-generated** from this port's component library (\`crates/frees-core/src/components/library-data/\`). The ports, parameters, and variants are taken from the component definition; a worked example and prose discussion are added as the page is curated.
+
+## Usage
+
+\`\`\`
+DesiccantWheel inst(eff_L, W_eq, f_carry, domain$)
+\`\`\`
+
+## Ports
+
+\`proc_in\`, \`proc_out\`, \`reg_in\`, \`reg_out\`
+
+## Parameters
+
+| Parameter | Type |
+| --- | --- |
+| \`eff_L\` | Number |
+| \`W_eq\` | Number |
+| \`f_carry\` | Number |
+| \`domain$\` | String |
+
+## Constitutive Equations
+
+The acausal equations this component expands into (over its port members and parameters):
+
+\`\`\`
+proc_out.mdot = proc_in.mdot
+reg_out.mdot  = reg_in.mdot
+proc_out.P    = proc_in.P
+reg_out.P     = reg_in.P
+proc_out.W    = proc_in.W - eff_L * (proc_in.W - W_eq)
+proc_out.h    = proc_in.h + f_carry * (reg_in.h - proc_in.h)
+reg_out.W     = reg_in.W + (proc_in.mdot / reg_in.mdot) * (proc_in.W - proc_out.W)
+reg_out.h     = reg_in.h - (proc_in.mdot / reg_in.mdot) * (proc_out.h - proc_in.h)
+\`\`\``,
+  },
+  {
     name: `Diffuser`,
     slug: `diffuser`,
     category: `Component (moistair)`,
@@ -8942,6 +9110,125 @@ out.h    = in.h
 rho      = 1 / Volume(AirH2O, h=in.h, P=in.P, W=in.W)
 V1       = in.mdot * (1 + in.W) / (rho * A1)
 out.P    = in.P + eta_rec * 0.5 * rho * V1^2 * (1 - (A1 / A2)^2)
+\`\`\``,
+  },
+  {
+    name: `DOAS`,
+    slug: `doas`,
+    category: `Component (moistair)`,
+    summary: `Acausal moistair-domain component DOAS with ports oa_in, sup_out, exh_in, exh_out.`,
+    related: [],
+    examples: [],
+    tags: [`doas`, `component`, `moistair`, `acausal`],
+    references: [],
+    guides: [],
+    body: `Reusable acausal **moistair-domain** component. Instantiate it and connect its ports; instantiation expands the constitutive equations below into scalar equations solved by the standard Newton/Tarjan pipeline.
+
+> **Auto-generated** from this port's component library (\`crates/frees-core/src/components/library-data/\`). The ports, parameters, and variants are taken from the component definition; a worked example and prose discussion are added as the page is curated.
+
+## Usage
+
+\`\`\`
+DOAS inst(eff_h, eff_w, T_adp, BF, Q_reheat)
+\`\`\`
+
+## Ports
+
+\`oa_in\`, \`sup_out\`, \`exh_in\`, \`exh_out\`
+
+## Parameters
+
+| Parameter | Type |
+| --- | --- |
+| \`eff_h\` | Number |
+| \`eff_w\` | Number |
+| \`T_adp\` | Number |
+| \`BF\` | Number |
+| \`Q_reheat\` | Number |
+
+## Constitutive Equations
+
+The acausal equations this component expands into (over its port members and parameters):
+
+\`\`\`
+EnthalpyWheel         ERV(eff_h=eff_h, eff_w=eff_w)
+ApparatusDewPointCoil CC(T_adp=T_adp, BF=BF)
+HeatingCoil           RH(Q=Q_reheat)
+connect(oa_in, ERV.sup_in)
+connect(ERV.sup_out, CC.in)
+connect(CC.out, RH.in)
+connect(RH.out, sup_out)
+connect(exh_in, ERV.exh_in)
+connect(ERV.exh_out, exh_out)
+\`\`\``,
+  },
+  {
+    name: `Economizer`,
+    slug: `economizer`,
+    category: `Component (moistair)`,
+    summary: `Acausal moistair-domain component Economizer with ports oa_in, ret_in, mix_out.`,
+    related: [],
+    examples: [],
+    tags: [`economizer`, `component`, `moistair`, `acausal`],
+    references: [],
+    guides: [],
+    body: `Reusable acausal **moistair-domain** component. Instantiate it and connect its ports; instantiation expands the constitutive equations below into scalar equations solved by the standard Newton/Tarjan pipeline.
+
+> **Auto-generated** from this port's component library (\`crates/frees-core/src/components/library-data/\`). The ports, parameters, and variants are taken from the component definition; a worked example and prose discussion are added as the page is curated.
+
+## Usage
+
+\`\`\`
+Economizer inst(mdot_sup, f_min, lim, band, domain$, model$)
+\`\`\`
+
+## Ports
+
+\`oa_in\`, \`ret_in\`, \`mix_out\`
+
+## Parameters
+
+| Parameter | Type |
+| --- | --- |
+| \`mdot_sup\` | Number |
+| \`f_min\` | Number |
+| \`lim\` | Number |
+| \`band\` | Number |
+| \`domain$\` | String |
+| \`model$\` | String |
+
+## Constitutive Equations
+
+The acausal equations this component expands into (over its port members and parameters):
+
+\`\`\`
+mix_out.P    = oa_in.P
+mix_out.mdot = mdot_sup
+oa_in.mdot   = f_oa * mdot_sup
+ret_in.mdot  = (1 - f_oa) * mdot_sup
+f_oa         = f_min + (1 - f_min) * g_diff * g_lim
+mix_out.mdot * mix_out.W = oa_in.mdot * oa_in.W + ret_in.mdot * ret_in.W
+mix_out.mdot * mix_out.h = oa_in.mdot * oa_in.h + ret_in.mdot * ret_in.h
+\`\`\`
+
+## Model Variants
+
+Selected via the \`model$\` parameter; each adds its own equations (and \`REQUIRE\`d parameters):
+
+### \`drybulb\`
+
+\`\`\`
+T_oa   = Temperature(AirH2O, h=oa_in.h, P=oa_in.P, W=oa_in.W)
+T_ret  = Temperature(AirH2O, h=ret_in.h, P=ret_in.P, W=ret_in.W)
+g_diff = 0.5 * (1 + tanh((T_ret - T_oa) / band))
+g_lim  = 0.5 * (1 + tanh((lim - T_oa) / band))
+\`\`\`
+
+### \`enthalpy\`
+
+\`\`\`
+g_diff = 0.5 * (1 + tanh((ret_in.h - oa_in.h) / band))
+g_lim  = 0.5 * (1 + tanh((lim - oa_in.h) / band))
 \`\`\``,
   },
   {
@@ -9035,6 +9322,149 @@ out.W    = in.W + eff * (W_sat - in.W)
 \`\`\``,
   },
   {
+    name: `FaceAndBypassCoil`,
+    slug: `faceandbypasscoil`,
+    category: `Component (moistair)`,
+    summary: `Acausal moistair-domain component FaceAndBypassCoil with ports in, out, wall.`,
+    related: [],
+    examples: [],
+    tags: [`faceandbypasscoil`, `component`, `moistair`, `acausal`],
+    references: [],
+    guides: [],
+    body: `Reusable acausal **moistair-domain** component. Instantiate it and connect its ports; instantiation expands the constitutive equations below into scalar equations solved by the standard Newton/Tarjan pipeline.
+
+> **Auto-generated** from this port's component library (\`crates/frees-core/src/components/library-data/\`). The ports, parameters, and variants are taken from the component definition; a worked example and prose discussion are added as the page is curated.
+
+## Usage
+
+\`\`\`
+FaceAndBypassCoil inst(u_face, eps, domain$)
+\`\`\`
+
+## Ports
+
+\`in\`, \`out\`, \`wall\`
+
+## Parameters
+
+| Parameter | Type |
+| --- | --- |
+| \`u_face\` | Number |
+| \`eps\` | Number |
+| \`domain$\` | String |
+
+## Constitutive Equations
+
+The acausal equations this component expands into (over its port members and parameters):
+
+\`\`\`
+out.mdot  = in.mdot
+out.P     = in.P
+T_in      = Temperature(AirH2O, h=in.h, P=in.P, W=in.W)
+T_face    = T_in - eps * (T_in - wall.T)
+W_sat     = HumRat(AirH2O, T=T_face, P=in.P, R=1)
+W_face    = 0.5 * (in.W + W_sat - sqrt((in.W - W_sat)^2 + 1e-12))
+h_face    = Enthalpy(AirH2O, T=T_face, P=in.P, W=W_face)
+out.W     = u_face * W_face + (1 - u_face) * in.W
+out.h     = u_face * h_face + (1 - u_face) * in.h
+BF        = 1 - u_face
+Q         = in.mdot * (in.h - out.h)
+wall.Qdot = -Q
+\`\`\``,
+  },
+  {
+    name: `FanCoilUnit`,
+    slug: `fancoilunit`,
+    category: `Component (moistair)`,
+    summary: `Acausal moistair-domain component FanCoilUnit with ports in, out, wall.`,
+    related: [],
+    examples: [],
+    tags: [`fancoilunit`, `component`, `moistair`, `acausal`],
+    references: [],
+    guides: [],
+    body: `Reusable acausal **moistair-domain** component. Instantiate it and connect its ports; instantiation expands the constitutive equations below into scalar equations solved by the standard Newton/Tarjan pipeline.
+
+> **Auto-generated** from this port's component library (\`crates/frees-core/src/components/library-data/\`). The ports, parameters, and variants are taken from the component definition; a worked example and prose discussion are added as the page is curated.
+
+## Usage
+
+\`\`\`
+FanCoilUnit inst(K, foul, dP, eta, eps)
+\`\`\`
+
+## Ports
+
+\`in\`, \`out\`, \`wall\`
+
+## Parameters
+
+| Parameter | Type |
+| --- | --- |
+| \`K\` | Number |
+| \`foul\` | Number |
+| \`dP\` | Number |
+| \`eta\` | Number |
+| \`eps\` | Number |
+
+## Constitutive Equations
+
+The acausal equations this component expands into (over its port members and parameters):
+
+\`\`\`
+AirFilter      FL(K=K, foul=foul)
+MoistAirFan    FN(dP=dP, eta=eta)
+MoistAirWallHX CO(model$=eps_t, eps=eps)
+connect(in, FL.in)
+connect(FL.out, FN.in)
+connect(FN.out, CO.in)
+connect(CO.out, out)
+connect(wall, CO.wall)
+\`\`\``,
+  },
+  {
+    name: `FanPoweredBox`,
+    slug: `fanpoweredbox`,
+    category: `Component (moistair)`,
+    summary: `Acausal moistair-domain component FanPoweredBox with ports pri_in, ind_in, out.`,
+    related: [],
+    examples: [],
+    tags: [`fanpoweredbox`, `component`, `moistair`, `acausal`],
+    references: [],
+    guides: [],
+    body: `Reusable acausal **moistair-domain** component. Instantiate it and connect its ports; instantiation expands the constitutive equations below into scalar equations solved by the standard Newton/Tarjan pipeline.
+
+> **Auto-generated** from this port's component library (\`crates/frees-core/src/components/library-data/\`). The ports, parameters, and variants are taken from the component definition; a worked example and prose discussion are added as the page is curated.
+
+## Usage
+
+\`\`\`
+FanPoweredBox inst(Q_fan, Q_reheat, domain$)
+\`\`\`
+
+## Ports
+
+\`pri_in\`, \`ind_in\`, \`out\`
+
+## Parameters
+
+| Parameter | Type |
+| --- | --- |
+| \`Q_fan\` | Number |
+| \`Q_reheat\` | Number |
+| \`domain$\` | String |
+
+## Constitutive Equations
+
+The acausal equations this component expands into (over its port members and parameters):
+
+\`\`\`
+out.P    = pri_in.P
+out.mdot = pri_in.mdot + ind_in.mdot
+out.mdot * out.W = pri_in.mdot * pri_in.W + ind_in.mdot * ind_in.W
+out.mdot * out.h = pri_in.mdot * pri_in.h + ind_in.mdot * ind_in.h + Q_fan + Q_reheat
+\`\`\``,
+  },
+  {
     name: `HeatingCoil`,
     slug: `heatingcoil`,
     category: `Component (moistair)`,
@@ -9076,6 +9506,57 @@ out.mdot = in.mdot
 out.P    = in.P
 out.W    = in.W
 out.h    = in.h + Q / in.mdot
+\`\`\``,
+  },
+  {
+    name: `HeatPipeWrapAround`,
+    slug: `heatpipewraparound`,
+    category: `Component (moistair)`,
+    summary: `Acausal moistair-domain component HeatPipeWrapAround with ports pre_in, pre_out, re_in, re_out.`,
+    related: [],
+    examples: [],
+    tags: [`heatpipewraparound`, `component`, `moistair`, `acausal`],
+    references: [],
+    guides: [],
+    body: `Reusable acausal **moistair-domain** component. Instantiate it and connect its ports; instantiation expands the constitutive equations below into scalar equations solved by the standard Newton/Tarjan pipeline.
+
+> **Auto-generated** from this port's component library (\`crates/frees-core/src/components/library-data/\`). The ports, parameters, and variants are taken from the component definition; a worked example and prose discussion are added as the page is curated.
+
+## Usage
+
+\`\`\`
+HeatPipeWrapAround inst(eff, domain$)
+\`\`\`
+
+## Ports
+
+\`pre_in\`, \`pre_out\`, \`re_in\`, \`re_out\`
+
+## Parameters
+
+| Parameter | Type |
+| --- | --- |
+| \`eff\` | Number |
+| \`domain$\` | String |
+
+## Constitutive Equations
+
+The acausal equations this component expands into (over its port members and parameters):
+
+\`\`\`
+pre_out.mdot = pre_in.mdot
+re_out.mdot  = re_in.mdot
+pre_out.P    = pre_in.P
+re_out.P     = re_in.P
+pre_out.W    = pre_in.W
+re_out.W     = re_in.W
+T_p_in    = Temperature(AirH2O, h=pre_in.h, P=pre_in.P, W=pre_in.W)
+T_r_in    = Temperature(AirH2O, h=re_in.h, P=re_in.P, W=re_in.W)
+T_p_out   = T_p_in - eff * (T_p_in - T_r_in)
+pre_out.h = Enthalpy(AirH2O, T=T_p_out, P=pre_in.P, W=pre_out.W)
+Q         = pre_in.mdot * (pre_in.h - pre_out.h)
+re_out.h  = re_in.h + Q / re_in.mdot
+T_r_out   = Temperature(AirH2O, h=re_out.h, P=re_in.P, W=re_out.W)
 \`\`\``,
   },
   {
@@ -9124,6 +9605,155 @@ out.h    = in.h + mdot_w * h_w / in.mdot
 \`\`\``,
   },
   {
+    name: `IndirectDirectEvaporativeCooler`,
+    slug: `indirectdirectevaporativecooler`,
+    category: `Component (moistair)`,
+    summary: `Acausal moistair-domain component IndirectDirectEvaporativeCooler with ports pri_in, pri_out, sec_in, sec_out.`,
+    related: [],
+    examples: [],
+    tags: [`indirectdirectevaporativecooler`, `component`, `moistair`, `acausal`],
+    references: [],
+    guides: [],
+    body: `Reusable acausal **moistair-domain** component. Instantiate it and connect its ports; instantiation expands the constitutive equations below into scalar equations solved by the standard Newton/Tarjan pipeline.
+
+> **Auto-generated** from this port's component library (\`crates/frees-core/src/components/library-data/\`). The ports, parameters, and variants are taken from the component definition; a worked example and prose discussion are added as the page is curated.
+
+## Usage
+
+\`\`\`
+IndirectDirectEvaporativeCooler inst(wbde, eff_sec, eff_dir)
+\`\`\`
+
+## Ports
+
+\`pri_in\`, \`pri_out\`, \`sec_in\`, \`sec_out\`
+
+## Parameters
+
+| Parameter | Type |
+| --- | --- |
+| \`wbde\` | Number |
+| \`eff_sec\` | Number |
+| \`eff_dir\` | Number |
+
+## Constitutive Equations
+
+The acausal equations this component expands into (over its port members and parameters):
+
+\`\`\`
+IndirectEvaporativeCooler IEC(wbde=wbde, eff_sec=eff_sec)
+EvaporativeCooler         DEC(eff=eff_dir)
+connect(pri_in, IEC.pri_in)
+connect(IEC.pri_out, DEC.in)
+connect(DEC.out, pri_out)
+connect(sec_in, IEC.sec_in)
+connect(IEC.sec_out, sec_out)
+\`\`\``,
+  },
+  {
+    name: `IndirectEvaporativeCooler`,
+    slug: `indirectevaporativecooler`,
+    category: `Component (moistair)`,
+    summary: `Acausal moistair-domain component IndirectEvaporativeCooler with ports pri_in, pri_out, sec_in, sec_out.`,
+    related: [],
+    examples: [],
+    tags: [`indirectevaporativecooler`, `component`, `moistair`, `acausal`],
+    references: [],
+    guides: [],
+    body: `Reusable acausal **moistair-domain** component. Instantiate it and connect its ports; instantiation expands the constitutive equations below into scalar equations solved by the standard Newton/Tarjan pipeline.
+
+> **Auto-generated** from this port's component library (\`crates/frees-core/src/components/library-data/\`). The ports, parameters, and variants are taken from the component definition; a worked example and prose discussion are added as the page is curated.
+
+## Usage
+
+\`\`\`
+IndirectEvaporativeCooler inst(wbde, eff_sec, domain$)
+\`\`\`
+
+## Ports
+
+\`pri_in\`, \`pri_out\`, \`sec_in\`, \`sec_out\`
+
+## Parameters
+
+| Parameter | Type |
+| --- | --- |
+| \`wbde\` | Number |
+| \`eff_sec\` | Number |
+| \`domain$\` | String |
+
+## Constitutive Equations
+
+The acausal equations this component expands into (over its port members and parameters):
+
+\`\`\`
+pri_out.mdot = pri_in.mdot
+sec_out.mdot = sec_in.mdot
+pri_out.P    = pri_in.P
+sec_out.P    = sec_in.P
+pri_out.W    = pri_in.W
+T_p_in   = Temperature(AirH2O, h=pri_in.h, P=pri_in.P, W=pri_in.W)
+T_wb_sec = WetBulb(AirH2O, h=sec_in.h, P=sec_in.P, W=sec_in.W)
+T_p_out  = T_p_in - wbde * (T_p_in - T_wb_sec)
+pri_out.h = Enthalpy(AirH2O, T=T_p_out, P=pri_in.P, W=pri_out.W)
+Q         = pri_in.mdot * (pri_in.h - pri_out.h)
+W_sat_sec = HumRat(AirH2O, h=sec_in.h, P=sec_in.P, R=1)
+sec_out.W = sec_in.W + eff_sec * (W_sat_sec - sec_in.W)
+sec_out.h = sec_in.h + Q / sec_in.mdot
+\`\`\``,
+  },
+  {
+    name: `InductionUnit`,
+    slug: `inductionunit`,
+    category: `Component (moistair)`,
+    summary: `Acausal moistair-domain component InductionUnit with ports pri_in, ind_in, out, wall.`,
+    related: [],
+    examples: [],
+    tags: [`inductionunit`, `component`, `moistair`, `acausal`],
+    references: [],
+    guides: [],
+    body: `Reusable acausal **moistair-domain** component. Instantiate it and connect its ports; instantiation expands the constitutive equations below into scalar equations solved by the standard Newton/Tarjan pipeline.
+
+> **Auto-generated** from this port's component library (\`crates/frees-core/src/components/library-data/\`). The ports, parameters, and variants are taken from the component definition; a worked example and prose discussion are added as the page is curated.
+
+## Usage
+
+\`\`\`
+InductionUnit inst(ratio, eps, domain$)
+\`\`\`
+
+## Ports
+
+\`pri_in\`, \`ind_in\`, \`out\`, \`wall\`
+
+## Parameters
+
+| Parameter | Type |
+| --- | --- |
+| \`ratio\` | Number |
+| \`eps\` | Number |
+| \`domain$\` | String |
+
+## Constitutive Equations
+
+The acausal equations this component expands into (over its port members and parameters):
+
+\`\`\`
+ind_in.mdot = ratio * pri_in.mdot
+out.mdot    = pri_in.mdot + ind_in.mdot
+out.P       = pri_in.P
+T_i_in      = Temperature(AirH2O, h=ind_in.h, P=ind_in.P, W=ind_in.W)
+T_i_out     = T_i_in - eps * (T_i_in - wall.T)
+h_i_out     = Enthalpy(AirH2O, T=T_i_out, P=ind_in.P, W=ind_in.W)
+out.mdot * out.W = pri_in.mdot * pri_in.W + ind_in.mdot * ind_in.W
+out.mdot * out.h = pri_in.mdot * pri_in.h + ind_in.mdot * h_i_out
+Q           = ind_in.mdot * (ind_in.h - h_i_out)
+wall.Qdot   = -Q
+T_dp_ind    = DewPoint(AirH2O, h=ind_in.h, P=ind_in.P, W=ind_in.W)
+margin_dp   = wall.T - T_dp_ind
+\`\`\``,
+  },
+  {
     name: `Infiltration`,
     slug: `infiltration`,
     category: `Component (moistair)`,
@@ -9166,6 +9796,79 @@ in.mdot  = C_inf * dP * (dP^2 + eps^2)^((n_exp - 1) / 2)
 out.mdot = in.mdot
 out.W    = in.W
 out.h    = in.h
+\`\`\``,
+  },
+  {
+    name: `LiquidDesiccantContactor`,
+    slug: `liquiddesiccantcontactor`,
+    category: `Component (moistair)`,
+    summary: `Acausal moistair-domain component LiquidDesiccantContactor with ports in, out, wall.`,
+    related: [],
+    examples: [],
+    tags: [`liquiddesiccantcontactor`, `component`, `moistair`, `acausal`],
+    references: [],
+    guides: [],
+    body: `Reusable acausal **moistair-domain** component. Instantiate it and connect its ports; instantiation expands the constitutive equations below into scalar equations solved by the standard Newton/Tarjan pipeline.
+
+> **Auto-generated** from this port's component library (\`crates/frees-core/src/components/library-data/\`). The ports, parameters, and variants are taken from the component definition; a worked example and prose discussion are added as the page is curated.
+
+## Usage
+
+\`\`\`
+LiquidDesiccantContactor inst(eff_L, W_eq, eps_T, f_excess, domain$, model$)
+\`\`\`
+
+## Ports
+
+\`in\`, \`out\`, \`wall\`
+
+## Parameters
+
+| Parameter | Type |
+| --- | --- |
+| \`eff_L\` | Number |
+| \`W_eq\` | Number |
+| \`eps_T\` | Number |
+| \`f_excess\` | Number |
+| \`domain$\` | String |
+| \`model$\` | String |
+
+## Constitutive Equations
+
+The acausal equations this component expands into (over its port members and parameters):
+
+\`\`\`
+out.mdot = in.mdot
+out.P    = in.P
+out.W    = in.W - eff_L * (in.W - W_eq)
+T_in     = Temperature(AirH2O, h=in.h, P=in.P, W=in.W)
+mdot_w   = in.mdot * (in.W - out.W)
+\`\`\`
+
+## Model Variants
+
+Selected via the \`model$\` parameter; each adds its own equations (and \`REQUIRE\`d parameters):
+
+### \`cooled\` — requires \`eps_T\`
+
+\`\`\`
+T_out     = T_in - eps_T * (T_in - wall.T)
+out.h     = Enthalpy(AirH2O, T=T_out, P=in.P, W=out.W)
+h_f       = 4186 * (wall.T - 273.15)
+Q         = in.mdot * (in.h - out.h) - mdot_w * h_f
+wall.Qdot = -Q
+\`\`\`
+
+### \`adiabatic\` — requires \`f_excess\`
+
+\`\`\`
+h_f       = 4186 * (T_in - 273.15)
+h_pure    = in.h - mdot_w * h_f / in.mdot
+T_pure    = Temperature(AirH2O, h=h_pure, P=in.P, W=out.W)
+T_out     = T_in + (1 + f_excess) * (T_pure - T_in)
+out.h     = Enthalpy(AirH2O, T=T_out, P=in.P, W=out.W)
+Q         = 0
+wall.Qdot = 0
 \`\`\``,
   },
   {
@@ -9538,6 +10241,207 @@ out.h     = Enthalpy(AirH2O, T=T_out, P=in.P, W=out.W)
 Q         = in.mdot * (in.h - out.h)
 Q_lat     = in.mdot * 2.501e6 * (in.W - out.W)
 wall.Qdot = -Q
+\`\`\``,
+  },
+  {
+    name: `RadiantPanel`,
+    slug: `radiantpanel`,
+    category: `Component (moistair)`,
+    summary: `Acausal moistair-domain component RadiantPanel with ports zone, wall.`,
+    related: [],
+    examples: [],
+    tags: [`radiantpanel`, `component`, `moistair`, `acausal`],
+    references: [],
+    guides: [],
+    body: `Reusable acausal **moistair-domain** component. Instantiate it and connect its ports; instantiation expands the constitutive equations below into scalar equations solved by the standard Newton/Tarjan pipeline.
+
+> **Auto-generated** from this port's component library (\`crates/frees-core/src/components/library-data/\`). The ports, parameters, and variants are taken from the component definition; a worked example and prose discussion are added as the page is curated.
+
+## Usage
+
+\`\`\`
+RadiantPanel inst(A, C, n, eps_dT, W_room, P_room)
+\`\`\`
+
+## Ports
+
+\`zone\`, \`wall\`
+
+## Parameters
+
+| Parameter | Type |
+| --- | --- |
+| \`A\` | Number |
+| \`C\` | Number |
+| \`n\` | Number |
+| \`eps_dT\` | Number |
+| \`W_room\` | Number |
+| \`P_room\` | Number |
+
+## Constitutive Equations
+
+The acausal equations this component expands into (over its port members and parameters):
+
+\`\`\`
+dT        = zone.T - wall.T
+q_flux    = C * dT * (dT^2 + eps_dT^2)^((n - 1) / 2)
+Q         = A * q_flux
+zone.Qdot = Q
+wall.Qdot = -Q
+T_dp_room = DewPoint(AirH2O, T=zone.T, P=P_room, W=W_room)
+margin_dp = wall.T - T_dp_room
+\`\`\``,
+  },
+  {
+    name: `SensibleAirToAirHX`,
+    slug: `sensibleairtoairhx`,
+    category: `Component (moistair)`,
+    summary: `Acausal moistair-domain component SensibleAirToAirHX with ports sup_in, sup_out, exh_in, exh_out.`,
+    related: [],
+    examples: [],
+    tags: [`sensibleairtoairhx`, `component`, `moistair`, `acausal`],
+    references: [],
+    guides: [],
+    body: `Reusable acausal **moistair-domain** component. Instantiate it and connect its ports; instantiation expands the constitutive equations below into scalar equations solved by the standard Newton/Tarjan pipeline.
+
+> **Auto-generated** from this port's component library (\`crates/frees-core/src/components/library-data/\`). The ports, parameters, and variants are taken from the component definition; a worked example and prose discussion are added as the page is curated.
+
+## Usage
+
+\`\`\`
+SensibleAirToAirHX inst(eff, eatr, oacf, domain$)
+\`\`\`
+
+## Ports
+
+\`sup_in\`, \`sup_out\`, \`exh_in\`, \`exh_out\`
+
+## Parameters
+
+| Parameter | Type |
+| --- | --- |
+| \`eff\` | Number |
+| \`eatr\` | Number |
+| \`oacf\` | Number |
+| \`domain$\` | String |
+
+## Constitutive Equations
+
+The acausal equations this component expands into (over its port members and parameters):
+
+\`\`\`
+sup_out.mdot = sup_in.mdot / oacf
+exh_out.mdot = exh_in.mdot + (sup_in.mdot - sup_out.mdot)
+sup_out.P    = sup_in.P
+exh_out.P    = exh_in.P
+T_s_in  = Temperature(AirH2O, h=sup_in.h, P=sup_in.P, W=sup_in.W)
+T_e_in  = Temperature(AirH2O, h=exh_in.h, P=exh_in.P, W=exh_in.W)
+C_s     = sup_in.mdot * Cp(AirH2O, T=T_s_in, P=sup_in.P, W=sup_in.W)
+C_e     = exh_in.mdot * Cp(AirH2O, T=T_e_in, P=exh_in.P, W=exh_in.W)
+Q       = eff * min(C_s, C_e) * (T_e_in - T_s_in)
+T_s_out = T_s_in + Q / C_s
+sup_out.W = sup_in.W + eatr * (exh_in.W - sup_in.W)
+sup_out.h = Enthalpy(AirH2O, T=T_s_out, P=sup_in.P, W=sup_out.W)
+exh_out.mdot * exh_out.W = exh_in.mdot * exh_in.W + sup_in.mdot * sup_in.W - sup_out.mdot * sup_out.W
+exh_out.mdot * exh_out.h = exh_in.mdot * exh_in.h + sup_in.mdot * sup_in.h - sup_out.mdot * sup_out.h
+T_e_out = Temperature(AirH2O, h=exh_out.h, P=exh_in.P, W=exh_out.W)
+\`\`\``,
+  },
+  {
+    name: `SteamHumidifier`,
+    slug: `steamhumidifier`,
+    category: `Component (moistair)`,
+    summary: `Acausal moistair-domain component SteamHumidifier with ports in, out.`,
+    related: [],
+    examples: [],
+    tags: [`steamhumidifier`, `component`, `moistair`, `acausal`],
+    references: [],
+    guides: [],
+    body: `Reusable acausal **moistair-domain** component. Instantiate it and connect its ports; instantiation expands the constitutive equations below into scalar equations solved by the standard Newton/Tarjan pipeline.
+
+> **Auto-generated** from this port's component library (\`crates/frees-core/src/components/library-data/\`). The ports, parameters, and variants are taken from the component definition; a worked example and prose discussion are added as the page is curated.
+
+## Usage
+
+\`\`\`
+SteamHumidifier inst(W_set, h_steam, domain$)
+\`\`\`
+
+## Ports
+
+\`in\`, \`out\`
+
+## Parameters
+
+| Parameter | Type |
+| --- | --- |
+| \`W_set\` | Number |
+| \`h_steam\` | Number |
+| \`domain$\` | String |
+
+## Constitutive Equations
+
+The acausal equations this component expands into (over its port members and parameters):
+
+\`\`\`
+out.mdot = in.mdot
+out.P    = in.P
+out.W    = W_set
+mdot_w   = in.mdot * (W_set - in.W)
+out.h    = in.h + mdot_w * h_steam / in.mdot
+\`\`\``,
+  },
+  {
+    name: `TotalEnergyExchanger`,
+    slug: `totalenergyexchanger`,
+    category: `Component (moistair)`,
+    summary: `Acausal moistair-domain component TotalEnergyExchanger with ports sup_in, sup_out, exh_in, exh_out.`,
+    related: [],
+    examples: [],
+    tags: [`totalenergyexchanger`, `component`, `moistair`, `acausal`],
+    references: [],
+    guides: [],
+    body: `Reusable acausal **moistair-domain** component. Instantiate it and connect its ports; instantiation expands the constitutive equations below into scalar equations solved by the standard Newton/Tarjan pipeline.
+
+> **Auto-generated** from this port's component library (\`crates/frees-core/src/components/library-data/\`). The ports, parameters, and variants are taken from the component definition; a worked example and prose discussion are added as the page is curated.
+
+## Usage
+
+\`\`\`
+TotalEnergyExchanger inst(eps_s, eps_L, eatr, oacf, domain$)
+\`\`\`
+
+## Ports
+
+\`sup_in\`, \`sup_out\`, \`exh_in\`, \`exh_out\`
+
+## Parameters
+
+| Parameter | Type |
+| --- | --- |
+| \`eps_s\` | Number |
+| \`eps_L\` | Number |
+| \`eatr\` | Number |
+| \`oacf\` | Number |
+| \`domain$\` | String |
+
+## Constitutive Equations
+
+The acausal equations this component expands into (over its port members and parameters):
+
+\`\`\`
+sup_out.mdot = sup_in.mdot / oacf
+exh_out.mdot = exh_in.mdot + (sup_in.mdot - sup_out.mdot)
+sup_out.P    = sup_in.P
+exh_out.P    = exh_in.P
+T_s_in  = Temperature(AirH2O, h=sup_in.h, P=sup_in.P, W=sup_in.W)
+T_e_in  = Temperature(AirH2O, h=exh_in.h, P=exh_in.P, W=exh_in.W)
+W_x     = sup_in.W + eps_L * (exh_in.W - sup_in.W)
+T_s_out = T_s_in + eps_s * (T_e_in - T_s_in)
+sup_out.W = W_x + eatr * (exh_in.W - W_x)
+sup_out.h = Enthalpy(AirH2O, T=T_s_out, P=sup_in.P, W=sup_out.W)
+exh_out.mdot * exh_out.W = exh_in.mdot * exh_in.W + sup_in.mdot * sup_in.W - sup_out.mdot * sup_out.W
+exh_out.mdot * exh_out.h = exh_in.mdot * exh_in.h + sup_in.mdot * sup_in.h - sup_out.mdot * sup_out.h
 \`\`\``,
   },
   {
@@ -13758,9 +14662,9 @@ m         = rho * V
     slug: `twophasecompressor`,
     category: `Component (twophase)`,
     summary: `A refrigerant compressor with selectable isentropic/volumetric variants.`,
-    related: [],
+    related: [`Compressor`, `CompressorMap`],
     examples: [`ev-thermal-management`],
-    tags: [`twophasecompressor`, `component`, `twophase`, `acausal`],
+    tags: [`compressor`, `compressor-family`, `twophasecompressor`, `ports:in-out`, `flow-closed`, `energy-work`, `steady`, `twophase`, `component`, `acausal`],
     references: [],
     guides: [],
     body: `A refrigerant compressor with selectable isentropic/volumetric variants.

@@ -377,6 +377,30 @@ pub struct CheckReport {
     /// frontend's `result?.definedPlots ?? checkResult?.definedPlots` fallback
     /// is for.
     pub plots: Vec<crate::parser::blocks::PlotDef>,
+    /// Connection topology for the schematic — the same payload Solve reports,
+    /// so Check can draw and validate wiring without a solve.
+    pub connections: Vec<crate::components::expander::Connection>,
+    /// Top-level and nested instance identities with source lines.
+    pub instances: Vec<InstanceIdentity>,
+    /// User `COMPONENT` definitions (local) with source lines.
+    pub definitions: Vec<DefinitionIdentity>,
+}
+
+/// One component instance as Check reports it for navigation and completion.
+#[derive(Debug, Clone, PartialEq)]
+pub struct InstanceIdentity {
+    pub name: String,
+    pub label: String,
+    pub type_name: String,
+    pub line: usize,
+    pub local_type: bool,
+}
+
+/// A user-authored `COMPONENT` definition.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DefinitionIdentity {
+    pub name: String,
+    pub line: usize,
 }
 
 /// Externally supplied per-variable solver information — one row of the
@@ -1716,9 +1740,12 @@ pub fn check_with_tables_complex(
     // Display names accumulate across the pipeline exactly as on the solve
     // path; the closure below works on a clone of the document, so the names
     // the CALL flattener generates are collected out here.
+    let identities = component_identities(&doc, source);
     let mut parsed_names = doc.display_names.clone();
     let mut check_diagnostics = doc.diagnostics.clone();
+    check_diagnostics.extend(identity_advisories(&doc, source));
     let mut member_units: BTreeMap<String, String> = BTreeMap::new();
+    let mut layer_connections: Vec<crate::components::expander::Connection> = Vec::new();
     let expanded = (|| {
         let mut doc = doc.clone();
         // Stage 1b — the component layer, at the Java position (see
@@ -1727,6 +1754,7 @@ pub fn check_with_tables_complex(
         // would be reported "solvable" with nothing in it.
         let components = expand_component_layer(&mut doc, &mut check_diagnostics)?;
         member_units = components.member_units;
+        layer_connections = components.connections.clone();
         parsed_names = doc.display_names.clone();
         let statements = std::mem::take(&mut doc.statements);
         let (flattened, module_count) =
@@ -1786,6 +1814,9 @@ pub fn check_with_tables_complex(
                 unit_warnings: Vec::new(),
                 diagnostics: check_diagnostics,
                 plots: doc.blocks.plots.clone(),
+                connections: layer_connections,
+                instances: identities.0.clone(),
+                definitions: identities.1.clone(),
             });
         }
     };
@@ -1815,6 +1846,9 @@ pub fn check_with_tables_complex(
             unit_warnings: Vec::new(),
             diagnostics: check_diagnostics,
             plots: doc.blocks.plots.clone(),
+            connections: layer_connections.clone(),
+            instances: identities.0.clone(),
+            definitions: identities.1.clone(),
         });
     }
 
@@ -1866,9 +1900,12 @@ pub fn check_with_tables_complex(
         error_line: None,
         errors: Vec::new(),
         inferred_units,
-        unit_warnings: unit_report.warnings,
+        unit_warnings: merge_advisory_warnings(unit_report.warnings, &diagnostics),
         diagnostics,
         plots: doc.blocks.plots.clone(),
+        connections: layer_connections,
+        instances: identities.0,
+        definitions: identities.1,
     };
 
     match block_system(&equations, &knowns) {
@@ -2023,6 +2060,9 @@ fn expand_component_layer(
             &mut display_names,
         )?;
         let equations = expander.expand()?;
+        for warning in expander.inactive_warnings() {
+            diagnostics.push(crate::diag::Diagnostic::warning(warning.clone()));
+        }
         let statements = expander.rewrite_statements(statements)?;
         let member_units = expander
             .member_units()
@@ -2276,6 +2316,243 @@ fn builtin_constants(equations: &[Equation]) -> (BTreeMap<String, f64>, HashSet<
 ///
 /// This is a stand-in for the unported `UnitChecker`, which additionally
 /// verifies dimensional consistency across an equation.
+/// Append non-unit advisory diagnostics onto the unit-warning list so Check
+/// and Solve both surface them on the existing `unitWarnings` channel.
+pub(crate) fn component_identities(
+    doc: &Document,
+    source: &str,
+) -> (Vec<InstanceIdentity>, Vec<DefinitionIdentity>) {
+    let local_types: BTreeSet<String> =
+        doc.components.defs.iter().map(|d| d.name.clone()).collect();
+    let mut instances = Vec::new();
+    collect_instances(
+        &doc.components.instances,
+        "",
+        0,
+        &doc.components.defs,
+        &local_types,
+        &mut Vec::new(),
+        &mut instances,
+    );
+    let definitions = definition_identities(source);
+    (instances, definitions)
+}
+
+fn collect_instances(
+    insts: &[crate::components::def::ComponentInst],
+    scope: &str,
+    parent_line: usize,
+    user_defs: &[crate::components::def::ComponentDef],
+    local_types: &BTreeSet<String>,
+    stack: &mut Vec<String>,
+    out: &mut Vec<InstanceIdentity>,
+) {
+    for inst in insts {
+        let name = if scope.is_empty() {
+            inst.name.clone()
+        } else {
+            format!("{scope}.{}", inst.name)
+        };
+        let (_, label) = crate::components::metadata::display_identity(
+            &crate::components::metadata::ComponentInstMeta::from(inst),
+        );
+        // Nested children share the COMPONENT-body declaration line. Point
+        // them at the parent instantiation so a repeated child name in two
+        // scopes navigates to the instance that created this one.
+        let line = if scope.is_empty() {
+            inst.line
+        } else {
+            parent_line
+        };
+        out.push(InstanceIdentity {
+            name: name.clone(),
+            label,
+            type_name: inst.type_name.clone(),
+            line,
+            local_type: local_types.contains(&inst.type_name),
+        });
+        // Expansion refuses cycles; Check still walks identities first, so a
+        // self-instantiation must not recurse here (wasm/native abort).
+        if stack.contains(&inst.type_name) || stack.len() >= 64 {
+            continue;
+        }
+        if let Some(def) = user_defs.iter().find(|d| d.name == inst.type_name) {
+            stack.push(inst.type_name.clone());
+            collect_instances(
+                &def.sub_instances,
+                &name,
+                if scope.is_empty() {
+                    inst.line
+                } else {
+                    parent_line
+                },
+                user_defs,
+                local_types,
+                stack,
+                out,
+            );
+            stack.pop();
+        }
+    }
+}
+
+fn definition_identities(source: &str) -> Vec<DefinitionIdentity> {
+    let mut out = Vec::new();
+    for (i, line) in source.lines().enumerate() {
+        let trimmed = line.trim_start();
+        let rest = if trimmed.len() >= 9 && trimmed[..9].eq_ignore_ascii_case("component") {
+            trimmed[9..].trim_start()
+        } else {
+            continue;
+        };
+        let name: String = rest
+            .chars()
+            .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+            .collect();
+        if !name.is_empty() {
+            out.push(DefinitionIdentity {
+                name: name.to_ascii_lowercase(),
+                line: i + 1,
+            });
+        }
+    }
+    out
+}
+
+fn identity_advisories(doc: &Document, source: &str) -> Vec<Diagnostic> {
+    let mut out = Vec::new();
+    if !doc.components.defs.is_empty() {
+        if let Ok(lib) = crate::components::library::builtins() {
+            let builtin: BTreeSet<String> = lib.iter().map(|e| e.def.name.clone()).collect();
+            let defs = definition_identities(source);
+            for def in &doc.components.defs {
+                if builtin.contains(&def.name) {
+                    let line = defs
+                        .iter()
+                        .find(|d| d.name == def.name)
+                        .map(|d| d.line)
+                        .unwrap_or(0);
+                    let where_ = if line > 0 {
+                        format!(" (line {line})")
+                    } else {
+                        String::new()
+                    };
+                    out.push(Diagnostic::warning(format!(
+                        "Local definition '{}'{} shadows the standard-library component of the same name. \
+                         The local physics is used.",
+                        def.name, where_
+                    )));
+                }
+            }
+        }
+    }
+    out.extend(case_collision_advisories(source));
+    out
+}
+
+fn case_collision_advisories(source: &str) -> Vec<Diagnostic> {
+    use std::collections::BTreeMap;
+    let mut spellings: BTreeMap<String, Vec<(String, usize)>> = BTreeMap::new();
+    let mut depth = 0usize;
+    for (i, line) in source.lines().enumerate() {
+        let trimmed = line.trim_start();
+        if trimmed.starts_with('{') || trimmed.starts_with("//") || trimmed.starts_with('"') {
+            continue;
+        }
+        let head: String = trimmed
+            .chars()
+            .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+            .collect::<String>()
+            .to_ascii_lowercase();
+        // Body equations inside COMPONENT/FUNCTION/… expand to scoped names;
+        // a source-level T/t scan there is a false conflict across instances.
+        if matches!(
+            head.as_str(),
+            "component"
+                | "subsystem"
+                | "function"
+                | "procedure"
+                | "module"
+                | "table"
+                | "parametric"
+                | "plot"
+                | "dynamic"
+                | "linearize"
+        ) {
+            depth += 1;
+            continue;
+        }
+        if depth > 0 {
+            if head == "end" {
+                depth -= 1;
+            }
+            continue;
+        }
+        let ident: String = trimmed
+            .chars()
+            .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+            .collect();
+        if ident.is_empty() {
+            continue;
+        }
+        let rest = &trimmed[ident.len()..];
+        if !rest.trim_start().starts_with('=') {
+            continue;
+        }
+        let key = ident.to_ascii_lowercase();
+        if matches!(
+            key.as_str(),
+            "if" | "for" | "end" | "function" | "procedure" | "component" | "connect"
+        ) {
+            continue;
+        }
+        spellings.entry(key).or_default().push((ident, i + 1));
+    }
+    let mut out = Vec::new();
+    for (canon, hits) in spellings {
+        let mut distinct: Vec<&(String, usize)> = Vec::new();
+        for hit in &hits {
+            if !distinct.iter().any(|(s, _)| s.as_str() == hit.0) {
+                distinct.push(hit);
+            }
+        }
+        if distinct.len() < 2 {
+            continue;
+        }
+        let listed = distinct
+            .iter()
+            .map(|(s, line)| format!("'{s}' (line {line})"))
+            .collect::<Vec<_>>()
+            .join(" and ");
+        out.push(Diagnostic::warning(format!(
+            "Case-only naming conflict: {listed} are the same variable '{canon}'."
+        )));
+    }
+    out
+}
+
+fn merge_advisory_warnings(
+    mut unit_warnings: Vec<String>,
+    diagnostics: &[Diagnostic],
+) -> Vec<String> {
+    for diagnostic in diagnostics {
+        if diagnostic.severity != crate::diag::Severity::Warning {
+            continue;
+        }
+        if !diagnostic.message.contains("is not used by the selected")
+            && !diagnostic.message.contains("shadows the standard-library")
+            && !diagnostic.message.contains("Case-only naming conflict")
+        {
+            continue;
+        }
+        if unit_warnings.iter().any(|w| w == &diagnostic.message) {
+            continue;
+        }
+        unit_warnings.push(diagnostic.message.clone());
+    }
+    unit_warnings
+}
+
 fn collect_unit_warnings(equations: &[Equation], diagnostics: &mut Vec<Diagnostic>) {
     let mut seen = BTreeSet::new();
     for equation in equations {
@@ -2441,6 +2718,9 @@ fn syntax_failure_report(source: &str, err: &FreesError) -> CheckReport {
         diagnostics: vec![diagnostic],
         // A document that did not parse declares nothing.
         plots: Vec::new(),
+        connections: Vec::new(),
+        instances: Vec::new(),
+        definitions: Vec::new(),
     }
 }
 
@@ -2598,19 +2878,26 @@ fn variable_specs(
         let (name, spec) = override_spec(o)?;
         // Only real unknowns take a spec: `specs.keys()` defines the result
         // rows, so a stale override must not add a phantom variable.
-        if let Some(slot) = specs.get_mut(&name) {
-            *slot = spec;
+        // Public member paths (`hx.in.p`) are the same names Variable
+        // Information shows; map them onto the expanded `$` scalar.
+        if let Some(key) = guess_spec_key(&name, &specs) {
+            if let Some(slot) = specs.get_mut(&key) {
+                *slot = spec;
+            }
         }
     }
 
     for guess in &doc.guesses {
         let name = guess.name.to_ascii_lowercase();
-        match specs.get_mut(&name) {
+        let key = guess_spec_key(&name, &specs);
+        match key.and_then(|k| specs.get_mut(&k)) {
             Some(spec) => apply_guess(spec, guess),
-            None if knowns.contains(&name) => diagnostics.push(Diagnostic::warning(format!(
-                "GUESS for `{name}`: that name is a built-in constant, \
-                 not an unknown — the directive is ignored"
-            ))),
+            None if knowns.contains(&name) || knowns.contains(&name.replace('.', "$")) => {
+                diagnostics.push(Diagnostic::warning(format!(
+                    "GUESS for `{name}`: that name is a built-in constant, \
+                     not an unknown — the directive is ignored"
+                )))
+            }
             None => diagnostics.push(Diagnostic::warning(format!(
                 "GUESS for `{name}`: no such variable in the system — \
                  the directive is ignored"
@@ -2715,6 +3002,19 @@ fn override_spec(o: &VariableOverride) -> Result<(String, VarSpec)> {
             upper,
         },
     ))
+}
+
+/// Map a public GUESS name onto the solver key. Dotted member paths
+/// (`hx.in.p`) expand to `$`-flattened scalars (`hx$in$p`).
+fn guess_spec_key(name: &str, specs: &BTreeMap<String, VarSpec>) -> Option<String> {
+    if specs.contains_key(name) {
+        return Some(name.to_string());
+    }
+    let mangled = name.replace('.', "$");
+    if mangled != name && specs.contains_key(&mangled) {
+        return Some(mangled);
+    }
+    None
 }
 
 fn apply_guess(spec: &mut VarSpec, guess: &GuessDirective) {
@@ -4834,6 +5134,238 @@ mod tests {
         assert_close(value(&solution, "a"), 2.0);
         assert_eq!(solution.blocks.len(), 1);
         assert!(solution.blocks[0].is_scalar());
+    }
+
+    #[test]
+    fn a_dotted_guess_maps_onto_the_expanded_member() {
+        let report = check(
+            "\
+Resistor R1(R=10)
+VoltageSource V1(E=12)
+Ground G1()
+connect(V1.p, R1.a)
+connect(R1.b, V1.n, G1.port)
+GUESS R1.a.V = 12
+",
+        )
+        .expect("check");
+        assert!(
+            !report
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains("no such variable")),
+            "dotted GUESS should resolve, got {:?}",
+            report.diagnostics
+        );
+        assert!(
+            report
+                .instances
+                .iter()
+                .any(|i| i.name == "r1" && i.line >= 1),
+            "expected instance identity for R1, got {:?}",
+            report.instances
+        );
+    }
+
+    #[test]
+    fn local_component_shadowing_is_an_advisory() {
+        let report = check(
+            "\
+COMPONENT Pipe(in, out)
+  out.mdot = in.mdot
+END
+",
+        )
+        .expect("check");
+        assert!(
+            report
+                .unit_warnings
+                .iter()
+                .any(|w| w.contains("shadows the standard-library")),
+            "got {:?}",
+            report.unit_warnings
+        );
+        assert!(report
+            .definitions
+            .iter()
+            .any(|d| d.name == "pipe" && d.line == 1));
+    }
+
+    #[test]
+    fn case_only_assignment_conflict_is_an_advisory() {
+        let report = check("T = 300\nt = 2\n").expect("check");
+        assert!(
+            report
+                .unit_warnings
+                .iter()
+                .any(|w| w.contains("Case-only naming conflict")
+                    && w.contains("'T'")
+                    && w.contains("'t'")),
+            "got {:?}",
+            report.unit_warnings
+        );
+    }
+
+    #[test]
+    fn a_harmless_case_insensitive_reference_is_not_a_conflict() {
+        let report = check("T = 300\nx = T + 1\n").expect("check");
+        assert!(
+            report
+                .unit_warnings
+                .iter()
+                .all(|w| !w.contains("Case-only naming conflict")),
+            "got {:?}",
+            report.unit_warnings
+        );
+    }
+
+    #[test]
+    fn a_self_instantiating_component_does_not_overflow_check() {
+        // Identities walk before expansion; a cycle must not abort the process.
+        let report = check(
+            "\
+COMPONENT SelfLoop(a, b)
+  SelfLoop again(a, b)
+END
+SelfLoop L(s1, s2)
+s1.sig = 1
+",
+        )
+        .expect("check must return, not overflow");
+        assert!(!report.solvable);
+    }
+
+    #[test]
+    fn nested_child_identities_point_at_the_parent_scope() {
+        let source = "\
+COMPONENT Box(in, out)
+  PARAM fluid$
+  Pipe inner(in, out, fluid$=fluid$, L=1, D=0.05, rough=1e-4)
+END
+Source SUP(fluid$=Water, mdot=1, P=2e5, T=300)
+Box A(fluid$=Water)
+Box B(fluid$=Water)
+Sink RET()
+connect(SUP.out, A.in)
+connect(A.out, B.in)
+connect(B.out, RET.in)
+";
+        let report = check(source).expect("check");
+        let a = report
+            .instances
+            .iter()
+            .find(|i| i.name == "a.inner")
+            .expect("a.inner");
+        let b = report
+            .instances
+            .iter()
+            .find(|i| i.name == "b.inner")
+            .expect("b.inner");
+        let a_parent = report.instances.iter().find(|i| i.name == "a").unwrap();
+        let b_parent = report.instances.iter().find(|i| i.name == "b").unwrap();
+        assert_eq!(a.line, a_parent.line);
+        assert_eq!(b.line, b_parent.line);
+        assert_ne!(a.line, b.line, "repeated child names must keep their scope");
+        assert!(a_parent.local_type);
+        assert!(b_parent.local_type);
+    }
+
+    #[test]
+    fn a_dotted_guess_steers_the_same_scalar_as_variable_information() {
+        let source = "\
+Resistor R1(R=10)
+VoltageSource V1(E=12)
+Ground G1()
+connect(V1.p, R1.a)
+connect(R1.b, V1.n, G1.port)
+GUESS R1.a.V [0, 1]
+";
+        let report = check(source).expect("check");
+        assert!(
+            !report
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains("no such variable")),
+            "got {:?}",
+            report.diagnostics
+        );
+        let bounded = solve(source, &SolverSettings::default());
+        let free = solve(
+            "\
+Resistor R1(R=10)
+VoltageSource V1(E=12)
+Ground G1()
+connect(V1.p, R1.a)
+connect(R1.b, V1.n, G1.port)
+",
+            &SolverSettings::default(),
+        );
+        assert!(
+            bounded.is_err()
+                || free.as_ref().ok().is_some_and(|s| {
+                    s.values
+                        .get("r1$a$v")
+                        .or_else(|| s.values.get("r1$a$V"))
+                        .copied()
+                        != bounded
+                            .as_ref()
+                            .ok()
+                            .and_then(|s| s.values.get("r1$a$v").or_else(|| s.values.get("r1$a$V")))
+                            .copied()
+                }),
+            "bounds on R1.a.V should address the expanded scalar; bounded={bounded:?} free={free:?}"
+        );
+    }
+
+    #[test]
+    fn check_reports_connection_topology() {
+        let report = check(
+            "\
+Source SUP(fluid$=Water, mdot=1, P=2e5, T=300)
+Pipe LINE(fluid$=Water, L=10, D=0.05, rough=1e-4)
+Sink RET()
+connect(SUP.out, LINE.in)
+connect(LINE.out, RET.in)
+",
+        )
+        .expect("check");
+        assert!(
+            report
+                .connections
+                .iter()
+                .any(|c| c.endpoints.iter().any(|e| e.contains("sup"))
+                    && c.endpoints.iter().any(|e| e.contains("line"))),
+            "expected a SUP–LINE connection, got {:?}",
+            report.connections
+        );
+    }
+
+    #[test]
+    fn check_advises_on_an_inactive_variant_parameter() {
+        let report = check(
+            "\
+COMPONENT C(in, out)
+  PARAM model$ = a, r, q
+  out.mdot = in.mdot
+  VARIANT a REQUIRE r
+    out.P = in.P * r
+  END
+  VARIANT b REQUIRE q
+    out.P = in.P * q
+  END
+END
+C X(s1, s2, r=2, q=3)
+",
+        )
+        .expect("check");
+        assert!(
+            report
+                .unit_warnings
+                .iter()
+                .any(|w| w.contains("'q'") && w.contains("'a'")),
+            "expected inactive-parameter advisory, got {:?}",
+            report.unit_warnings
+        );
     }
 
     #[test]

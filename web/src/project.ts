@@ -10,7 +10,7 @@
 import { DEFAULT_STOP_CRITERIA } from './api'
 import { writeToHandle } from './saveTarget'
 import type { StopCriteria, UnitSystem } from './api'
-import type { VariableDraft } from './VariableInfoModal'
+import { DEFAULT_DRAFT, type VariableDraft } from './VariableInfoModal'
 import type { TableSpec } from './tables'
 import type { PlotSpec } from './plots/types'
 import type { PinnedSlider } from './sliders'
@@ -297,6 +297,62 @@ function migrate(p: FreesProject): FreesProject {
 function sanitizeFilename(name: string): string {
   const base = name.trim().replace(/\.frees$/i, '').replace(/[^\w.-]+/g, '_')
   return `${base || 'untitled'}.frees`
+}
+
+function draftIsCustom(draft: VariableDraft): boolean {
+  return (
+    draft.guess.trim() !== DEFAULT_DRAFT.guess ||
+    draft.lower.trim().toLowerCase() !== DEFAULT_DRAFT.lower.toLowerCase() ||
+    draft.upper.trim().toLowerCase() !== DEFAULT_DRAFT.upper.toLowerCase() ||
+    Boolean(draft.isUnitsUserSet && draft.units.trim()) ||
+    draft.uncertainty.trim() !== DEFAULT_DRAFT.uncertainty
+  )
+}
+
+/** Inputs that live in the project file but not in equation text. */
+export function projectOnlyNotes(slices: ProjectSlices & { digitizer?: unknown }): string[] {
+  const notes: string[] = []
+  const customGuesses = Object.keys(slices.varDrafts ?? {}).filter((name) =>
+    draftIsCustom(slices.varDrafts[name] ?? DEFAULT_DRAFT),
+  )
+  if (customGuesses.length) {
+    notes.push(`Variable Information for ${customGuesses.length} variable(s) (not written as GUESS)`)
+  }
+  if ((slices.tables ?? []).length) {
+    notes.push(`${slices.tables.length} GUI table(s) / imported map(s)`)
+  }
+  if ((slices.plots ?? []).length) {
+    notes.push(`${slices.plots.length} plot(s)`)
+  }
+  if ((slices.sliders ?? []).length) {
+    notes.push(`${slices.sliders!.length} slider override(s)`)
+  }
+  if (slices.schematic && Object.keys(slices.schematic).length) {
+    notes.push('schematic layout offsets')
+  }
+  if ((slices.spreadsheets ?? []).length) {
+    notes.push('legacy spreadsheet slice')
+  }
+  if ((slices.analyzers ?? []).length) {
+    notes.push('legacy analyzer slice')
+  }
+  if (slices.digitizer != null) {
+    notes.push('digitizer map data')
+  }
+  return notes
+}
+
+/** Download only the editor document — not the `.frees` project. */
+export function downloadEquationText(text: string, filename: string) {
+  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = sanitizeFilename(filename).replace(/\.frees$/i, '.txt')
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
 }
 
 /** Trigger a browser download of the project as a `.frees` JSON file. */

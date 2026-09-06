@@ -2,9 +2,9 @@
 name: PumpMap
 category: Component (fluid)
 summary: A pump whose head comes from a tabulated performance map (head vs volumetric flow).
-related: []
+related: [Pump, LiquidPumpMap]
 examples: []
-tags: [pumpmap, pump, map, component, fluid, acausal]
+tags: [pump, pump-family, pumpmap, map, data:rho-map, ports:in-out, flow-closed, energy-pressure, steady, map-driven, component, fluid, acausal]
 ---
 
 # PumpMap
