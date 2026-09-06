@@ -1,151 +1,142 @@
 [Topic: arch-async]
 # How a Solve Runs
 
-frees is a client–server system with an **asynchronous compute model**. Understanding the five hops explains most of what you see in the UI — why the Solve button waits on a green Check, why long solves show a progress state instead of freezing the page, and why the server can scale to many concurrent users.
+frees runs **entirely in your browser tab** via WebAssembly, with a background Web Worker compute model. Understanding the execution pipeline explains what you see in the UI — why the Solve button is gated on a green Check, how the UI remains responsive during heavy numerical computations, and how long solves can be cancelled instantly.
 
 ## The path of one solve
 
-1. **Editor → API.** Pressing F2 sends your document text to the API node (`POST /api/solve`).
-2. **Validate & enqueue.** The API node syntax-checks the text. If it parses, it pushes a compute task onto a **RabbitMQ** queue and immediately answers `202 Accepted` with a `jobId` — it never solves anything itself.
-3. **Compute.** A **compute worker** picks the task off the queue and runs the full pipeline: parse (ANTLR) → expand matrices, CALLs, and component networks → unit check → Tarjan blocking → Newton solve (→ DYNAMIC integration, if present).
-4. **Store.** The worker writes the result payload to **Redis** under the `jobId`.
-5. **Poll & render.** The frontend polls `GET /api/jobs/{jobId}` (or subscribes to the job's event stream) until the state is `COMPLETED` or `FAILED`, then renders the Solution, Tables, and Plots panels from the payload.
+1. **Editor → Web Worker.** Pressing Solve (F2) packages your document text, stop criteria, and variable info into a message dispatched to a dedicated background Web Worker (`worker.ts`).
+2. **Validate & Prepare.** The Web Worker parses the document using the Rust-based parser. If syntax errors or structural mismatches exist, a diagnostic envelope returns immediately without blocking.
+3. **Compute.** The Web Worker executes the full engine pipeline in WebAssembly:
+   - Expand component networks, matrix literals, and CALL procedures.
+   - Run dimensional unit consistency analysis.
+   - Perform Dulmage–Mendelsohn / Tarjan decomposition into lower triangular blocks.
+   - Solve each block using Newton–Raphson, with interval scanning and multi-start root-finding when "Find all solutions" is enabled.
+   - Integrate dynamic systems (`DYNAMIC ... END`) and differential-algebraic equations via IDA / Runge–Kutta when present.
+   - Evaluate thermodynamic properties through the integrated `rustprop` backend.
+4. **Publish & Render.** The Web Worker posts the structured solution payload back to the main thread. The React frontend updates the Variable Explorer, Diagrams, Plots, and Tables workbooks with zero network round-trip latency.
 
-## Why asynchronous?
+## Why in-browser Web Workers?
 
-- **No request timeouts.** A stiff transient or a deep parametric sweep can run for minutes; a synchronous HTTP request would time out at a proxy long before. A queued job runs as long as it needs.
-- **Horizontal scale.** Compute workers are stateless queue consumers — add replicas and throughput scales; many users share one deployment without blocking each other.
-- **Resilience.** If a worker dies mid-solve, the broker redelivers the task. frees treats a *redelivery* as evidence the job killed a worker and marks it `FAILED` instead of retrying it — a poison-message guard, so one pathological model can never crash-loop the compute tier.
+- **Zero backend infrastructure.** There are no remote API servers, no message brokers (RabbitMQ), and no database caches (Redis). Your models and calculations stay private on your machine.
+- **Offline capability.** Once the static page and WebAssembly module are loaded, frees functions completely offline without any internet connection.
+- **Responsive UI.** Heavy calculations and iterative sweeps run off the main thread in a Web Worker, ensuring smooth 60fps rendering and seamless interaction.
+- **Instant cancellation.** If a simulation or stiff ODE takes too long, clicking Stop immediately terminates the Web Worker and resets the compute state safely.
 
 ## Check before Solve
 
-`POST /api/check` runs everything *except* the solve: syntax, block expansion, unit verification, and structural solvability (degrees of freedom and a complete equation↔variable matching). It is fast and synchronous, which is why the editor gates the Solve button on a passing Check (F4) and re-requires it after any edit — structural errors are caught in milliseconds instead of a queued round-trip.
+Pressing Check (F4) runs validation without solving: syntax parsing, equation-variable matching, degree-of-freedom checking, and dimensional unit verification. Because it requires no numerical iterations, it completes in milliseconds and provides immediate diagnostic feedback in the editor gutter.
 
-[Related: arch-api, deploy-docker, api]
+[Related: arch-api, deploy-docker]
 
 [Topic: arch-api]
-# The REST API
+# The Web Worker & CLI Interface
 
-Everything the frontend does goes through the same public REST API — so anything the app can do, a script can do. Base path: `/api` (on a local Docker start, `http://localhost:8080/api`; through the frontend proxy, `http://localhost:5173/api`).
+The frees engine exposes a clean, unified JSON boundary between the Rust core and user interfaces. Whether running inside the browser Web Worker or from the terminal command line, the same document produces identical results.
 
-## Core endpoints
+## Headless CLI (`frees-cli`)
 
-| Method & path | Purpose |
-| --- | --- |
-| `POST /api/check` | Validate syntax + structural solvability (synchronous) |
-| `POST /api/solve` | Enqueue a solve → `202` + `jobId` |
-| `POST /api/solve/table` | Enqueue a parametric-table solve |
-| `GET  /api/jobs/{jobId}` | Poll job state and fetch the result payload |
-| `GET  /api/jobs/{jobId}/stream` | Server-sent event stream of the job's progress |
-| `POST /api/repl/evaluate` | Evaluate one REPL line against the cached session |
-| `POST /api/optimize`, `/api/optimize/multi` | Single-objective / NSGA-II Pareto optimization |
-| `POST /api/propplot`, `/api/psychart` | Property-chart / psychrometric-chart data |
-| `POST /api/curve-fit` | Fit a model to tabulated data |
-| `GET  /api/fluids` | The live supported-fluid list |
-| `GET  /api/health` | Topology health (see *Health & Scaling*) |
+For CI/CD pipelines, automated validation, and batch calculations, frees provides a standalone headless binary: `frees-cli`.
 
-## A solve from the command line
+```bash
+# Solve a document and print solved variables as JSON
+frees-cli solve model.frees
 
-The request body's `text` field carries the document exactly as you would type it in the editor:
+# Check syntax and solvability without solving
+frees-cli check model.frees
 
-```
-curl -s -X POST http://localhost:8080/api/solve \
-  -H 'Content-Type: application/json' \
-  -d '{"text": "P = 500 [kPa]\nVol = 0.05 [m^3]\nT = 25 [C]\nR = 0.287 [kJ/kg-K]\nP * Vol = m * R * T"}'
-{ "jobId": "…" }        <- 202 Accepted
+# Solve with full browser request options (guesses, bounds, multiple solutions)
+frees-cli solve --request '{"findAllSolutions": true}' model.frees
 
-curl -s http://localhost:8080/api/jobs/<jobId>
-{ "state": "COMPLETED", "solution": { … } }
+# Pipe document from stdin
+cat model.frees | frees-cli solve
 ```
 
-Poll until `state` is `COMPLETED` or `FAILED`; the completed payload contains the same solution, table, and plot data the UI renders. This is the whole integration surface — batch studies, CI checks on engineering calcs, or a notebook driving frees remotely are all this pattern in a loop.
+## JSON Request & Response Envelope
 
-[Related: arch-async, deploy-health, repl]
+The solver communicates via structured JSON envelopes:
+
+- **Inputs**: Document source text, `stopCriteria` (tolerances, iteration limits), `variableInfo` (guesses, bounds, display units), and optional `functionTables`.
+- **Outputs**: `variables` (display-converted values with units), `blocks` (Tarjan decomposition hierarchy), `residuals` (equation-level convergence), `stats` (iterations, elapsed time), and `solutions` (multiple solutions when requested).
+
+Because the headless CLI uses the exact same `frees_core` engine as the WebAssembly module, scripting workflows perfectly mirror browser behavior.
+
+[Related: arch-async, deploy-docker]
 
 [Topic: deploy-docker]
-# Run Locally with Docker
+# Local Development
 
-The whole stack is containerized and managed by one script at the repository root — you never start or stop server processes by hand:
+frees is written in Rust and TypeScript/React. Developing locally requires only standard Rust and Node.js toolchains:
 
-```
-./frees.sh start      # build images if needed, start everything
-./frees.sh status     # container status
-./frees.sh logs       # follow logs
-./frees.sh stop       # stop and remove containers
-./frees.sh restart    # stop + start
-./frees.sh build      # force a clean image rebuild
-```
+## Prerequisites
 
-After `start`: the app is at **http://localhost:5173** and the API at **http://localhost:8080/api**.
+- **Rust toolchain**: Managed via `rustup` with the `wasm32-unknown-unknown` target.
+- **Node.js**: **Node 22 is required** (Node 20 lacks WebIDL uncloneable features required by Vitest/JSDOM).
+- **wasm-pack**: Compiles Rust crates to WebAssembly.
 
-## What comes up
+## Building and Running
 
-`docker-compose.yml` wires the full topology:
+```bash
+# 1. Compile the Rust WebAssembly engine
+wasm-pack build crates/frees --release --target web --out-dir ../../web/src/wasm/pkg
 
-| Service | Role |
-| --- | --- |
-| `frontend` | nginx serving the built React bundle, reverse-proxying `/api` to the API node |
-| `api-node` | Spring Boot API tier — validates, enqueues, serves job status |
-| `compute-node` | Spring Boot compute tier — consumes the queue and solves |
-| `rabbitmq` | Task queue between the tiers |
-| `redis` | Job store and solved-session cache |
-| `otel-collector` + `jaeger` | Distributed tracing (optional, for development) |
+# 2. Install web dependencies and start the Vite development server
+cd web
+npm install
+npm run dev
 
-A healthcheck makes the frontend wait until the backend is actually up. The backend image builds with Gradle in a multi-stage Dockerfile; the frontend builds the Vite bundle and serves it from nginx.
-
-## Host-side development
-
-Tests and dev servers run on the host, outside Docker:
-
-```
-cd backend  && ./gradlew test     # backend test suite
-cd frontend && npm start          # Vite dev server (proxies /api to :8080)
-cd frontend && npm run build      # type-check + production build
+# 3. Run test suites
+cargo test --workspace -- --skip golden_corpus_parity
+npm test
 ```
 
-[Related: deploy-railway, deploy-health, arch-async]
+The web application is accessible at `http://localhost:5173`.
+
+[Related: deploy-railway, arch-async]
 
 [Topic: deploy-railway]
-# Deploy to Railway
+# Browser Deployment & Static Hosting
 
-The same two images run unchanged on [Railway](https://railway.app) (or any container platform). A working deployment is five services — the two frees images plus managed Redis and RabbitMQ:
+Because frees runs entirely client-side, deploying frees requires **no backend containers, databases, or microservices**.
 
-1. **backend (api)** — the backend image with the `api` Spring profile.
-2. **backend (compute)** — the same image with the `compute` profile; scale replicas here for solve throughput.
-3. **frontend** — the nginx image, with a public domain; it proxies `/api` over the private network to the API service.
-4. **Redis** and **RabbitMQ** — Railway's managed templates; point the backend services at them with environment variables.
+## Static Web Hosting
 
-Only the frontend needs a public domain — the backend tiers, Redis, and RabbitMQ stay on the private network.
+The entire application compiles into static HTML, JavaScript, CSS, and `.wasm` files. It can be hosted on any static web server or CDN platform:
 
-## Two production lessons (already baked in — keep them)
+- **GitHub Pages**
+- **Cloudflare Pages**
+- **Vercel**
+- **Netlify**
+- **Nginx / Caddy / Apache**
 
-- **The frontend nginx re-resolves the backend address on every request.** On Railway's private network the backend's IP changes on every redeploy; a plain proxy configuration caches the address once at startup, so every backend redeploy used to hang `/api` behind 504s until the *frontend* restarted. The shipped `nginx.conf.template` uses a resolver with a variable upstream — if you touch the frontend proxy config, preserve that pattern.
-- **The backend base image is pinned** (`eclipse-temurin:21-jre-noble`), because the floating `:21-jre` tag drifted to a distro whose SUNDIALS build is MPI-linked and aborts the JVM on the first transient solve. A build-time guard in the Dockerfile fails the image if that ever regresses. Don't "upgrade" the pin casually.
+## Production Build
 
-## Knowing what's deployed
+```bash
+# Build WebAssembly package
+wasm-pack build crates/frees --release --target web --out-dir ../../web/src/wasm/pkg
 
-The About dialog shows the exact git commit the running frontend was built from, linked to GitHub. On Railway this comes from the platform's `RAILWAY_GIT_COMMIT_SHA` at container start (locally, from a build argument) — so "is production actually running my fix?" is always one click to verify.
+# Build static production assets
+cd web
+npm run build
+```
 
-[Related: deploy-docker, deploy-health, arch-async]
+The output in `web/dist/` contains all assets needed for deployment. Serve the directory with any web server configured with standard MIME types (specifically `application/wasm` for `.wasm` files).
+
+[Related: deploy-docker, deploy-health]
 
 [Topic: deploy-health]
-# Health & Scaling
+# Worker Lifecycle & Deadlines
 
-`GET /api/health` reports the **whole topology** in one call — each dependency with its own status plus replica counts:
+Because frees executes in the user's browser, execution boundaries and resource safety are handled cooperatively:
 
-- **api** — the node answering the request.
-- **redis** / **rabbitmq** — connectivity to the job store and the broker.
-- **compute** — how many workers are live, measured as actual consumers on the task queue (not a static config value). Zero consumers means solves will queue forever: that is the first thing to check when jobs sit in `PENDING`.
-- **frontend** — reachability of the static tier.
+## Timeouts and Deadlines
 
-The endpoint returns **200** when the system is `UP` or `DEGRADED` (something non-critical is down) and **503** when a critical dependency is `DOWN` — point your platform healthchecks and uptime monitors at it directly.
+- **Cooperative Deadlines**: For parametric sweeps, optimization loops, and Monte Carlo runs, frees enforces cooperative deadlines (default 120s budget) checked between iterations to prevent runaway computations.
+- **Worker Termination**: If an equation system causes an uncooperative infinite loop, clicking the UI's Stop button immediately terminates the Web Worker thread and spawns a fresh worker instance.
 
-## Scaling the compute tier
+## Memory and Bundle Budgets
 
-Compute workers are stateless queue consumers: scale solve throughput by adding `compute` replicas, with no coordination or sticky state. Each solve occupies one worker for its duration, so size the tier to your expected concurrent-solve load.
+- **WASM Memory**: WebAssembly linear memory grows dynamically as needed for large systems and matrices, bounded by browser tab memory limits.
+- **Binary Size**: The release WebAssembly binary is strictly budgeted and monitored in CI (~3.1 MB uncompressed / ~1.2 MB gzipped), including complete fluid property tables and 295 physical components.
 
-## The poison-message guard
-
-If a worker dies mid-job, RabbitMQ redelivers the task. A redelivered task is *presumed lethal* — the consumer marks it `FAILED` rather than solving it again, so one pathological model cannot take the whole tier down in a crash loop. The behavior is configurable (`frees.compute.drop-redelivered`) but on by default; leave it on in production.
-
-[Related: arch-async, deploy-docker, deploy-railway]
+[Related: arch-async, deploy-railway]

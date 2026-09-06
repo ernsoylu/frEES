@@ -8,6 +8,7 @@ description = "Headless frees engine: solve documents and replay the parity corp
 
 [dependencies]
 frees-core = { workspace = true }
+frees = { workspace = true }
 serde_json = { workspace = true }
 
 [features]

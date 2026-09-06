@@ -546,6 +546,34 @@ pub fn solve_with_parametric_tables(
     prepared.solve_with_pins(&[], parametric)
 }
 
+/// Bounded multiple-solution search (up to 32 solutions) using interval scanning and multi-start Newton.
+pub fn solve_all(
+    source: &str,
+    settings: &SolverSettings,
+) -> std::result::Result<Vec<Solution>, SolveFailure> {
+    solve_all_with_tables(source, settings, &[], &[])
+}
+
+/// [`solve_all`] with externally supplied per-variable guesses/bounds.
+pub fn solve_all_with(
+    source: &str,
+    settings: &SolverSettings,
+    overrides: &[VariableOverride],
+) -> std::result::Result<Vec<Solution>, SolveFailure> {
+    solve_all_with_tables(source, settings, overrides, &[])
+}
+
+/// [`solve_all_with`] with externally supplied Function Table definitions.
+pub fn solve_all_with_tables(
+    source: &str,
+    settings: &SolverSettings,
+    overrides: &[VariableOverride],
+    extra_tables: &[crate::parser::defs::FunctionTableDef],
+) -> std::result::Result<Vec<Solution>, SolveFailure> {
+    let mut prepared = PreparedDocument::new(source, settings, overrides, extra_tables)?;
+    prepared.solve_all_with_pins(&[], None)
+}
+
 // ---------------------------------------------------------------------------
 // The transient pass — port of EquationSystemSolver's DYNAMIC wiring
 // ---------------------------------------------------------------------------

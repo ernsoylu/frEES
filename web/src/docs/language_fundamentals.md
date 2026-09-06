@@ -35,7 +35,7 @@ d = 0.5 * g# * t^2
 [Topic: math-funcs]
 # Mathematical Functions
 
-frees provides a full set of scalar math functions. All are differentiable, so the solver can build Jacobians for any equation that uses them.
+frees provides a full set of scalar math functions. Built-in functions are supported by the solver's Jacobian engine via symbolic automatic differentiation for smooth expressions, with numerical finite-difference fallbacks for non-smooth or complex operations.
 
 ## Trigonometric (angles in radians)
 `sin`, `cos`, `tan` and their inverses `arcsin`, `arccos`, `arctan` take and return **radians**. Work in degrees with a unit annotation or `Convert`:
@@ -203,10 +203,10 @@ T = 25 [C]         { stored as 298.15 K }
 The full list of recognized units and built-in constants lives in the reference table below (`[Component: UnitsReference]`).
 
 ## Results are SI
-A computed result has the SI unit of its expression — `P * Vol = m * R * T` gives `m` in kg, `q = k*A*dT/L` gives watts. To display in engineering units, either convert explicitly or annotate a derived variable:
+A computed result has the SI unit of its expression — `P * Vol = m * R * T` gives `m` in kg, `q = k*A*dT/L` gives watts. To display in engineering units, either convert explicitly, set display units in the Variable Information window, or use the `Convert` function:
 ```
-P_kPa = P / 1000          { kPa, by division }
-P_kPa2 [kPa] = P          { annotated form }
+P_kPa  = P / 1000                { kPa, by division }
+P_kPa2 = P * Convert(Pa, kPa)    { using Convert }
 ```
 
 ## The Convert() function
@@ -224,10 +224,9 @@ T_k = ConvertTemp(F, K, 32)    { 273.15 K }
 
 ## Worked example
 ```
-{ Pressure in psi, result wanted in kPa }
-P_psi = 100 [psi]
-P_Pa  = P_psi * Convert(psi, Pa)     { scaling only }
-P_kPa = P_Pa / 1000                  { 689.5 kPa }
+{ Pressure input in psi, converted to kPa }
+P = 100 [psi]                 { stored as 689475.7 Pa internally }
+P_kPa = P * Convert(Pa, kPa)  { converts SI Pa to kPa: 689.5 kPa }
 ```
 
 > **Common pitfall:** `Convert` works for differences and ratios (kPa, ft², mph); it does **not** handle temperature offsets. Mixing them — e.g. `Convert(C, K)` — gives a wrong result. Always use `ConvertTemp` for absolute temperatures.

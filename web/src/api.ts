@@ -484,8 +484,9 @@ export async function optimize(
   variableInfo: VariableInfo[],
   displayUnitSystem: UnitSystem,
   params: OptimizeParams,
+  functionTables: FunctionTableDto[] = [],
 ): Promise<OptimizeResponse> {
-  const request = JSON.stringify({ stopCriteria, variableInfo, displayUnitSystem, ...params })
+  const request = JSON.stringify({ stopCriteria, variableInfo, displayUnitSystem, functionTables, ...params })
   try {
     return JSON.parse(await wasmOptimize(text, request)) as OptimizeResponse
   } catch (e) {
@@ -537,8 +538,9 @@ export async function optimizeMulti(
   stopCriteria: StopCriteria,
   variableInfo: VariableInfo[],
   params: MultiObjectiveParams,
+  functionTables: FunctionTableDto[] = [],
 ): Promise<ParetoResponse> {
-  const request = JSON.stringify({ stopCriteria, variableInfo, ...params })
+  const request = JSON.stringify({ stopCriteria, variableInfo, functionTables, ...params })
   try {
     return JSON.parse(await wasmOptimizeMulti(text, request)) as ParetoResponse
   } catch (e) {

@@ -18,6 +18,7 @@ import {
 import {
   optimize,
   optimizeMulti,
+  FunctionTableDto,
   MultiObjectiveParams,
   OptimizeMethod,
   OptimizeResponse,
@@ -215,6 +216,7 @@ interface Props {
   complexMode: boolean
   variableInfo: VariableInfo[]
   unitSystem: UnitSystem
+  functionTables?: FunctionTableDto[]
   onClose: () => void
 }
 
@@ -230,6 +232,7 @@ export default function MinMaxModal({
   complexMode,
   variableInfo,
   unitSystem,
+  functionTables,
   onClose,
 }: Readonly<Props>) {
   const [mode, setMode] = useState<Mode>('single')
@@ -328,15 +331,22 @@ export default function MinMaxModal({
     setRunning(true)
     try {
       if (mode === 'single') {
-        const response = await optimize(text, { ...stopCriteria, complexMode }, variableInfo, unitSystem, {
-          objective: objective ?? '',
-          decisions,
-          lowers: decisions.map((name) => Number(bounds[name].lower)),
-          uppers: decisions.map((name) => Number(bounds[name].upper)),
-          method,
-          maximize: goal === 'maximize',
-          constraints: constraintLines(),
-        })
+        const response = await optimize(
+          text,
+          { ...stopCriteria, complexMode },
+          variableInfo,
+          unitSystem,
+          {
+            objective: objective ?? '',
+            decisions,
+            lowers: decisions.map((name) => Number(bounds[name].lower)),
+            uppers: decisions.map((name) => Number(bounds[name].upper)),
+            method,
+            maximize: goal === 'maximize',
+            constraints: constraintLines(),
+          },
+          functionTables ?? [],
+        )
         setResult(response)
       } else {
         const params: MultiObjectiveParams = {
@@ -349,7 +359,15 @@ export default function MinMaxModal({
           generations,
           constraints: constraintLines(),
         }
-        setPareto(await optimizeMulti(text, { ...stopCriteria, complexMode }, variableInfo, params))
+        setPareto(
+          await optimizeMulti(
+            text,
+            { ...stopCriteria, complexMode },
+            variableInfo,
+            params,
+            functionTables ?? [],
+          ),
+        )
       }
     } catch (e) {
       const message = `Could not reach the solver backend: ${String(e)}`

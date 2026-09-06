@@ -194,6 +194,7 @@ dependencies = [
 name = "frees-cli"
 version = "0.1.0"
 dependencies = [
+ "frees",
  "frees-core",
  "serde_json",
 ]

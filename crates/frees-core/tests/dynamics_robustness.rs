@@ -740,6 +740,7 @@ fn opt_problem(
         method: None,
         maximize: false,
         constraints: Vec::new(),
+        extra_tables: Vec::new(),
     }
 }
 
@@ -822,6 +823,7 @@ fn pareto_problem(population_size: usize, generations: usize) -> pareto::Problem
         generations,
         seed: 42,
         constraints: Vec::new(),
+        extra_tables: Vec::new(),
     }
 }
 

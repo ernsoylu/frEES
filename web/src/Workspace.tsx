@@ -14,6 +14,7 @@ import {
 import {
   IconAdjustments,
   IconAdjustmentsHorizontal,
+  IconChevronLeft,
   IconChevronRight,
   IconComponents,
   IconPencil,
@@ -413,9 +414,29 @@ interface Props {
   onPin?: (v: VariableResult) => void
   /** The slider strip itself, rendered above the variable list. */
   sliderStrip?: React.ReactNode
+  /** Total number of solutions found (for multi-solution exploration). */
+  solutionsCount?: number
+  /** Active solution index (0-based). */
+  selectedSolutionIndex?: number
+  /** Callback when switching between solutions. */
+  onSelectSolutionIndex?: (index: number) => void
 }
 
-export default function Workspace({ variables, replNames, components: instances, onEdit, onTunePid, diagnostics, pinnedNames, pinnableNames, onPin, sliderStrip }: Readonly<Props>) {
+export default function Workspace({
+  variables,
+  replNames,
+  components: instances,
+  onEdit,
+  onTunePid,
+  diagnostics,
+  pinnedNames,
+  pinnableNames,
+  onPin,
+  sliderStrip,
+  solutionsCount,
+  selectedSolutionIndex,
+  onSelectSolutionIndex,
+}: Readonly<Props>) {
   const [query, setQuery] = useState('')
   // The input stays urgent (every keystroke paints immediately); the heavy
   // filter + regroup below trails behind at transition priority, so typing in
@@ -485,6 +506,33 @@ export default function Workspace({ variables, replNames, components: instances,
           )}
         </Group>
       </Group>
+
+      {solutionsCount !== undefined && solutionsCount > 1 && (
+        <Group gap="xs" mb="sm" align="center">
+          <Text size="xs" fw={500} c="dimmed">Solution:</Text>
+          <ActionIcon
+            size="xs"
+            variant="subtle"
+            disabled={(selectedSolutionIndex ?? 0) <= 0}
+            onClick={() => onSelectSolutionIndex?.((selectedSolutionIndex ?? 0) - 1)}
+            aria-label="Previous solution"
+          >
+            <IconChevronLeft size={14} />
+          </ActionIcon>
+          <Badge size="sm" variant="filled" color="blue">
+            {(selectedSolutionIndex ?? 0) + 1} of {solutionsCount}
+          </Badge>
+          <ActionIcon
+            size="xs"
+            variant="subtle"
+            disabled={(selectedSolutionIndex ?? 0) >= solutionsCount - 1}
+            onClick={() => onSelectSolutionIndex?.((selectedSolutionIndex ?? 0) + 1)}
+            aria-label="Next solution"
+          >
+            <IconChevronRight size={14} />
+          </ActionIcon>
+        </Group>
+      )}
 
       {empty ? (
         <Text c="dimmed" size="sm">

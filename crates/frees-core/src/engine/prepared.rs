@@ -183,65 +183,11 @@ impl PreparedDocument {
         })
     }
 
-    /// Solve with a given set of pinned variable values and optional parametric accessors.
-    pub fn solve_with_pins(
+    /// Ensure structural preparation exists and pins are updated with current numeric values.
+    pub fn ensure_prep(
         &mut self,
         pinned: &[(String, f64)],
-        parametric: Option<&ParametricAccessors>,
-    ) -> std::result::Result<Solution, SolveFailure> {
-        self.solve_with_pins_and_warm(pinned, parametric, None)
-    }
-
-    /// Solve with a given set of pinned variable values, optional parametric accessors, and optional warm-start scope.
-    pub fn solve_with_pins_and_warm(
-        &mut self,
-        pinned: &[(String, f64)],
-        parametric: Option<&ParametricAccessors>,
-        warm_start: Option<&Scope>,
-    ) -> std::result::Result<Solution, SolveFailure> {
-        let base_ctx = {
-            let mut ctx = EvalContext::with_defs(&self.doc.defs);
-            ctx.parametric = parametric;
-            ctx
-        };
-
-        // ODE-only shortcut
-        if self.ordinary_equations.is_empty() && !self.doc.dynamics.is_empty() {
-            let ode_tables = solve_dynamic_systems(
-                &self.doc,
-                &Scope::default(),
-                &self.settings,
-                &BTreeMap::new(),
-                base_ctx,
-                None,
-            )?;
-            return Ok(Solution {
-                values: BTreeMap::new(),
-                display_names: complete_display_names(
-                    &self.doc.display_names,
-                    &self.ordinary_equations,
-                ),
-                blocks: Vec::new(),
-                block_equations: Vec::new(),
-                residuals: Vec::new(),
-                stats: SolveStats {
-                    iterations: 0,
-                    max_residual: 0.0,
-                    elapsed_ms: None,
-                },
-                inferred_units: BTreeMap::new(),
-                unit_warnings: Vec::new(),
-                diagnostics: self.diagnostics.clone(),
-                iterations: 0,
-                component_instances: self.component_instances.clone(),
-                component_connections: self.component_connections.clone(),
-                ode_tables,
-                uncertainties: BTreeMap::new(),
-                uncertainty_contributions: BTreeMap::new(),
-                plots: self.doc.blocks.plots.clone(),
-            });
-        }
-
+    ) -> std::result::Result<(), SolveFailure> {
         let matches = self.prep.as_ref().is_some_and(|p| {
             p.pinned_names.len() == pinned.len()
                 && p.pinned_names
@@ -339,6 +285,77 @@ impl PreparedDocument {
             pin.source_text.clear();
             let _ = write!(pin.source_text, "{name} = {value}");
         }
+
+        Ok(())
+    }
+
+    /// Solve with a given set of pinned variable values and optional parametric accessors.
+    pub fn solve_with_pins(
+        &mut self,
+        pinned: &[(String, f64)],
+        parametric: Option<&ParametricAccessors>,
+    ) -> std::result::Result<Solution, SolveFailure> {
+        self.solve_with_pins_and_warm(pinned, parametric, None)
+    }
+
+    /// Solve with a given set of pinned variable values, optional parametric accessors, and optional warm-start scope.
+    pub fn solve_with_pins_and_warm(
+        &mut self,
+        pinned: &[(String, f64)],
+        parametric: Option<&ParametricAccessors>,
+        warm_start: Option<&Scope>,
+    ) -> std::result::Result<Solution, SolveFailure> {
+        // ODE-only shortcut
+        if self.ordinary_equations.is_empty() && !self.doc.dynamics.is_empty() {
+            let base_ctx = {
+                let mut ctx = EvalContext::with_defs(&self.doc.defs);
+                ctx.parametric = parametric;
+                ctx
+            };
+            let ode_tables = solve_dynamic_systems(
+                &self.doc,
+                &Scope::default(),
+                &self.settings,
+                &BTreeMap::new(),
+                base_ctx,
+                None,
+            )?;
+            return Ok(Solution {
+                values: BTreeMap::new(),
+                display_names: complete_display_names(
+                    &self.doc.display_names,
+                    &self.ordinary_equations,
+                ),
+                blocks: Vec::new(),
+                block_equations: Vec::new(),
+                residuals: Vec::new(),
+                stats: SolveStats {
+                    iterations: 0,
+                    max_residual: 0.0,
+                    elapsed_ms: None,
+                },
+                inferred_units: BTreeMap::new(),
+                unit_warnings: Vec::new(),
+                diagnostics: self.diagnostics.clone(),
+                iterations: 0,
+                component_instances: self.component_instances.clone(),
+                component_connections: self.component_connections.clone(),
+                ode_tables,
+                uncertainties: BTreeMap::new(),
+                uncertainty_contributions: BTreeMap::new(),
+                plots: self.doc.blocks.plots.clone(),
+            });
+        }
+
+        self.ensure_prep(pinned)?;
+
+        let base_ctx = {
+            let mut ctx = EvalContext::with_defs(&self.doc.defs);
+            ctx.parametric = parametric;
+            ctx
+        };
+
+        let prep = self.prep.as_mut().expect("prep just ensured");
 
         match &prep.dense {
             Some(plan) => {
@@ -452,11 +469,42 @@ impl PreparedDocument {
             }
         };
         let iterations = self.stepping_iterations + block_iterations;
+        Self::assemble_solution(
+            &self.doc,
+            &self.settings,
+            &self.overrides,
+            &self.uncertainty_exprs,
+            &self.component_instances,
+            &self.component_connections,
+            prep,
+            &prep.work_scope,
+            iterations,
+            base_ctx,
+            bridge.as_ref(),
+            solve_settings,
+        )
+    }
 
+    /// Assemble a Solution struct from a solved scope.
+    #[allow(clippy::too_many_arguments)]
+    fn assemble_solution(
+        doc: &Document,
+        settings: &SolverSettings,
+        overrides: &[VariableOverride],
+        uncertainty_exprs: &BTreeMap<String, Expr>,
+        component_instances: &[crate::components::metadata::ComponentInstMeta],
+        component_connections: &[crate::components::expander::Connection],
+        prep: &DocumentPrep,
+        scope: &Scope,
+        iterations: usize,
+        base_ctx: EvalContext<'_>,
+        bridge: Option<&crate::ode::accessors::DynamicAccessorContext<'_>>,
+        solve_settings: &SolverSettings,
+    ) -> std::result::Result<Solution, SolveFailure> {
         let mut diagnostics = prep.diagnostics.clone();
-        check_bounds(&prep.specs, &prep.work_scope, &mut diagnostics);
+        check_bounds(&prep.specs, scope, &mut diagnostics);
 
-        let stated = override_uncertainties(&self.overrides);
+        let stated = override_uncertainties(overrides);
         let mut unc_specs: BTreeMap<String, crate::analysis::uncertainty::UncertaintySpec> = prep
             .specs
             .iter()
@@ -472,11 +520,16 @@ impl PreparedDocument {
                 )
             })
             .collect();
+        let mut scope_mut = scope.clone();
+        let ctx = EvalContext {
+            ode: bridge.map(|b| b as &dyn OdeTableAccessors),
+            ..base_ctx
+        };
         let propagation = crate::analysis::uncertainty::analyze(
             &prep.subsystem,
-            &mut prep.work_scope,
+            &mut scope_mut,
             &mut unc_specs,
-            &self.uncertainty_exprs,
+            uncertainty_exprs,
             ctx,
             |eqs, warm| {
                 solve_equation_list(eqs, solve_settings, &prep.specs, ctx, Some(warm))
@@ -489,35 +542,25 @@ impl PreparedDocument {
             .keys()
             .filter(|name| !crate::parser::toplevel::is_ignored_sink(name))
             .map(|name| {
-                let value = prep.work_scope.get(name).copied().unwrap_or(f64::NAN);
+                let value = scope_mut.get(name).copied().unwrap_or(f64::NAN);
                 (name.clone(), value)
             })
             .collect();
-        for (name, value) in &prep.work_scope {
+        for (name, value) in &scope_mut {
             if name.starts_with(crate::analysis::uncertainty::UNCERTAINTY_OF_FN) {
                 solved.insert(name.clone(), *value);
             }
         }
 
-        let (residuals, max_residual) = residuals_at(
-            &prep.subsystem,
-            &prep.report.blocks,
-            &prep.work_scope,
-            base_ctx,
-        );
+        let (residuals, max_residual) =
+            residuals_at(&prep.subsystem, &prep.report.blocks, &scope_mut, base_ctx);
         let block_equations = block_equation_texts(&prep.report.blocks, &prep.subsystem);
 
         let mut inferred_units = prep.unit_report.inferred.clone();
         inferred_units.extend(prep.declared_units.clone());
 
-        let ode_tables = solve_dynamic_systems(
-            &self.doc,
-            &prep.work_scope,
-            &self.settings,
-            &prep.specs,
-            base_ctx,
-            bridge.as_ref(),
-        )?;
+        let ode_tables =
+            solve_dynamic_systems(doc, &scope_mut, settings, &prep.specs, base_ctx, bridge)?;
 
         Ok(Solution {
             values: solved,
@@ -534,13 +577,106 @@ impl PreparedDocument {
             unit_warnings: prep.unit_report.warnings.clone(),
             diagnostics,
             iterations,
-            component_instances: self.component_instances.clone(),
-            component_connections: self.component_connections.clone(),
+            component_instances: component_instances.to_vec(),
+            component_connections: component_connections.to_vec(),
             ode_tables,
             uncertainties: propagation.uncertainties,
             uncertainty_contributions: propagation.contributions,
-            plots: self.doc.blocks.plots.clone(),
+            plots: doc.blocks.plots.clone(),
         })
+    }
+
+    /// Solve finding all roots bounded up to MAX_SOLUTIONS (32) for the document.
+    pub fn solve_all(&mut self) -> std::result::Result<Vec<Solution>, SolveFailure> {
+        self.solve_all_with_pins(&[], None)
+    }
+
+    /// Solve finding all roots bounded up to MAX_SOLUTIONS (32) for a given set of pinned variable values and optional parametric accessors.
+    pub fn solve_all_with_pins(
+        &mut self,
+        pinned: &[(String, f64)],
+        parametric: Option<&ParametricAccessors>,
+    ) -> std::result::Result<Vec<Solution>, SolveFailure> {
+        if self.ordinary_equations.is_empty() {
+            let sol = self.solve_with_pins(pinned, parametric)?;
+            return Ok(vec![sol]);
+        }
+
+        self.ensure_prep(pinned)?;
+
+        let base_ctx = {
+            let mut ctx = EvalContext::with_defs(&self.doc.defs);
+            ctx.parametric = parametric;
+            ctx
+        };
+
+        let prep = self.prep.as_ref().expect("prep just ensured");
+
+        let inner_settings = relaxed_ode_settings(&self.settings, 1e-7);
+        let bridge = self
+            .ode_accessors
+            .then(|| accessor_bridge(&self.doc, &inner_settings, &prep.specs, base_ctx));
+        let relaxed;
+        let solve_settings = if self.ode_accessors {
+            relaxed = relaxed_ode_settings(&self.settings, 1e-4);
+            &relaxed
+        } else {
+            &self.settings
+        };
+
+        let root_specs: BTreeMap<String, crate::analysis::allroots::RootSpec> = prep
+            .specs
+            .iter()
+            .map(|(k, s)| {
+                (
+                    k.clone(),
+                    crate::analysis::allroots::RootSpec {
+                        guess: s.guess,
+                        lower: s.lower,
+                        upper: s.upper,
+                    },
+                )
+            })
+            .collect();
+
+        let mut solver = crate::analysis::allroots::AllRootsSolver::new(
+            *solve_settings,
+            &root_specs,
+            &self.doc.defs,
+            &prep.subsystem,
+        );
+
+        let scopes = solver
+            .find_all(&prep.report.blocks, &prep.work_scope)
+            .map_err(|err| SolveFailure {
+                error: err,
+                failed_block_index: None,
+                partial: None,
+            })?;
+
+        self.solve_count += scopes.len();
+        let iterations = self.stepping_iterations + solver.total_iterations();
+
+        let mut solutions = Vec::with_capacity(scopes.len());
+        for scope in &scopes {
+            let sol = Self::assemble_solution(
+                &self.doc,
+                &self.settings,
+                &self.overrides,
+                &self.uncertainty_exprs,
+                &self.component_instances,
+                &self.component_connections,
+                prep,
+                scope,
+                iterations,
+                base_ctx,
+                bridge.as_ref(),
+                solve_settings,
+            )?;
+            solutions.push(sol);
+        }
+
+        Ok(solutions)
     }
 
     /// How many times full block preparation ran (cache misses).

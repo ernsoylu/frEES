@@ -453,3 +453,60 @@ fn the_repl_calls_the_injected_table_and_the_request_wins_there() {
         "REPL: the request's table wins over the document's"
     );
 }
+
+#[test]
+fn optimize_evaluates_through_an_injected_table() {
+    let request = json!({
+        "objective": "y",
+        "decision": "x",
+        "lower": 0.0,
+        "upper": 3.0,
+        "maximize": false,
+        "functionTables": [fcurve_dto()],
+    });
+    let out: Value = serde_json::from_str(&frees::optimize(
+        "y = (fcurve(x) - 15)^2\n",
+        &request.to_string(),
+    ))
+    .expect("valid JSON out");
+    assert_eq!(out["success"], true, "{out}");
+    let opt_x = out["decision"]["value"].as_f64().unwrap();
+    assert!(
+        (opt_x - 1.5).abs() < 1e-2,
+        "optimal x = {opt_x}, want ≈ 1.5"
+    );
+}
+
+#[test]
+fn optimize_multi_evaluates_through_an_injected_table() {
+    let request = json!({
+        "objectives": ["f", "g"],
+        "maximize": [false, false],
+        "decisions": ["x"],
+        "lowers": [0.0],
+        "uppers": [3.0],
+        "populationSize": 12,
+        "generations": 6,
+        "functionTables": [fcurve_dto()],
+    });
+    let out: Value = serde_json::from_str(&frees::optimize_multi(
+        "f = (fcurve(x) - 10)^2\ng = (fcurve(x) - 20)^2\n",
+        &request.to_string(),
+    ))
+    .expect("valid JSON out");
+    assert_eq!(out["success"], true, "{out}");
+    assert!(!out["front"].as_array().unwrap().is_empty());
+}
+
+#[test]
+fn find_all_solutions_returns_multiple_solutions() {
+    let out = solve(
+        "x^2 = 4\ny = x + 10\n",
+        &json!({ "findAllSolutions": true }),
+    );
+    assert_eq!(out["success"], true, "{out}");
+    let sols = out["solutions"].as_array().expect("solutions array");
+    assert_eq!(sols.len(), 2, "Expected 2 solutions: {out}");
+    // Check backwards compatibility: solutions[0].variables agrees with variables
+    assert_eq!(sols[0]["variables"], out["variables"]);
+}

@@ -132,6 +132,8 @@ pub struct Problem {
     /// `expr <= value` / `expr >= value` / `expr = value`, RHS a numeric
     /// constant. Empty for an unconstrained run.
     pub constraints: Vec<String>,
+    /// Externally supplied Function Table definitions.
+    pub extra_tables: Vec<crate::parser::defs::FunctionTableDef>,
 }
 
 impl Problem {
@@ -158,6 +160,7 @@ impl Problem {
             method: Some("brent".to_string()),
             maximize,
             constraints: Vec::new(),
+            extra_tables: Vec::new(),
         }
     }
 
@@ -430,8 +433,13 @@ fn validate(problem: &Problem) -> Result<()> {
 
 /// The Java `unconstrainedOptimize`.
 fn unconstrained_optimize(problem: &Problem) -> Result<OptimizeResult> {
-    let mut prep = PreparedDocument::new(&problem.text, &problem.settings, &problem.overrides, &[])
-        .map_err(|failure| failure.error)?;
+    let mut prep = PreparedDocument::new(
+        &problem.text,
+        &problem.settings,
+        &problem.overrides,
+        &problem.extra_tables,
+    )
+    .map_err(|failure| failure.error)?;
 
     if problem.decisions.len() == 1 && problem.is_brent() {
         let mut ctx = Ctx::new(problem, &mut prep, "", MAX_EVALUATIONS);
@@ -488,8 +496,13 @@ fn constrained_optimize(problem: &Problem) -> Result<OptimizeResult> {
         .collect();
 
     let base_source = make_augmented_base_source(&problem.text, &all_constraints, &con_var_prefix);
-    let mut prep = PreparedDocument::new(&base_source, &problem.settings, &problem.overrides, &[])
-        .map_err(|failure| failure.error)?;
+    let mut prep = PreparedDocument::new(
+        &base_source,
+        &problem.settings,
+        &problem.overrides,
+        &problem.extra_tables,
+    )
+    .map_err(|failure| failure.error)?;
 
     let mut lambda = vec![0.0f64; equalities.len()];
     let mut rho = if equalities.is_empty() {
@@ -965,8 +978,13 @@ fn solve_candidate(
     con_var_prefix: &str,
 ) -> Result<Solution> {
     let base_source = make_augmented_base_source(&problem.text, constraints, con_var_prefix);
-    let mut prep = PreparedDocument::new(&base_source, &problem.settings, &problem.overrides, &[])
-        .map_err(|failure| failure.error)?;
+    let mut prep = PreparedDocument::new(
+        &base_source,
+        &problem.settings,
+        &problem.overrides,
+        &problem.extra_tables,
+    )
+    .map_err(|failure| failure.error)?;
     let pins: Vec<(String, f64)> = problem
         .decisions
         .iter()
@@ -1606,6 +1624,7 @@ mod tests {
             method: None,
             maximize: false,
             constraints: Vec::new(),
+            extra_tables: Vec::new(),
         }
     }
 
