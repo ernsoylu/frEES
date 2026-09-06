@@ -11,13 +11,13 @@
 // behaviour they always were. Reading is tablesGrid/csv.parseCsvTable.
 
 import { useMemo, useState } from 'react'
-import { Button, FileInput, Group, Modal, Select, Stack, Text, TextInput } from '@mantine/core'
+import { Button, Checkbox, Code, FileInput, Group, Modal, Select, Stack, Text, TextInput } from '@mantine/core'
 import { IconFileTypeCsv } from '@tabler/icons-react'
 import { FunctionTableSpec, identifier, TableSpec } from '../tables'
-import { checkFunctionName, functionSpecFromXY } from './composeTables'
+import { checkFunctionName, functionSpecFromXY, type ReductionChoice } from './composeTables'
 import { FunctionNameHints, FunctionPrecedenceNote } from './FunctionNameHints'
-import { parseCsvTable, type CsvTable } from './csv'
-import { TABLE_MAX_ROWS } from './tableGridModel'
+import FunctionReductionControls from './FunctionReductionControls'
+import { parseCsvTable, type CsvTable, type CsvOptions } from './csv'
 
 /** Whole-file read cap. A function table holds 5 000 rows, so a recording
  *  bigger than this is one to trim before importing — and reading it as a
@@ -33,6 +33,7 @@ interface Props {
 
 interface Loaded {
   fileName: string
+  text: string
   table: CsvTable
 }
 
@@ -44,6 +45,57 @@ export default function ImportCsvModal({ tables, onClose, onCreate }: Readonly<P
   const [yIndex, setYIndex] = useState<number | null>(null)
   const [name, setName] = useState('')
   const [nameTouched, setNameTouched] = useState(false)
+  const [delimiter, setDelimiter] = useState('auto')
+  const [parseOptions, setParseOptions] = useState<CsvOptions>({
+    header: 'auto',
+    decimal: '.',
+    unitRow: false,
+  })
+  const [reduction, setReduction] = useState<ReductionChoice | null>(null)
+  const [xMin, setXMin] = useState('')
+  const [xMax, setXMax] = useState('')
+
+  const applyParsed = (
+    fileName: string,
+    text: string,
+    nextDelimiter: string,
+    nextOptions: CsvOptions,
+    prevX: number | null,
+    prevY: number | null,
+  ) => {
+    const table = parseCsvTable(
+      text,
+      nextDelimiter === 'auto' ? undefined : nextDelimiter,
+      nextOptions,
+    )
+    const numeric = table.columns.filter((c) => c.numericCount > 0)
+    const stillNumeric = (index: number | null): index is number =>
+      index !== null && (table.columns[index]?.numericCount ?? 0) > 0
+    const x = stillNumeric(prevX) ? prevX : (numeric[0]?.index ?? null)
+    const y =
+      stillNumeric(prevY) && prevY !== x
+        ? prevY
+        : (numeric.find((c) => c.index !== x)?.index ?? null)
+    setLoaded({ fileName, text, table })
+    setXIndex(x)
+    setYIndex(y)
+    if (!nameTouched) {
+      const yCol = y === null ? undefined : table.columns[y]
+      if (yCol) setName(identifier(yCol.name, 'f').toLowerCase())
+    }
+  }
+
+  const reparse = (nextDelimiter: string, nextOptions: CsvOptions) => {
+    setDelimiter(nextDelimiter)
+    setParseOptions(nextOptions)
+    setError(null)
+    if (!loaded) return
+    try {
+      applyParsed(loaded.fileName, loaded.text, nextDelimiter, nextOptions, xIndex, yIndex)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
 
   /** Columns with at least one number in them — a text column cannot be an
    *  axis, and listing it only invites a confusing empty result. */
@@ -58,6 +110,9 @@ export default function ImportCsvModal({ tables, onClose, onCreate }: Readonly<P
     setLoaded(null)
     setXIndex(null)
     setYIndex(null)
+    setReduction(null)
+    setXMin('')
+    setXMax('')
     if (!file) return
     if (file.size > MAX_BYTES) {
       setError(
@@ -70,23 +125,7 @@ export default function ImportCsvModal({ tables, onClose, onCreate }: Readonly<P
     file
       .text()
       .then((text) => {
-        const table = parseCsvTable(text)
-        const numeric = table.columns.filter((c) => c.numericCount > 0)
-        if (table.rowCount === 0) {
-          setError(`“${file.name}” has no data rows.`)
-          return
-        }
-        if (numeric.length < 2) {
-          setError(
-            `“${file.name}” has ${numeric.length} numeric column${numeric.length === 1 ? '' : 's'} — ` +
-              'a function table needs two (the lookup argument and its values).',
-          )
-          return
-        }
-        setLoaded({ fileName: file.name, table })
-        setXIndex(numeric[0].index)
-        setYIndex(numeric[1].index)
-        if (!nameTouched) setName(identifier(numeric[1].name, 'f').toLowerCase())
+        applyParsed(file.name, text, delimiter, parseOptions, null, null)
       })
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setReading(false))
@@ -105,15 +144,23 @@ export default function ImportCsvModal({ tables, onClose, onCreate }: Readonly<P
 
   const preview = useMemo(() => {
     if (!xColumn || !yColumn) return null
+    const min = xMin.trim() === '' ? Number.NaN : Number(xMin)
+    const max = xMax.trim() === '' ? Number.NaN : Number(xMax)
     return functionSpecFromXY({
       name: name.trim(),
       argName,
       xs: xColumn.values,
       ys: yColumn.values,
+      reduction: reduction ?? undefined,
+      xMin: Number.isFinite(min) ? min : undefined,
+      xMax: Number.isFinite(max) ? max : undefined,
+      argUnit: xColumn.unit,
+      outputUnit: yColumn.unit,
     })
-  }, [xColumn, yColumn, name, argName])
+  }, [xColumn, yColumn, name, argName, reduction, xMin, xMax])
 
-  const canCreate = nameCheck.ok && preview !== null && preview.usedRows > 0
+  const canCreate =
+    !error && nameCheck.ok && preview !== null && preview.usedRows > 0 && !preview.needsReduction
 
   const create = () => {
     if (!canCreate || preview === null) return
@@ -121,9 +168,9 @@ export default function ImportCsvModal({ tables, onClose, onCreate }: Readonly<P
     onClose()
   }
 
-  const options = numericColumns.map((c) => ({
+  const columnOptions = numericColumns.map((c) => ({
     value: String(c.index),
-    label: `${c.name} (${c.numericCount.toLocaleString()} numeric)`,
+    label: `${c.name}${c.unit ? ` [${c.unit}]` : ''} (${c.numericCount.toLocaleString()} numeric)`,
   }))
 
   return (
@@ -145,8 +192,76 @@ export default function ImportCsvModal({ tables, onClose, onCreate }: Readonly<P
           clearable
         />
 
+        <Group grow>
+          <Select
+            label="Delimiter"
+            value={delimiter}
+            data={[
+              { value: 'auto', label: 'Auto' },
+              { value: ',', label: 'Comma' },
+              { value: ';', label: 'Semicolon' },
+              { value: '\t', label: 'Tab' },
+              { value: '|', label: 'Pipe' },
+            ]}
+            onChange={(v) => v && reparse(v, parseOptions)}
+          />
+          <Select
+            label="Header row"
+            value={parseOptions.header}
+            data={[
+              { value: 'auto', label: 'Auto' },
+              { value: 'yes', label: 'Yes' },
+              { value: 'no', label: 'No' },
+            ]}
+            onChange={(v) =>
+              v && reparse(delimiter, { ...parseOptions, header: v as CsvOptions['header'] })
+            }
+          />
+          <Select
+            label="Decimal separator"
+            value={parseOptions.decimal}
+            data={['.', ',']}
+            onChange={(v) =>
+              v && reparse(delimiter, { ...parseOptions, decimal: v as '.' | ',' })
+            }
+          />
+        </Group>
+        <Checkbox
+          label="First data record contains units"
+          checked={parseOptions.unitRow}
+          onChange={(e) =>
+            reparse(delimiter, { ...parseOptions, unitRow: e.currentTarget.checked })
+          }
+        />
         {loaded && (
           <>
+            <Text size="xs">Raw preview (first 4,096 characters)</Text>
+            <Code block style={{ maxHeight: 120, overflow: 'auto' }}>
+              {loaded.text.slice(0, 4096)}
+            </Code>
+            <Text size="xs">Parsed preview (first five records)</Text>
+            <Code block>
+              {[
+                loaded.table.columns.map((c) => c.name).join(' | '),
+                ...Array.from({ length: Math.min(5, loaded.table.rowCount) }, (_, i) =>
+                  loaded.table.columns
+                    .map((c) =>
+                      Number.isFinite(c.values[i]) ? String(c.values[i]) : '(blank/invalid)',
+                    )
+                    .join(' | '),
+                ),
+              ].join('\n')}
+            </Code>
+            {!!loaded.table.rejectedRows?.length && (
+              <Text c="orange" size="xs">
+                {loaded.table.rejectedRows.length} source issue
+                {loaded.table.rejectedRows.length === 1 ? '' : 's'}:{' '}
+                {loaded.table.rejectedRows
+                  .slice(0, 12)
+                  .map((r) => `Record ${r.record}: ${r.reason}`)
+                  .join('; ')}
+              </Text>
+            )}
             <Text size="xs" c="dimmed">
               {loaded.table.rowCount.toLocaleString()} data row
               {loaded.table.rowCount === 1 ? '' : 's'} × {loaded.table.columns.length} column
@@ -159,7 +274,7 @@ export default function ImportCsvModal({ tables, onClose, onCreate }: Readonly<P
             <Group grow align="flex-start">
               <Select
                 label="X column (lookup argument)"
-                data={options.filter((o) => o.value !== String(yIndex))}
+                data={columnOptions.filter((o) => o.value !== String(yIndex))}
                 value={xIndex === null ? null : String(xIndex)}
                 onChange={(v) => v !== null && setXIndex(Number(v))}
                 allowDeselect={false}
@@ -167,7 +282,7 @@ export default function ImportCsvModal({ tables, onClose, onCreate }: Readonly<P
               />
               <Select
                 label="Y column (function values)"
-                data={options.filter((o) => o.value !== String(xIndex))}
+                data={columnOptions.filter((o) => o.value !== String(xIndex))}
                 value={yIndex === null ? null : String(yIndex)}
                 onChange={pickY}
                 allowDeselect={false}
@@ -188,23 +303,29 @@ export default function ImportCsvModal({ tables, onClose, onCreate }: Readonly<P
             />
 
             {preview && (
-              <Text size="xs" c={preview.usedRows === 0 ? 'red' : 'dimmed'}>
-                {preview.usedRows === 0
-                  ? 'No numeric pairs in the selected columns — pick different columns.'
-                  : `${preview.usedRows.toLocaleString()} point${preview.usedRows === 1 ? '' : 's'} · ` +
-                    `${preview.skippedRows.toLocaleString()} row${preview.skippedRows === 1 ? '' : 's'} skipped (blank or non-numeric)` +
-                    (preview.decimated
-                      ? ` · thinned uniformly to ${TABLE_MAX_ROWS.toLocaleString()} rows (the table row cap)`
-                      : '')}
-                {preview.usedRows > 0 && (
-                  <>
-                    {'. '}Use in equations:{' '}
+              <>
+                <Text size="xs" c={preview.uniqueCount === 0 ? 'red' : 'dimmed'}>
+                  {preview.uniqueCount === 0
+                    ? 'No numeric pairs in the selected columns — pick different columns.'
+                    : `Use in equations: `}
+                  {preview.uniqueCount > 0 && (
                     <Text span size="xs" ff="monospace">
                       U = {name.trim() || 'name'}({argName})
                     </Text>
-                  </>
-                )}
-              </Text>
+                  )}
+                </Text>
+                <FunctionReductionControls
+                  result={preview}
+                  reduction={reduction}
+                  onReduction={setReduction}
+                  xMin={xMin}
+                  xMax={xMax}
+                  onRange={(min, max) => {
+                    setXMin(min)
+                    setXMax(max)
+                  }}
+                />
+              </>
             )}
 
             <FunctionNameHints name={name} check={nameCheck} />

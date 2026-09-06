@@ -395,6 +395,7 @@ export function buildPsychroFigure(
 }
 
 export interface XYSeries {
+  sampleIds?: string[]
   name: string
   x: number[]
   y: number[]
@@ -421,6 +422,14 @@ export function buildXYFigure(
 ): PlotlyFigure {
   const chartType = config?.chartType || 'line'
   const traces: PlotlyTrace[] = []
+  const counts = series.map((s) => {
+    const valid = s.y.filter((y, i) => Number.isFinite(y) && (chartType === 'histogram' || Number.isFinite(s.x[i]))).length
+    return `${displayVar(s.name)}: ${valid} valid / ${s.y.length - valid} skipped`
+  })
+  if (chartType !== 'line') series = series.map((s) => {
+    const indices = s.y.flatMap((y, i) => Number.isFinite(y) && (chartType === 'histogram' || Number.isFinite(s.x[i])) ? [i] : [])
+    return { ...s, x: indices.map((i) => s.x[i]), y: indices.map((i) => s.y[i]), z: s.z && indices.map((i) => s.z![i]), size: s.size && indices.map((i) => s.size![i]), sampleIds: s.sampleIds && indices.map((i) => s.sampleIds![i]) }
+  })
 
   if (chartType === 'pie') {
     if (series.length > 0) {
@@ -473,7 +482,8 @@ export function buildXYFigure(
     })
   } else if (chartType === 'surface3d') {
     series.forEach((s) => {
-      if (s.z && s.z.length > 0) {
+      if (s.z && s.z.length >= 3 && s.x.some((x, i) =>
+        i > 1 && (s.x[1] - s.x[0]) * (s.y[i] - s.y[0]) !== (s.y[1] - s.y[0]) * (x - s.x[0]))) {
         traces.push({
           type: 'mesh3d',
           name: displayVar(s.name),
@@ -492,6 +502,8 @@ export function buildXYFigure(
       traces.push({
         type: 'scatter',
         mode: 'lines+markers',
+        connectgaps: false,
+        customdata: s.sampleIds,
         name: displayVar(s.name),
         x: s.x,
         y: s.y,
@@ -509,6 +521,8 @@ export function buildXYFigure(
     chartType === 'histogram' ? false : (format.yLog ?? false),
     theme,
   )
+
+  if (chartType !== 'line') layout.annotations = [{ text: counts.join('; '), xref: 'paper', yref: 'paper', x: 0, y: 1.08, showarrow: false }]
 
   if (chartType === 'bar') {
     layout.barmode = 'group'

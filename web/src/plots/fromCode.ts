@@ -8,12 +8,16 @@ import { ChartType, PlotKind, PlotSpec, newPlotSpec } from './types'
  * can badge them and avoid persisting them. */
 export function plotDefToSpec(dto: PlotDefDto): PlotSpec {
   const attrs = dto.attributes ?? {}
+  const diagnostics: string[] = []
   const first = (key: string): string | undefined => attrs[key]?.[0]
   const all = (key: string): string[] => attrs[key] ?? []
   const bool = (key: string): boolean | undefined => {
     const v = first(key)
     if (v === undefined) return undefined
-    return /^(true|yes|on|1)$/i.test(v)
+    if (/^(true|yes|on|1)$/i.test(v)) return true
+    if (/^(false|no|off|0)$/i.test(v)) return false
+    diagnostics.push(`PLOT '${dto.name}': ${key}=${v} is not a recognised boolean`)
+    return undefined
   }
   const num = (key: string): number | undefined => {
     const v = first(key)
@@ -22,13 +26,13 @@ export function plotDefToSpec(dto: PlotDefDto): PlotSpec {
     return Number.isFinite(n) ? n : undefined
   }
 
-  const kind = parseKind(first('kind'))
+  const kind = parseKind(first('kind'), dto.name, diagnostics)
   const spec = newPlotSpec(kind, dto.name)
   spec.id = `code:${dto.name.toLowerCase()}`
   spec.fromCode = true
 
   if (kind === 'xy') {
-    applyXyAttrs(spec, first, all)
+    applyXyAttrs(spec, first, all, dto.name, diagnostics)
   } else if (kind === 'property') {
     applyPropertyAttrs(spec, first, bool)
   } else if (kind === 'psychro') {
@@ -37,6 +41,7 @@ export function plotDefToSpec(dto: PlotDefDto): PlotSpec {
     applyControlAttrs(spec, first)
   }
   applyFormatAttrs(spec, first, bool, num)
+  if (diagnostics.length) spec.codeDiagnostics = diagnostics
 
   return spec
 }
@@ -46,15 +51,37 @@ type StrAll = (key: string) => string[]
 type BoolGet = (key: string) => boolean | undefined
 type NumGet = (key: string) => number | undefined
 
-function applyXyAttrs(spec: PlotSpec, first: StrGet, all: StrAll): void {
+const SLICE = /\[[^\]]*[:,][^\]]*\]/
+
+function noteSlice(plotName: string, attr: string, value: string, diagnostics: string[]): void {
+  if (SLICE.test(value)) {
+    diagnostics.push(
+      `PLOT '${plotName}': ${attr}=${value} slice is ignored; the whole array is plotted`,
+    )
+  }
+}
+
+function applyXyAttrs(
+  spec: PlotSpec,
+  first: StrGet,
+  all: StrAll,
+  plotName: string,
+  diagnostics: string[],
+): void {
   const xVar = first('x') ?? first('xvar')
-  if (xVar) spec.xy.xVar = xVar
+  if (xVar) {
+    noteSlice(plotName, 'x', xVar, diagnostics)
+    spec.xy.xVar = xVar
+  }
   const yVars = all('y').length ? all('y') : all('yvars')
-  if (yVars.length) spec.xy.yVars = yVars
+  if (yVars.length) {
+    for (const y of yVars) noteSlice(plotName, 'y', y, diagnostics)
+    spec.xy.yVars = yVars
+  }
   const y2 = all('y2').length ? all('y2') : all('y2vars')
   if (y2.length) spec.xy.y2Vars = y2
   const type = first('type') ?? first('charttype')
-  if (type) spec.xy.chartType = parseChartType(type)
+  if (type) spec.xy.chartType = parseChartType(type, plotName, diagnostics)
   const z = first('z') ?? first('zvar')
   if (z) spec.xy.zVar = z
   const size = first('size') ?? first('sizevar')
@@ -105,7 +132,7 @@ function assignNum(value: number | undefined, set: (v: number) => void): void {
   if (value !== undefined) set(value)
 }
 
-function parseKind(raw: string | undefined): PlotKind {
+function parseKind(raw: string | undefined, plotName: string, diagnostics: string[]): PlotKind {
   const v = (raw ?? '').toLowerCase()
   if (v === 'property') return 'property'
   if (v === 'psychro' || v === 'psychrometric') return 'psychro'
@@ -114,6 +141,8 @@ function parseKind(raw: string | undefined): PlotKind {
   if (v === 'nichols') return 'nichols'
   if (v === 'polezero' || v === 'pzmap') return 'polezero'
   if (v === 'rootlocus' || v === 'rlocus') return 'rootlocus'
+  if (v === '' || v === 'xy' || v === 'line') return 'xy'
+  diagnostics.push(`PLOT '${plotName}': kind=${raw} is not supported; drawn as XY`)
   return 'xy'
 }
 
@@ -138,8 +167,10 @@ function applyControlAttrs(spec: PlotSpec, first: StrGet): void {
   if (zi) spec.control.zi = zi
 }
 
-function parseChartType(raw: string): ChartType {
+function parseChartType(raw: string, plotName: string, diagnostics: string[]): ChartType {
   const v = raw.toLowerCase()
   const allowed: ChartType[] = ['line', 'bar', 'pie', 'histogram', 'scatter', 'surface3d']
-  return (allowed as string[]).includes(v) ? (v as ChartType) : 'line'
+  if ((allowed as string[]).includes(v)) return v as ChartType
+  diagnostics.push(`PLOT '${plotName}': type=${raw} is not supported; drawn as a line`)
+  return 'line'
 }

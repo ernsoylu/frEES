@@ -109,7 +109,11 @@ export interface ControlConfig {
   zi: string | null
 }
 
+export type PlotSource = { kind: 'arrays' } | { kind: 'table'; tableId: string; data: 'inputs' | 'solved' }
+
 export interface PlotSpec {
+  source?: PlotSource
+  resultRevision?: number
   id: string
   name: string
   kind: PlotKind
@@ -122,6 +126,8 @@ export interface PlotSpec {
    * block rather than created in the GUI. Code plots are regenerated on every
    * solve and never persisted with the project. */
   fromCode?: boolean
+  /** Unsupported or ignored PLOT attributes, shown on code-owned plots. */
+  codeDiagnostics?: string[]
 }
 
 export function defaultFormat(kind: PlotKind): PlotFormat {
@@ -188,4 +194,13 @@ export function newPlotSpec(kind: PlotKind, name: string): PlotSpec {
     },
     format: defaultFormat(kind),
   }
+}
+
+/** A GUI snapshot of a code plot, with a collision-free name. */
+export function editablePlotCopy(spec: PlotSpec, plots: PlotSpec[]): PlotSpec {
+  const occupied = new Set(plots.map((p) => p.name.toLowerCase()))
+  const base = `${spec.name}_copy`
+  let name = base
+  for (let i = 2; occupied.has(name.toLowerCase()); i++) name = `${base}${i}`
+  return { ...spec, id: crypto.randomUUID(), name, fromCode: false, codeDiagnostics: undefined }
 }

@@ -14,6 +14,8 @@ import { FunctionTableSpec, ParamTableSpec, toFunctionTableDtos } from '../table
 import {
   appendRow,
   applyCellEdit,
+  applyCellEdits,
+  restoreUserEdit,
   applyColumnFill,
   applyPaste,
   boundColumnCount,
@@ -125,6 +127,13 @@ describe('parametric grid layout', () => {
     expect(headerTitles(paramSpec({ columnUnits: { T: 'K' } }))).toEqual(['Run', 'T [K]', 'P'])
   })
 
+  it('shows argument and output units on function-table headers', () => {
+    expect(headerTitles(spec1D({ argName: 'P', argUnit: 'kPa', outputUnit: 'm' }))).toEqual([
+      'P [kPa]',
+      'y [m]',
+    ])
+  })
+
   it('renders run labels, inputs and blank cells as data rows', () => {
     const spec = paramSpec()
     expect(gridRowCount(spec)).toBe(2) // no in-grid header row
@@ -190,10 +199,9 @@ describe('function-table cell edits', () => {
     expect(f.columns.length).toBe(spec.columns.length)
   })
 
-  it('keeps blank/invalid-cell omission in step with toFunctionTableDtos', () => {
-    const back = applyCellEdit(spec1D(), 2, 1, 'garbage') // non-numeric y
-    const dtos = toFunctionTableDtos([back.spec])
-    expect(dtos[0].curves[0].points).toEqual([[1, 10]]) // row 2 omitted
+  it('blocks conversion of invalid numeric drafts', () => {
+    const back = applyCellEdit(spec1D(), 2, 1, 'garbage')
+    expect(() => toFunctionTableDtos([back.spec])).toThrow(/invalid number/)
   })
 
   it('sanitizes formula-error literals to blank and reports the cell', () => {
@@ -522,4 +530,32 @@ describe('csvValuesFor', () => {
     ])
     expect(csvValuesFor(spec1D())[0]).toEqual(['Re', 'y'])
   })
+
+  it('formats a report export without changing the exact-data grid values', () => {
+    const spec = spec1D({ rows: [{ x: '1.000001', ys: ['1.23456789'] }] })
+    expect(csvValuesFor(spec, 'exact')[1]).toEqual(['1.000001', '1.23456789'])
+    expect(csvValuesFor(spec, 'display')[1][1]).toBe(Number.parseFloat((1.23456789).toPrecision(6)).toString())
+    expect(spec.rows[0].ys[0]).toBe('1.23456789')
+  })
+})
+
+describe('atomic edits and scoped history', () => {
+  it('classifies computed echoes against the original snapshot regardless of batch order', () => {
+    const before = solvedParam()
+    const edits = [{ gridRow: 0, col: 1, text: '301' }, { gridRow: 0, col: 2, text: '101.3' }]
+    const result = applyCellEdits(before, edits).spec as ParamTableSpec
+    expect(result).toEqual(applyCellEdits(before, [...edits].reverse()).spec)
+    expect(result.rows[0].values).toEqual({ T: '301', P: '' })
+    const restored = restoreUserEdit({ ...result, name: 'Renamed' }, result, before) as ParamTableSpec
+    expect(restored.name).toBe('Renamed')
+    expect(restored.rows).toEqual(before.rows)
+    expect(restored.results).toEqual([])
+  })
+})
+
+it('detaches legacy formulas before structural changes so removed cells never reattach', () => {
+  const table = spec1D({ formulas: { A3: '=old_x', B3: '=old_y' } })
+  const edited = appendRow(removeLastRow(table))
+  expect(formulaAt(edited, 2, 1)).toBeUndefined()
+  expect(storedFormulaList(edited)).toEqual([{ ref: 'Detached 1: A3', formula: '=old_x' }, { ref: 'Detached 1: B3', formula: '=old_y' }])
 })

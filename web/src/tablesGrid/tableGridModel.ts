@@ -1,3 +1,4 @@
+import { detachLegacyFormulas } from '../tables'
 // tablesGrid/tableGridModel.ts
 //
 // Pure projections between a TableSpec and the native Tables grid (decision
@@ -19,7 +20,7 @@
 //                they map back to spec.columns) or the fixed 'y' label (1-D).
 //                Data rows follow at grid rows 1..N.
 
-import { newParamRow, ParamRow, ParamTableSpec, TableSpec } from '../tables'
+import { fmt6, newParamRow, ParamRow, ParamTableSpec, TableSpec } from '../tables'
 
 /** Hard cap on data rows (contract a of the old binding layer, kept): a
  * runaway 50k-row paste truncates here instead of bloating the .frees file
@@ -97,9 +98,14 @@ export function headerTitles(spec: TableSpec): string[] {
       }),
     ]
   }
+  const arg = spec.argUnit ? `${spec.argName || 'x'} [${spec.argUnit}]` : spec.argName || 'x'
   return [
-    spec.argName || 'x',
-    ...spec.columns.map((param, j) => (spec.is1D ? 'y' : param || `curve ${j + 1}`)),
+    arg,
+    ...spec.columns.map((param, j) => {
+      if (spec.is1D) return spec.outputUnit ? `y [${spec.outputUnit}]` : 'y'
+      const label = param || `curve ${j + 1}`
+      return spec.paramUnit ? `${label} [${spec.paramUnit}]` : label
+    }),
   ]
 }
 
@@ -132,7 +138,7 @@ export function formulaAt(spec: TableSpec, gridRow: number, col: number): string
 
 /** Every stored legacy formula, for the read-only hint line. */
 export function storedFormulaList(spec: TableSpec): { ref: string; formula: string }[] {
-  return Object.entries(spec.formulas ?? {}).map(([ref, formula]) => ({ ref, formula }))
+  return [...Object.entries(spec.formulas ?? {}).map(([ref, formula]) => ({ ref, formula })), ...(spec.detachedFormulas ?? []).flatMap((overlay, i) => Object.entries(overlay).map(([ref, formula]) => ({ ref: `Detached ${i + 1}: ${ref}`, formula })))]
 }
 
 export function cellViewAt(spec: TableSpec, gridRow: number, col: number): CellView {
@@ -140,11 +146,13 @@ export function cellViewAt(spec: TableSpec, gridRow: number, col: number): CellV
   if (spec.kind === 'function') {
     if (gridRow === 0) {
       if (col === 0) {
-        return { text: spec.argName || 'x', kind: 'header', editable: false }
+        const text = spec.argUnit ? `${spec.argName || 'x'} [${spec.argUnit}]` : spec.argName || 'x'
+        return { text, kind: 'header', editable: false }
       }
       const j = col - 1
+      const label = spec.is1D ? 'y' : spec.columns[j] ?? ''
       return {
-        text: spec.is1D ? 'y' : spec.columns[j] ?? '',
+        text: spec.is1D && spec.outputUnit ? `y [${spec.outputUnit}]` : label,
         kind: 'header',
         // 2-D curve-parameter VALUE headers are editable — they map back to
         // spec.columns (the old sheet's one editable header range).
@@ -228,6 +236,8 @@ export function applyCellEdit(
   gridRow: number,
   col: number,
   rawIn: string,
+  snapshot: TableSpec = spec,
+  invalidate = true,
 ): EditResult {
   if (spec.source === 'code') return unchanged(spec)
   const view = cellViewAt(spec, gridRow, col)
@@ -271,7 +281,7 @@ export function applyCellEdit(
   if (i < 0 || i >= spec.rows.length) return unchanged(spec)
   const name = spec.vars[col - 1]
   if (name === undefined) return unchanged(spec)
-  const computed = paramComputedValue(spec, i, name)
+  const computed = snapshot.kind === 'parametric' ? paramComputedValue(snapshot, i, name) : undefined
   // A cell still showing the solver's value is not an input (committing the
   // displayed computed text unchanged must not become an override).
   const isUntouchedComputed =
@@ -284,10 +294,32 @@ export function applyCellEdit(
     idx === i ? { ...r, values: { ...r.values, [name]: draft } } : r,
   )
   return {
-    spec: invalidated({ ...spec, rows, formulas: withoutFormula(spec.formulas, ref) }),
+    spec: { ...spec, rows, formulas: withoutFormula(spec.formulas, ref), ...(invalidate ? { results: [], stats: null, checkResult: null, checkMessage: '' } : {}) },
     changed: true,
     errorCells,
   }
+}
+
+/** Fill gestures preserve untouched computed cells; explicit paste freezes supplied values. */
+export function applyCellEdits(spec: TableSpec, edits: { gridRow: number; col: number; text: string }[]): EditResult {
+  let next = spec
+  const errorCells: string[] = []
+  for (const edit of edits) {
+    const result = applyCellEdit(next, edit.gridRow, edit.col, edit.text, spec, false)
+    next = result.spec
+    errorCells.push(...result.errorCells)
+  }
+  return { spec: next !== spec && next.kind === 'parametric' ? invalidated(next) : next, changed: next !== spec, errorCells }
+}
+
+/** Restore only fields changed by the gesture; never restore solver output. */
+export function restoreUserEdit(current: TableSpec, from: TableSpec, to: TableSpec): TableSpec {
+  const restored = { ...current }
+  for (const key of Object.keys(to) as (keyof TableSpec)[]) {
+    if (['results', 'stats', 'checkResult', 'checkMessage'].includes(key)) continue
+    if (from[key] !== to[key]) Object.assign(restored, { [key]: to[key] })
+  }
+  return restored.kind === 'parametric' ? invalidated(restored) : restored
 }
 
 /** Blanks a set of data cells (Delete over a selection). Trailing parametric
@@ -518,6 +550,7 @@ export function applyPaste(
  * button). Parametric row counts are part of the run set: results invalidate. */
 export function appendRow(spec: TableSpec): TableSpec {
   if (spec.source === 'code' || spec.rows.length >= TABLE_MAX_ROWS) return spec
+  spec = detachLegacyFormulas(spec)
   if (spec.kind === 'function') {
     return { ...spec, rows: [...spec.rows, { x: '', ys: spec.columns.map(() => '') }] }
   }
@@ -528,6 +561,7 @@ export function appendRow(spec: TableSpec): TableSpec {
  * Parametric row counts are part of the run set: results invalidate. */
 export function removeLastRow(spec: TableSpec): TableSpec {
   if (spec.source === 'code' || spec.rows.length <= 1) return spec
+  spec = detachLegacyFormulas(spec)
   if (spec.kind === 'function') return { ...spec, rows: spec.rows.slice(0, -1) }
   return invalidated({ ...spec, rows: spec.rows.slice(0, -1) })
 }
@@ -551,16 +585,50 @@ export function applyColumnFill(
 // ---------------------------------------------------------------------------
 // CSV export (what the grid shows: headers + merged computed values)
 
-export function csvValuesFor(spec: TableSpec): string[][] {
+export type CsvExportMode = 'exact' | 'display'
+
+function formatExportCell(text: string, mode: CsvExportMode): string {
+  if (mode === 'exact') return text
+  const n = Number(text)
+  return text.trim() !== '' && Number.isFinite(n) ? fmt6(n) : text
+}
+
+export function csvValuesFor(spec: TableSpec, mode: CsvExportMode = 'exact'): string[][] {
   const out: string[][] = [headerTitles(spec)]
   if (spec.kind === 'function') {
-    for (const row of spec.rows) out.push([row.x, ...spec.columns.map((_, j) => row.ys[j] ?? '')])
+    for (const row of spec.rows) {
+      out.push([row.x, ...spec.columns.map((_, j) => row.ys[j] ?? '')].map((c) => formatExportCell(c, mode)))
+    }
     return out
   }
   spec.rows.forEach((_, i) => {
     out.push(
-      Array.from({ length: boundColumnCount(spec) }, (_, c) => cellViewAt(spec, i, c).text),
+      Array.from({ length: boundColumnCount(spec) }, (_, c) =>
+        formatExportCell(cellViewAt(spec, i, c).text, mode),
+      ),
     )
   })
   return out
+}
+
+export function csvExportComments(spec: TableSpec, mode: CsvExportMode): string[] {
+  const units =
+    spec.kind === 'function'
+      ? `arg=${spec.argUnit || 'unknown'} output=${spec.outputUnit || 'unknown'}${spec.paramUnit ? ` param=${spec.paramUnit}` : ''}`
+      : spec.vars.map((name) => `${name}=${spec.columnUnits?.[name] || 'unknown'}`).join(' ')
+  const status =
+    spec.kind === 'parametric'
+      ? `status=${spec.runStatus ?? 'not-run'} revision=${spec.resultRevision ?? 'none'}`
+      : spec.source === 'code'
+        ? 'status=code-owned'
+        : 'status=editable'
+  return [
+    'frees table export',
+    `name=${spec.name}`,
+    `kind=${spec.kind}`,
+    `units ${units}`,
+    status,
+    `values=${mode}`,
+    'scope=all',
+  ]
 }

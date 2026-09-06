@@ -398,3 +398,10 @@ describe('optimize / curveFit (wasm engine)', () => {
     expect(r.error).toBe('Model equation is required.')
   })
 })
+
+it('keeps worker Stop distinct from numerical row failures', async () => {
+  vi.mocked(wasmSolveTable).mockRejectedValueOnce(new Error('Operation stopped'))
+  const response = await solveTable('y = x', DEFAULT_STOP_CRITERIA, [], 'SI', ['x', 'y'], [{ x: 1 }])
+  expect(response.results[0]).toMatchObject({ success: false, status: 'cancelled', values: {} })
+  expect(response.results[0].error).toContain('completion is unknown')
+})

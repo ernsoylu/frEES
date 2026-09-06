@@ -893,12 +893,17 @@ END
 
 Time responses (\`step\`, \`impulse\`, \`lsim\`) reuse the standard **xy** kind with the time vector on \`x\`. The root-locus and Nichols kinds take the matrices/arrays returned by \`rlocus\` and \`nichols\`.
 
-## Embedding plots in reports
-Reference any code-defined plot in your narrative with a graph tag and it renders as a live, interactive chart in the **Formatted** view:
-\`\`\`
-[Graph="Boiler Cycle"] Temperature–entropy diagram of the power cycle [/Graph]
-\`\`\`
-The name inside the quotes must match a \`PLOT\` block's title.
+## Reports and plot export
+
+The calculation report (File → Formatted report) includes the source, solved
+variables, units and warnings. It does **not** embed \`[Graph=…]\` tags or live
+charts. To include a figure, export the plot from the Plots tab as SVG, PNG or
+JPG and attach it separately. 3D SVG exports contain a raster image of the
+WebGL view, not vector traces.
+
+Array slices in a \`PLOT\` attribute (\`x[2:5]\`) are accepted by the parser but
+are not a selection: the whole array is plotted. Changing that needs an
+explicit compatibility decision; frozen fixtures are not edited to match.
 
 [Related: reports, symbolic-cas]`,
   "thermo": `# Thermophysical Properties Reference (Real Fluids & Gas)

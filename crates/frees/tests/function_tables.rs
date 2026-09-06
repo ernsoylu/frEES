@@ -81,6 +81,70 @@ fn solve_answers_an_injected_table_exactly_like_the_table_block() {
     assert_eq!(y["value"].as_f64().unwrap(), 15.0);
 }
 
+fn variable_value(response: &Value, name: &str) -> f64 {
+    response["variables"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|v| v["name"] == name)
+        .unwrap()["value"]
+        .as_f64()
+        .unwrap()
+}
+
+#[test]
+fn injected_pressure_table_converts_kpa_knots_to_si() {
+    let response = solve(
+        "P = 150 [kPa]\ny = fcurve(P)\n",
+        &json!({"functionTables": [{
+            "name": "fcurve",
+            "argNames": ["P"],
+            "argUnits": ["kPa"],
+            "outputUnit": "m",
+            "xLog": false,
+            "yLog": false,
+            "curves": [{"param": null, "points": [[100.0, 1.0], [200.0, 2.0]]}],
+        }]}),
+    );
+    assert_eq!(response["success"], true, "{response}");
+    assert!((variable_value(&response, "y") - 1.5).abs() < 1e-12);
+}
+
+#[test]
+fn injected_temperature_table_converts_celsius_knots_to_si() {
+    let response = solve(
+        "T = 25 [C]\ny = fcurve(T)\n",
+        &json!({"functionTables": [{
+            "name": "fcurve",
+            "argNames": ["T"],
+            "argUnits": ["C"],
+            "outputUnit": "W",
+            "xLog": false,
+            "yLog": false,
+            "curves": [{"param": null, "points": [[20.0, 0.0], [30.0, 10.0]]}],
+        }]}),
+    );
+    assert_eq!(response["success"], true, "{response}");
+    assert!((variable_value(&response, "y") - 5.0).abs() < 1e-12);
+}
+
+#[test]
+fn unknown_arg_unit_does_not_assume_si_conversion() {
+    let response = solve(
+        "y = fcurve(1.5)\n",
+        &json!({"functionTables": [{
+            "name": "fcurve",
+            "argNames": ["x"],
+            "argUnits": ["not-a-unit"],
+            "xLog": false,
+            "yLog": false,
+            "curves": [{"param": null, "points": [[1.0, 10.0], [2.0, 20.0]]}],
+        }]}),
+    );
+    assert_eq!(response["success"], true, "{response}");
+    assert_eq!(variable_value(&response, "y"), 15.0);
+}
+
 #[test]
 fn solve_answers_a_curve_family_and_log_axes_like_their_blocks() {
     // 2-D family: nu(re, t) across two curves.

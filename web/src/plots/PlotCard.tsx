@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Alert, Button, Group, Loader, Menu, Text } from '@mantine/core'
+import { Alert, Badge, Button, Group, Loader, Menu, Text } from '@mantine/core'
 import type { PlotlyFigure } from 'plotly.js/lib/core'
 import {
   DiagramResponse,
@@ -43,6 +43,7 @@ interface Props {
   tableUnits?: Record<string, string>
   /** Declared STATE TABLE blocks, for overlaying a single circuit's states. */
   stateTableDefs?: StateTableDto[]
+  onDuplicate?: () => void
   onConfigure: () => void
   onRemove: () => void
   leftSection?: React.ReactNode
@@ -57,8 +58,9 @@ function runValue(
   result: TableRowResult | undefined,
   name: string,
 ): number | undefined {
+  if (result && !result.success) return undefined
   const solved = result?.success ? result.values[name] : undefined
-  if (solved !== undefined) return solved
+  if (solved !== undefined) return Number.isFinite(solved) ? solved : undefined
   const raw = (row.values[name] ?? '').trim()
   if (raw === '') return undefined
   const value = Number(raw)
@@ -80,7 +82,7 @@ function buildXYSeries(
     const z: number[] = []
     const size: number[] = []
     rows.forEach((row, i) => {
-      const xValue = runValue(row, results[i], xVar)
+      const xValue = xVar ? runValue(row, results[i], xVar) : i
       const yValue = runValue(row, results[i], yVar)
       const zValue = zVar ? runValue(row, results[i], zVar) : undefined
       const sizeValue = sizeVar ? runValue(row, results[i], sizeVar) : undefined
@@ -88,17 +90,17 @@ function buildXYSeries(
       const hasX = xValue !== undefined
       const hasY = yValue !== undefined
       const hasZ = !zVar || zValue !== undefined
-      const hasSize = !sizeVar || sizeValue !== undefined
+      const hasSize = !sizeVar || (sizeValue !== undefined && sizeValue >= 0)
 
-      if (hasX && hasY && hasZ && hasSize) {
-        x.push(xValue)
-        y.push(yValue)
-        if (zVar && zValue !== undefined) z.push(zValue)
-        if (sizeVar && sizeValue !== undefined) size.push(sizeValue)
-      }
+      const valid = hasX && hasY && hasZ && hasSize
+      x.push(valid ? xValue : Number.NaN)
+      y.push(valid ? yValue : Number.NaN)
+      if (zVar) z.push(valid ? zValue! : Number.NaN)
+      if (sizeVar) size.push(valid ? sizeValue! : Number.NaN)
     })
     return {
       name: yVar,
+      sampleIds: rows.map((row) => row.id),
       x,
       y,
       z: zVar ? z : undefined,
@@ -130,22 +132,18 @@ function buildArrayXYSeries(
   xVar: string,
   yVars: string[],
   axis: 'y' | 'y2' = 'y',
+  zVar?: string | null,
+  sizeVar?: string | null,
 ): XYSeries[] {
-  const xArr = arrayValues(variables, xVar)
-  const indices = [...xArr.keys()].sort((a, b) => a - b)
-  return yVars.map((yVar) => {
-    const yArr = arrayValues(variables, yVar)
-    const x: number[] = []
-    const y: number[] = []
-    for (const i of indices) {
-      const yValue = yArr.get(i)
-      if (yValue !== undefined) {
-        x.push(xArr.get(i) as number)
-        y.push(yValue)
-      }
-    }
-    return { name: yVar, x, y, axis }
+  const channels = [...new Set([xVar, ...yVars, zVar, sizeVar].filter((name): name is string => !!name))]
+  const arrays = channels.map((name) => arrayValues(variables, name))
+  const indices = [...new Set(arrays.flatMap((array) => [...array.keys()]))].sort((a, b) => a - b)
+  const rows: ParamRow[] = []
+  indices.forEach((index, i) => {
+    if (i > 0 && index > indices[i - 1] + 1) rows.push({ id: `gap-${index}`, values: {} })
+    rows.push({ id: String(index), values: Object.fromEntries(channels.map((name, j) => [name, arrays[j].has(index) ? String(arrays[j].get(index)) : ''])) })
   })
+  return buildXYSeries(rows, [], xVar, yVars, zVar, sizeVar, axis)
 }
 
 export function useDiagramData(spec: PlotSpec) {
@@ -159,7 +157,7 @@ export function useDiagramData(spec: PlotSpec) {
   const { pressureKPa, tMinC, tMaxC } = spec.psychro
 
   useEffect(() => {
-    if (kind === 'xy') return
+    if (kind !== 'property' && kind !== 'psychro') return
     let cancelled = false
     setLoading(true)
     setError(null)
@@ -258,8 +256,9 @@ export function buildFigure(spec: PlotSpec, inputs: FigureInputs): PlotlyFigure 
   if (spec.kind === 'psychro' && psychart) {
     return buildPsychroFigure(psychart, spec.psychro, spec.format, overlayStates(spec.psychro.stateTable), theme, cyclePath)
   }
-  if (spec.kind === 'xy' && spec.xy.xVar && spec.xy.yVars.length > 0) {
-    return buildXyFigureFromSpec(spec, inputs, spec.xy.xVar)
+  if (spec.kind === 'xy' && !spec.source) return null
+  if (spec.kind === 'xy' && (spec.xy.xVar || spec.xy.chartType === 'histogram') && spec.xy.yVars.length > 0 && (spec.xy.chartType !== 'surface3d' || spec.xy.zVar)) {
+    return buildXyFigureFromSpec(spec, inputs, spec.xy.chartType === 'histogram' ? '' : spec.xy.xVar!)
   }
   if (spec.kind === 'bode' && spec.control.omega && spec.control.mag && spec.control.phase) {
     const omega = getArrayValues(variables, spec.control.omega)
@@ -304,19 +303,17 @@ function buildXyFigureFromSpec(spec: PlotSpec, inputs: FigureInputs, xVar: strin
   // the rows already carry the requested series data even though there are no
   // run results, which is the case for read-only code PARAMETRIC tables and
   // DYNAMIC/ODE trajectories (their values live in the rows, not in `results`).
-  const yAll = [...spec.xy.yVars, ...(spec.xy.y2Vars ?? [])]
-  const rowsCarrySeries =
-    tableRows.length > 0 &&
-    yAll.some((y) => tableRows.some((r) => (r.values[y] ?? '').trim() !== ''))
-  const useArrays = (tableRows.length === 0 || tableResults.length === 0) && !rowsCarrySeries
+  const outcomes = spec.source?.kind === 'table' && spec.source.data === 'solved'
+    ? tableRows.map((_, i) => tableResults[i] ?? { success: false, values: {}, error: null }) : []
+  const useArrays = spec.source?.kind === 'arrays'
   const series = useArrays
-    ? buildArrayXYSeries(variables, xVar, spec.xy.yVars)
-    : buildXYSeries(tableRows, tableResults, xVar, spec.xy.yVars, spec.xy.zVar, spec.xy.sizeVar)
+    ? buildArrayXYSeries(variables, xVar, spec.xy.yVars, 'y', spec.xy.zVar, spec.xy.sizeVar)
+    : buildXYSeries(tableRows, outcomes, xVar, spec.xy.yVars, spec.xy.zVar, spec.xy.sizeVar)
   if (spec.xy.y2Vars && spec.xy.y2Vars.length > 0) {
     series.push(
       ...(useArrays
         ? buildArrayXYSeries(variables, xVar, spec.xy.y2Vars, 'y2')
-        : buildXYSeries(tableRows, tableResults, xVar, spec.xy.y2Vars, null, null, 'y2')),
+        : buildXYSeries(tableRows, outcomes, xVar, spec.xy.y2Vars, null, null, 'y2')),
     )
   }
   // Append each axis variable's unit (from the solved variables — same unit a
@@ -353,6 +350,7 @@ export default function PlotCard({
   tableUnits,
   stateTableDefs,
   onConfigure,
+  onDuplicate,
   onRemove,
   leftSection,
   rightSection,
@@ -409,9 +407,10 @@ export default function PlotCard({
         <Group justify="space-between" mb="xs" wrap="nowrap" align="center">
           <Group gap="xs" style={{ flex: 1 }} wrap="nowrap">
             {leftSection}
-            <Button variant="default" size="xs" onClick={onConfigure}>
-              Configure
-            </Button>
+            {spec.fromCode ? <>
+              <Badge size="xs">Code-owned</Badge>
+              <Button variant="default" size="xs" onClick={onDuplicate}>Duplicate as editable</Button>
+            </> : <Button variant="default" size="xs" onClick={onConfigure}>Configure</Button>}
             <Menu shadow="md">
               <Menu.Target>
                 <Button variant="default" size="xs" loading={exporting}>
@@ -435,9 +434,7 @@ export default function PlotCard({
             </Menu>
           </Group>
           <Group gap="xs" wrap="nowrap">
-            <Button variant="subtle" color="red" size="xs" onClick={onRemove}>
-              Remove
-            </Button>
+            {!spec.fromCode && <Button variant="subtle" color="red" size="xs" onClick={onRemove}>Remove</Button>}
             {rightSection}
           </Group>
         </Group>
@@ -453,6 +450,11 @@ export default function PlotCard({
           Export failed: {exportError}
         </Alert>
       )}
+      {!!spec.codeDiagnostics?.length && (
+        <Alert color="yellow" mb="xs">
+          {spec.codeDiagnostics.join(' ')}
+        </Alert>
+      )}
       {loading && (
         <Group gap="xs">
           <Loader size="xs" />
@@ -464,7 +466,7 @@ export default function PlotCard({
       {!loading && !error && figure === null && (
         <Text size="sm" c="dimmed">
           {spec.kind === 'xy'
-            ? 'Choose an X variable and at least one Y variable in Configure, then solve the parametric table.'
+            ? 'Choose an explicit data source and the required channels in Configure. Missing or ambiguous sources are never replaced by the active table.'
             : 'No data yet.'}
         </Text>
       )}

@@ -1,3 +1,4 @@
+import { tableInputIssues } from '../tableValidation'
 // tablesGrid/CreateFunctionModal.tsx
 //
 // Sweep → Function (Wave H, the flagship composition feature): turns columns
@@ -25,9 +26,11 @@ import {
   ComposeResult,
   functionSpecFromParamColumns,
   NameCheck,
+  type ParamValueSource,
+  type ReductionChoice,
 } from './composeTables'
 import { FunctionNameHints, FunctionPrecedenceNote } from './FunctionNameHints'
-import { TABLE_MAX_ROWS } from './tableGridModel'
+import FunctionReductionControls from './FunctionReductionControls'
 
 const NONE = '__none__'
 
@@ -58,17 +61,22 @@ export default function CreateFunctionModal({
   onCreate,
   onClose,
 }: Readonly<Props>) {
+  const inputIssues = tableInputIssues(table, false)
   const vars = table.vars
   const [xVar, setXVar] = useState<string>(vars[0] ?? '')
   const [yVars, setYVars] = useState<string[]>(vars.length > 1 ? [vars[1]] : [])
   const [familyVar, setFamilyVar] = useState<string>(NONE)
   const [nameEdits, setNameEdits] = useState<Record<string, string>>({})
+  const [valueSource, setValueSource] = useState<ParamValueSource>('mixed')
+  const [reduction, setReduction] = useState<ReductionChoice | null>(null)
+  const [xMin, setXMin] = useState('')
+  const [xMax, setXMax] = useState('')
 
   const family = yVars.length === 1 && familyVar !== NONE ? familyVar : null
   const nameOf = (yVar: string) => nameEdits[yVar] ?? defaultName(yVar)
 
   const picks: Pick[] = useMemo(
-    () =>
+    () => inputIssues.length ? [] :
       yVars
         .filter((y) => y !== xVar && vars.includes(y))
         .map((yVar) => {
@@ -83,11 +91,15 @@ export default function CreateFunctionModal({
               yVar,
               familyVar: family,
               name: name.trim(),
+              valueSource,
+              reduction: reduction ?? undefined,
+              xMin: Number.isFinite(Number(xMin)) && xMin.trim() !== '' ? Number(xMin) : undefined,
+              xMax: Number.isFinite(Number(xMax)) && xMax.trim() !== '' ? Number(xMax) : undefined,
             }),
           }
         }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [table, tables, xVar, yVars, family, nameEdits],
+    [table, tables, xVar, yVars, family, nameEdits, valueSource, reduction, xMin, xMax],
   )
 
   const duplicateNames = new Set(
@@ -102,7 +114,8 @@ export default function CreateFunctionModal({
       (p) =>
         !p.check.ok ||
         duplicateNames.has(p.name.trim().toLowerCase()) ||
-        p.result.usedRows === 0,
+        p.result.usedRows === 0 ||
+        p.result.needsReduction,
     )
   const anyReplace = picks.some((p) => p.check.replacesGui)
 
@@ -118,12 +131,13 @@ export default function CreateFunctionModal({
   return (
     <Modal opened onClose={onClose} title="Create Function from Table Columns" centered size="lg">
       <Text size="sm" c="dimmed" mb="md">
-        Turns columns of “{table.name}” into a Function Table callable from equations. Each row
-        uses the typed input where present, otherwise the solved value; failed or incomplete rows
-        are skipped.
+        Turns columns of “{table.name}” into a Function Table callable from equations. Failed or
+        incomplete rows are skipped. Duplicate x values keep the first row. Thinning past 5,000
+        unique points requires an explicit choice.
       </Text>
 
       <Stack gap="sm">
+        {inputIssues.length > 0 && <Text c="red" size="sm">{inputIssues.slice(0, 12).join('; ')}</Text>}
         <Group grow align="flex-start">
           <Select
             label="X column (lookup argument)"
@@ -150,6 +164,18 @@ export default function CreateFunctionModal({
           />
         </Group>
 
+        <Select
+          label="Values to convert"
+          data={[
+            { value: 'mixed', label: 'Typed inputs, else successful solved values' },
+            { value: 'raw', label: 'Typed inputs only' },
+            { value: 'solved', label: 'Successful solved rows only' },
+          ]}
+          value={valueSource}
+          onChange={(v) => v && setValueSource(v as ParamValueSource)}
+          allowDeselect={false}
+        />
+
         {yVars.length === 1 && (
           <Select
             label="Family parameter column (optional)"
@@ -163,7 +189,6 @@ export default function CreateFunctionModal({
 
         {picks.map((p) => {
           const dup = duplicateNames.has(p.name.trim().toLowerCase())
-          const { usedRows, skippedRows, decimated } = p.result
           const signature = family
             ? `${p.name.trim() || 'name'}(${p.result.spec.argName}, ${p.result.spec.paramName})`
             : `${p.name.trim() || 'name'}(${p.result.spec.argName})`
@@ -180,14 +205,27 @@ export default function CreateFunctionModal({
                 spellCheck={false}
                 styles={{ input: { fontFamily: 'var(--mantine-font-family-monospace)' } }}
               />
-              <Text size="xs" c={usedRows === 0 ? 'red' : 'dimmed'}>
-                {usedRows === 0
-                  ? 'No usable rows — every row is failed or incomplete for these columns.'
-                  : `${usedRows} row${usedRows === 1 ? '' : 's'} used · ${skippedRows} skipped (failed or incomplete)` +
-                    (family ? ` · ${p.result.spec.columns.length} curves` : '') +
-                    (decimated ? ` · thinned to ${TABLE_MAX_ROWS} rows (table row cap)` : '')}
-              </Text>
-              {usedRows > 0 && (
+              {p.result.uniqueCount === 0 ? (
+                <Text size="xs" c="red">
+                  No usable rows — every row is failed or incomplete for these columns.
+                </Text>
+              ) : family ? (
+                <Text size="xs" c="dimmed">
+                  {p.result.spec.columns.length} curves
+                </Text>
+              ) : null}
+              <FunctionReductionControls
+                result={p.result}
+                reduction={reduction}
+                onReduction={setReduction}
+                xMin={xMin}
+                xMax={xMax}
+                onRange={(min, max) => {
+                  setXMin(min)
+                  setXMax(max)
+                }}
+              />
+              {p.result.usedRows > 0 && (
                 <Text size="xs" c="dimmed">
                   Use in equations: <Code>U = {signature}</Code>
                 </Text>

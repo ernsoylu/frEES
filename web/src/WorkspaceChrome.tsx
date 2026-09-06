@@ -59,7 +59,7 @@ import {
 } from '@tabler/icons-react'
 import { spotlight } from '@mantine/spotlight'
 import { useState } from 'react'
-import { CheckResponse, SolveResponse, TableRowResult } from './api'
+import { CheckResponse, SolveResponse, TableRowResult, TableStats } from './api'
 import type { LayoutPerspective } from './workspace/WorkspaceDock'
 import { withStableKeys } from './format'
 import { FUNCTION_CATEGORIES } from './functionCatalog'
@@ -610,10 +610,11 @@ function solvePill(result: SolveResponse): PillContent {
   }
 }
 
-function checkPill(checkResult: CheckResponse): PillContent {
+export function checkPill(checkResult: CheckResponse): PillContent {
   const warnings = checkResult.unitWarnings
   const syntax =
-    (checkResult.errors && checkResult.errors.length > 0) || /syntax error/i.test(checkResult.message)
+    (checkResult.errors && checkResult.errors.length > 0) ||
+    (!checkResult.solvable && /^syntax error\b/i.test(checkResult.message.trim()))
   if (syntax) {
     return {
       color: 'red',
@@ -653,7 +654,13 @@ function tablePill(
   results: TableRowResult[],
   checkResult: CheckResponse | null,
   checkMessage: string,
+  stats?: TableStats | null,
 ): PillContent | null {
+  if (results.some((r) => r.status === 'cancelled')) return { color: 'orange', label: 'Table stopped', message: 'Worker stopped. Undelivered rows have unknown completion; rerun the table.', warnings: [] }
+  if (stats?.converged === false) return {
+    color: 'orange', label: 'Table not converged',
+    message: `${stats.passes} passes; ${stats.termination}. Last-pass values are provisional.`, warnings: [],
+  }
   if (results.length > 0) {
     const solved = results.filter((r) => r.success).length
     const allSolved = solved === results.length
@@ -742,6 +749,7 @@ interface TopBarProps {
   tableSolving: boolean
   tableCheckResult: CheckResponse | null
   tableCheckMessage: string
+  tableStats?: TableStats | null
   tableResults: TableRowResult[]
   onCheck: () => void
   onSolve: () => void
@@ -793,7 +801,7 @@ function solveTooltipFor(canSolve: boolean, isTable: boolean): string {
 
 function statusPillFor(props: Readonly<TopBarProps>) {
   if (props.isTable) {
-    return tablePill(props.tableResults, props.tableCheckResult, props.tableCheckMessage)
+    return tablePill(props.tableResults, props.tableCheckResult, props.tableCheckMessage, props.tableStats)
   }
   if (props.result) return solvePill(props.result)
   if (props.checkResult) return checkPill(props.checkResult)

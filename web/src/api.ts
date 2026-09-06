@@ -73,6 +73,7 @@ export const DEFAULT_STOP_CRITERIA: StopCriteria = {
 }
 
 export interface TableRowResult {
+  status?: 'completed' | 'failed' | 'not-run' | 'cancelled'
   success: boolean
   values: Record<string, number>
   error: string | null
@@ -105,6 +106,7 @@ export interface VariableUncertaintyResult {
 }
 
 export interface SolveResponse {
+  resultRevision?: number
   success: boolean
   variables: VariableResult[]
   blocks: BlockResult[]
@@ -270,6 +272,8 @@ export interface FunctionTableDto {
   xLog: boolean
   yLog: boolean
   curves: { param: number | null; points: number[][] }[]
+  outputUnit?: string | null
+  argUnits?: Array<string | null> | null
 }
 
 export async function check(
@@ -816,6 +820,11 @@ export async function getPsychrometricChart(
 }
 
 export interface TableStats {
+  notRun?: number
+  converged?: boolean
+  passes?: number
+  termination?: 'completed' | 'pass-limit' | 'deadline'
+  accessor?: boolean
   runs: number
   solved: number
   failed: number
@@ -868,6 +877,10 @@ export async function solveTable(
     }
     return parsed
   } catch (e) {
+    if (e instanceof Error && e.message === 'Operation stopped') return {
+      results: rows.map(() => ({ success: false, values: {}, status: 'cancelled', error: 'Stopped — this worker delivered no row result; completion is unknown.' })),
+      stats: null, variables: [],
+    }
     // Only infrastructure can land here (worker died, wasm failed to load).
     return everyRowFailed(
       `Browser engine error: ${e instanceof Error ? e.message : String(e)}`,

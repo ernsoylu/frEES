@@ -1,3 +1,6 @@
+import { tableInputIssues } from './tableValidation'
+import { resolvePlotSource } from './plots/sources'
+import { flushSync } from 'react-dom'
 import { helpUrl } from './helpUrl'
 import { ChangeEvent, lazy, startTransition, Suspense, useCallback, useEffect, useMemo, useState, useRef, type ReactNode } from 'react'
 import {
@@ -77,6 +80,7 @@ const AlterValuesModal = lazy(() => import('./AlterValuesModal'))
 const TablesTab = lazy(() => import('./TablesTab'))
 import {
   functionTableFromDigitizer,
+  detachLegacyFormulas,
   FunctionTableSpec,
   loadTables,
   mergeCodeTables,
@@ -670,12 +674,42 @@ export default function App() {
   const openIds = useMemo(() => openWindows.map((w) => w.id), [openWindows])
   // Tables (Epic 8): any number of Parametric and Curve Tables; the active
   // parametric table is the one Check/Solve Table and the plots act on.
-  const [tables, setTables] = useState<TableSpec[]>(() => {
+  const [tables, setTablesState] = useState<TableSpec[]>(() => {
     if (boot) return boot.tables
     const raw = localStorage.getItem('frees.tables')
     if (raw) return loadTables()
     return []
   })
+  const [deletedTables, setDeletedTables] = useState<TableSpec[]>([])
+  const tablesRef = useRef(tables)
+  function writeTables(update: React.SetStateAction<TableSpec[]>) {
+    const next = typeof update === 'function' ? update(tablesRef.current) : update
+    tablesRef.current = next
+    setTablesState(next)
+  }
+  function setTables(update: React.SetStateAction<TableSpec[]>) {
+    const next = typeof update === 'function' ? update(tablesRef.current) : update
+    if (next === tablesRef.current) return
+    const removed = tablesRef.current.filter((t) => !next.some((n) => n.id === t.id))
+    if (removed.length) setDeletedTables(removed)
+    modelRevisionRef.current.bump()
+    modelRevisionRef.current.invalidateCheck()
+    setCheckResult(null)
+    setResult(null)
+    writeTables(next.map((t) => {
+      const before = tablesRef.current.find((b) => b.id === t.id)
+      if (before && (before.rows.length !== t.rows.length ||
+        (before.kind === 'function' && t.kind === 'function' && before.columns !== t.columns) ||
+        (before.kind === 'parametric' && t.kind === 'parametric' && before.vars !== t.vars))) t = detachLegacyFormulas(t)
+      return t.kind === 'parametric' ? invalidateActiveParam(t) : t
+    }))
+  }
+  function flushTableEdits() {
+    flushSync(() => {
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
+    })
+    flushTablesWorkbook()
+  }
   const [activeTableId, setActiveTableId] = useState<string | null>(null)
   const [solvingTableId, setSolvingTableId] = useState<string | null>(null)
   const [showConfigureTable, setShowConfigureTable] = useState(false)
@@ -690,7 +724,7 @@ export default function App() {
   const [newPlotKind, setNewPlotKind] = useState<PlotKind | null>(null)
   // Seed for a new X-Y plot opened from a table's column selection (x + y vars),
   // applied as the modal's initial XY config.
-  const [plotSeed, setPlotSeed] = useState<{ xVar: string; yVars: string[] } | null>(null)
+  const [plotSeed, setPlotSeed] = useState<{ xVar: string; yVars: string[]; tableId?: string } | null>(null)
   // D10: the spreadsheet feature is removed. A loaded project's spreadsheets
   // array is carried INERT — held here, written back on save, never shown and
   // never destroyed (docs/decisions/0010-remove-spreadsheet.md, compatibility
@@ -739,8 +773,8 @@ export default function App() {
   const [lastSolvedWithFillMissing, setLastSolvedWithFillMissing] = useState(false)
 
   useEffect(() => {
-    void getFluids().then(setFluids)
-  }, [])
+    if (newPlotKind === 'property') void getFluids().then(setFluids)
+  }, [newPlotKind])
 
   useEffect(() => {
     saveTables(tables)
@@ -1370,22 +1404,28 @@ export default function App() {
   // build from the returned fresh specs — React state lands a render later,
   // too late for the calling handler's closure.
   const functionTableDtos = () => {
-    const fresh = flushTablesWorkbook()
-    return fresh ? toFunctionTableDtos(fresh) : toFunctionTableDtos(tables)
+    flushTablesWorkbook()
+    return toFunctionTableDtos(tablesRef.current)
   }
 
   function updateParamTable(id: string, update: (t: ParamTableSpec) => ParamTableSpec) {
-    setTables((all) =>
+    writeTables((all) =>
       all.map((t) => (t.id === id && t.kind === 'parametric' ? update(t) : t)),
     )
   }
 
   function updateActiveParam(update: (t: ParamTableSpec) => ParamTableSpec) {
-    if (activeParam) updateParamTable(activeParam.id, update)
+    if (activeParam) setTables((all) => all.map((t) => t.id === activeParam.id && t.kind === 'parametric' ? update(t) : t))
   }
 
   function sendDigitizedToFunctionTable(data: DigitizedExport) {
-    const table = functionTableFromDigitizer({ existing: tables, ...data })
+    let table
+    try {
+      table = functionTableFromDigitizer({ existing: tables, ...data })
+    } catch (error) {
+      setLoadNotice(error instanceof Error ? error.message : String(error))
+      return
+    }
     setTables((all) => [...all, table])
     setActiveTableId(table.id)
     setActiveTab('table')
@@ -1554,6 +1594,7 @@ export default function App() {
 
   async function onCheck(): Promise<CheckResponse | null> {
     if (checking) return null
+    flushTableEdits()
     const requestRevision = modelRevisionRef.current.startCheck()
     setChecking(true)
     setResult(null)
@@ -1577,7 +1618,21 @@ export default function App() {
         return null
       }
       setCheckResult(response)
-      setTables((all) => mergeCodeTables(all, response.codeTables, response.parametricTables))
+      writeTables((all) =>
+        mergeCodeTables(all, response.codeTables, response.parametricTables).map((t) => {
+          if (t.kind !== 'parametric' || t.source === 'code') return t
+          const columnUnits = { ...t.columnUnits }
+          let changed = false
+          for (const name of t.vars) {
+            const inferred = response.inferredUnits[name]
+            if (inferred && columnUnits[name] !== inferred) {
+              columnUnits[name] = inferred
+              changed = true
+            }
+          }
+          return changed ? { ...t, columnUnits } : t
+        }),
+      )
       // Sync the Variable Information table: keep edited rows for variables
       // that still exist, add defaults for new ones.
       setVariables(response.variables)
@@ -1696,20 +1751,20 @@ export default function App() {
     // Text edits invalidate the runs of every parametric table. Return the same
     // array when there is nothing to clear so a plain keystroke doesn't
     // re-render every table consumer.
-    setTables((all) => {
+    writeTables((all) => {
       let changed = false
       const next = all.map((t) => {
         if (t.kind !== 'parametric') return t
         if (t.results.length === 0 && !t.stats && !t.checkResult && !t.checkMessage) return t
         changed = true
-        return { ...t, results: [], stats: null, checkResult: null, checkMessage: '' }
+        return { ...t, results: [], stats: null, checkResult: null, checkMessage: '', runStatus: 'stale' as const }
       })
       return changed ? next : all
     })
   }
 
   function invalidateActiveParam(t: ParamTableSpec): ParamTableSpec {
-    return { ...t, results: [], stats: null, checkResult: null, checkMessage: '' }
+    return { ...t, results: [], stats: null, checkResult: null, checkMessage: '', runStatus: 'stale' as const }
   }
 
   // Fresh hosted spec for a table run (contract b's pre-run scrape): flush
@@ -1717,9 +1772,17 @@ export default function App() {
   // React state update from the flush lands a render too late for this
   // handler's closure.
   function freshParamTable(tableId: string): ParamTableSpec | undefined {
+    flushTableEdits()
     const fresh = flushTablesWorkbook()?.find((t) => t.id === tableId)
-    const t = fresh ?? tables.find((x) => x.id === tableId)
+    const t = fresh ?? tablesRef.current.find((x) => x.id === tableId)
     return t?.kind === 'parametric' ? t : undefined
+  }
+
+  function tableRequestCurrent(revision: number, snapshot: ParamTableSpec): boolean {
+    const current = tablesRef.current.find((t) => t.id === snapshot.id)
+    return modelRevisionRef.current.isCurrent(revision) && current?.kind === 'parametric'
+      && current.rows.length === snapshot.rows.length
+      && current.rows.every((row, i) => row.id === snapshot.rows[i].id)
   }
 
   async function onCheckTable(tableIdArg?: string, overrideTbl?: ParamTableSpec): Promise<CheckResponse | null> {
@@ -1727,6 +1790,12 @@ export default function App() {
     if (checkingTableId !== null || !tableId) return null
     const tbl = overrideTbl ?? freshParamTable(tableId)
     if (!tbl || tbl.kind !== 'parametric') return null
+    const tableRevision = modelRevisionRef.current.current
+    const issues = tableInputIssues(tbl)
+    if (issues.length) {
+      updateParamTable(tableId, (t) => ({ ...t, checkMessage: issues.join('; ') }))
+      return null
+    }
     const tVars = tbl.vars
     const tRows = tbl.rows
     setCheckingTableId(tableId)
@@ -1740,6 +1809,7 @@ export default function App() {
         augmented += `\n${name} = ${value}`
       }
       const response = await check(augmented, buildVariableInfo(), complexMode, functionTableDtos())
+      if (!tableRequestCurrent(tableRevision, tbl)) return null
       updateParamTable(tableId, (t) => ({ ...t, checkResult: response }))
 
       // Sync variable list and units so the column headers show units for
@@ -1747,13 +1817,25 @@ export default function App() {
       if (response.variables.length > 0) {
         setVariables(response.variables)
         setVarDrafts((drafts) => mergeInferredUnits(drafts, response.variables, response.inferredUnits))
+        updateParamTable(tableId, (t) => {
+          const columnUnits = { ...t.columnUnits }
+          let changed = false
+          for (const name of t.vars) {
+            const inferred = response.inferredUnits[name]
+            if (inferred && columnUnits[name] !== inferred) {
+              columnUnits[name] = inferred
+              changed = true
+            }
+          }
+          return changed ? { ...t, columnUnits } : t
+        })
       }
 
       if (response.solvable) {
         updateParamTable(tableId, (t) => ({
           ...t,
           checkMessage:
-            `Table check passed: ${response.equations} equations and ` +
+            `Structural representative check passed: ${response.equations} equations and ` +
             `${response.unknowns} variables, with ${filled.size} value(s) ` +
             `supplied by the table.`,
         }))
@@ -1767,6 +1849,7 @@ export default function App() {
       }
       return response
     } catch (e) {
+      if (!tableRequestCurrent(tableRevision, tbl)) return null
       updateParamTable(tableId, (t) => ({
         ...t,
         checkResult: null,
@@ -1783,6 +1866,11 @@ export default function App() {
     if (solvingTableId !== null || !tableId) return false
     const tbl = overrideTbl ?? freshParamTable(tableId)
     if (!tbl || tbl.kind !== 'parametric' || tbl.vars.length === 0) return false
+    const issues = tableInputIssues(tbl)
+    if (issues.length) {
+      updateParamTable(tableId, (t) => ({ ...t, checkMessage: issues.join('; ') }))
+      return false
+    }
     // When checkOverride is explicitly provided (from checkThenSolveTable), honour it.
     // When called directly from a per-window "Run Table" button we skip the gate so
     // independent-block equations (e.g. two separate circuits) still solve correctly
@@ -1790,6 +1878,7 @@ export default function App() {
     if (checkOverride !== undefined && !checkOverride.solvable) return false
     const solveTableRevision = modelRevisionRef.current.current
     setSolvingTableId(tableId)
+    updateParamTable(tableId, (t) => ({ ...t, runStatus: 'running', results: [], stats: null }))
     setSolveProgress(0)
     try {
       // Non-empty cells become fixed inputs for that run; blank cells are
@@ -1815,15 +1904,17 @@ export default function App() {
         functionTableDtos(),
         reportSolveProgress,
       )
-      if (!modelRevisionRef.current.isCurrent(solveTableRevision)) {
+      if (!tableRequestCurrent(solveTableRevision, tbl)) {
         return false
       }
       updateParamTable(tableId, (t) => ({
         ...t,
+        resultRevision: solveTableRevision,
         results: response.results,
         stats: response.stats,
+        runStatus: response.results.some((r) => r.status === 'cancelled') ? 'cancelled' : 'completed',
       }))
-      if (response.variables && response.variables.length > 0) {
+      if (response.stats?.converged !== false && response.variables && response.variables.length > 0) {
         setResult((prev) => ({
           success: true,
           variables: response.variables,
@@ -1837,7 +1928,7 @@ export default function App() {
       }
       return true
     } catch (e) {
-      if (!modelRevisionRef.current.isCurrent(solveTableRevision)) {
+      if (!tableRequestCurrent(solveTableRevision, tbl)) {
         return false
       }
       if (e instanceof Error && e.message === 'Operation stopped') {
@@ -1864,6 +1955,7 @@ export default function App() {
     overridePlots?: PlotSpec[],
     checkOverride?: CheckResponse,
   ): Promise<boolean> {
+    flushTableEdits()
     const isCurrentSolvable = modelRevisionRef.current.isCheckValidAndSolvable()
     const canRun = checkOverride ? checkOverride.solvable === true : (isCurrentSolvable && solvable)
     if (solving || !canRun) return false
@@ -1895,13 +1987,13 @@ export default function App() {
       if (!modelRevisionRef.current.isCurrent(solveRevision)) {
         return false
       }
-      setResult(response)
+      setResult({ ...response, resultRevision: solveRevision })
       // REPL overrides persist across solves (the terminal keeps priority over the
       // editor); they're dropped only by the `clear` command, not by solving.
       // The Variable Explorer lives in the right edge group (expanded by default)
       // and shows the solved variables — it replaces the old Solution panel.
       // Solving updates its contents; the user can collapse it via its edge tab.
-      setTables((all) => mergeCodeTables(all, response.codeTables, response.parametricTables, response.odeTables))
+      writeTables((all) => mergeCodeTables(all, response.codeTables, response.parametricTables, response.odeTables))
       setLastSolvedWithFillMissing(shouldFillMissing && response.success)
       // Once the user has solved successfully, they've learned the core
       // workflow — retire the first-run welcome banner so it stops eating
@@ -1984,6 +2076,7 @@ export default function App() {
   // passed through so the solve guard doesn't read stale `solvable` state.
   async function checkThenSolve(): Promise<'workspace' | 'table' | void> {
     if (solving || checking) return
+    flushTableEdits()
     const isCurrentSolvable = modelRevisionRef.current.isCheckValidAndSolvable()
     if (isCurrentSolvable && solvable) {
       const ok = await onSolve()
@@ -2035,8 +2128,8 @@ export default function App() {
 
   // From a read-only table's column selection: open the New X-Y plot modal
   // pre-filled with the time column as x and the selected columns as y.
-  const handlePlotColumns = (xVar: string, yVars: string[]) => {
-    setPlotSeed({ xVar, yVars })
+  const handlePlotColumns = (xVar: string, yVars: string[], tableId?: string) => {
+    setPlotSeed({ xVar, yVars, tableId })
     setNewPlotKind('xy')
   }
 
@@ -2044,6 +2137,11 @@ export default function App() {
     // Code-defined plots are derived from the solve response, not persisted, so
     // strip them before saving — they are re-merged on the next solve/check.
     const userPlots = nextPlots.filter((p) => !p.fromCode)
+    const names = [...userPlots, ...codePlots].map((p) => p.name.trim().toLowerCase())
+    if (names.some((n) => !n) || new Set(names).size !== names.length) {
+      setLoadNotice('Plot names must be nonempty and unique, including code-owned plots.')
+      return
+    }
     setPlots(userPlots)
     const needMissing = userPlots.some((p) => p.kind === 'property' && p.property.overlayStates)
     if (needMissing && result?.success && !lastSolvedWithFillMissing && !solving && solvable) {
@@ -2125,9 +2223,24 @@ export default function App() {
     return dtos.map(plotDefToSpec)
   }, [result?.definedPlots, checkResult?.definedPlots])
 
+  useEffect(() => {
+    setPlots((previous) => {
+      let changed = false
+      const next = previous.map((plot) => {
+        const source = resolvePlotSource(plot, tables, result?.variables ?? [])
+        const sourceTable = source?.kind === 'table' ? tables.find((t) => t.id === source.tableId) : undefined
+        const revision = source?.kind === 'arrays' ? result?.resultRevision : sourceTable?.kind === 'parametric' ? sourceTable.resultRevision : undefined
+        if (source === plot.source && revision === plot.resultRevision) return plot
+        changed = true
+        return { ...plot, source, resultRevision: revision }
+      })
+      return changed ? next : previous
+    })
+  }, [tables, result])
+
   const mergedPlots = useMemo<PlotSpec[]>(() => {
-    const userNames = new Set(plots.map((p) => p.name.toLowerCase()))
-    return [...plots, ...codePlots.filter((c) => !userNames.has(c.name.toLowerCase()))]
+    const codeNames = new Set(codePlots.map((p) => p.name.toLowerCase()))
+    return [...plots.filter((p) => !codeNames.has(p.name.toLowerCase())), ...codePlots]
   }, [plots, codePlots])
 
   // Auto-close dock windows whose backing instance no longer exists — e.g. a
@@ -2532,10 +2645,10 @@ export default function App() {
                       Configure Columns
                     </Button>
                     <Group grow>
-                      <Button size="xs" variant="default" onClick={() => updateParamTable(t.id, (pt) => invalidateActiveParam({ ...pt, rows: [...pt.rows, newParamRow()] }))}>
+                      <Button size="xs" variant="default" onClick={() => setTables((all) => all.map((pt) => pt.id === t.id && pt.kind === 'parametric' ? invalidateActiveParam({ ...pt, rows: [...pt.rows, newParamRow()] }) : pt))}>
                         Add Row
                       </Button>
-                      <Button size="xs" variant="default" onClick={() => updateParamTable(t.id, (pt) => invalidateActiveParam({ ...pt, rows: pt.rows.slice(0, -1) }))}>
+                      <Button size="xs" variant="default" onClick={() => setTables((all) => all.map((pt) => pt.id === t.id && pt.kind === 'parametric' ? invalidateActiveParam({ ...pt, rows: pt.rows.slice(0, -1) }) : pt))}>
                         Remove Row
                       </Button>
                     </Group>
@@ -2717,6 +2830,7 @@ export default function App() {
           singlePlotId={pl.id}
           emptyHint="This plot was removed."
           plots={mergedPlots}
+          tables={tables}
           onPlotsChange={handlePlotsChange}
           solvedVariables={result?.variables ?? []}
           stateTableDefs={declaredStateDefs}
@@ -2803,7 +2917,7 @@ export default function App() {
             tables={tables}
             singleTableId={t.id}
             varDrafts={varDrafts}
-            onPlotColumns={handlePlotColumns}
+            onPlotColumns={(x, ys) => handlePlotColumns(x, ys, t.id)}
             onCopyToEditable={(copy) => {
               setTables((prev) => [...prev, copy])
               setActiveTableId(copy.id)
@@ -2909,6 +3023,7 @@ export default function App() {
           tableChecking={checkingTableId === focusedParam?.id}
           tableSolving={solvingTableId === focusedParam?.id}
           tableCheckResult={tableCheckResult}
+          tableStats={focusedParam?.stats}
           tableCheckMessage={tableCheckMessage}
           tableResults={focusedParam?.results ?? []}
           onCheck={checkWithFallback}
@@ -3211,6 +3326,14 @@ export default function App() {
 
       {/* Self-dismissing project-load summary (the D10/D11 inert-slice
           notices: data preserved in the file, feature no longer shown). */}
+      {deletedTables.length > 0 && (
+        <Alert title="Table deleted" withCloseButton onClose={() => setDeletedTables([])}>
+          <Button size="xs" onClick={() => {
+            setTables((all) => [...all, ...deletedTables.filter((t) => !all.some((a) => a.id === t.id))])
+            setDeletedTables([])
+          }}>Restore deleted tables</Button>
+        </Alert>
+      )}
       {loadNotice !== null && (
         <Alert
           icon={<IconInfoCircle size={16} />}
@@ -3301,6 +3424,8 @@ export default function App() {
             allowedKinds={[newPlotKind]}
             defaultName={`${PLOT_KIND_LABEL[newPlotKind]} ${mergedPlots.filter((p) => p.kind === newPlotKind).length + 1}`}
             fluids={fluids}
+            tables={tables}
+            occupiedNames={mergedPlots.map((p) => p.name)}
             tableVars={tableVars}
             initialXy={newPlotKind === 'xy' ? (plotSeed ?? undefined) : undefined}
             hasStates={detectStates(result?.variables ?? []).indices.length > 0}

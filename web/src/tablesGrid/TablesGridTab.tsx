@@ -1,3 +1,4 @@
+import { tableInputIssues } from '../tableValidation'
 // tablesGrid/TablesGridTab.tsx
 //
 // The Tables workbook, rebuilt on glide-data-grid (decision D10: the Univer
@@ -73,10 +74,13 @@ import ImportCsvModal from './ImportCsvModal'
 import {
   appendRow,
   applyCellEdit,
+  applyCellEdits,
+  restoreUserEdit,
   applyPaste,
   boundColumnCount,
   cellViewAt,
   clearCells,
+  csvExportComments,
   csvValuesFor,
   gridRowCount,
   headerTitles,
@@ -109,7 +113,7 @@ const FAILED_RED = '#fa5252'
 interface UndoEntry {
   tableId: string
   before: TableSpec
-  after: TableSpec
+  after: TableSpec | null
 }
 
 const UNDO_LIMIT = 100
@@ -178,6 +182,7 @@ export default function TablesGridTab({
   const commitSpec = (before: TableSpec, after: TableSpec, pushUndo: boolean) => {
     if (before === after) return
     tablesRef.current = tablesRef.current.map((t) => (t.id === before.id ? after : t))
+    redoStack.current = []
     if (pushUndo) {
       undoStack.current.push({ tableId: before.id, before, after })
       if (undoStack.current.length > UNDO_LIMIT) undoStack.current.shift()
@@ -204,20 +209,24 @@ export default function TablesGridTab({
   const undo = () => {
     const e = undoStack.current.pop()
     if (!e) return
-    if (!tablesRef.current.some((t) => t.id === e.tableId)) return // table deleted since
+    const current = liveSpec(e.tableId)
+    if (e.after && (!current || current.rows !== e.after.rows)) return
+    const restored = e.after && current ? restoreUserEdit(current, e.after, e.before) : e.before
     redoStack.current.push(e)
-    tablesRef.current = tablesRef.current.map((t) => (t.id === e.tableId ? e.before : t))
-    onTablesChange((prev) => prev.map((t) => (t.id === e.tableId ? e.before : t)))
+    tablesRef.current = current ? tablesRef.current.map((t) => t.id === e.tableId ? restored : t) : [...tablesRef.current, restored]
+    onTablesChange(tablesRef.current)
     onActiveTableIdChange(e.tableId)
   }
 
   const redo = () => {
     const e = redoStack.current.pop()
-    if (!e) return
-    if (!tablesRef.current.some((t) => t.id === e.tableId)) return
+    const current = e && liveSpec(e.tableId)
+    if (!e || !current || current.rows !== e.before.rows) return
     undoStack.current.push(e)
-    tablesRef.current = tablesRef.current.map((t) => (t.id === e.tableId ? e.after : t))
-    onTablesChange((prev) => prev.map((t) => (t.id === e.tableId ? e.after : t)))
+    tablesRef.current = e.after
+      ? tablesRef.current.map((t) => t.id === e.tableId ? restoreUserEdit(t, e.before, e.after!) : t)
+      : tablesRef.current.filter((t) => t.id !== e.tableId)
+    onTablesChange(tablesRef.current)
     onActiveTableIdChange(e.tableId)
   }
 
@@ -299,16 +308,10 @@ export default function TablesGridTab({
     if (newValues.length <= 1) return // single edits take the onCellEdited path
     const before = liveSpec(active?.id)
     if (!before) return true
-    let spec = before
-    const errorCells: string[] = []
-    for (const { location, value } of newValues) {
-      if (value.kind !== GridCellKind.Text) continue
-      const [col, row] = location
-      const result = applyCellEdit(spec, row, col, value.data)
-      if (result.changed) spec = result.spec
-      errorCells.push(...result.errorCells)
-    }
-    if (spec !== before) commitSpec(before, spec, true)
+    const result = applyCellEdits(before, newValues.flatMap(({ location: [col, gridRow], value }) =>
+      value.kind === GridCellKind.Text ? [{ gridRow, col, text: value.data }] : []))
+    const errorCells = result.errorCells
+    if (result.changed) commitSpec(before, result.spec, true)
     setWarning(
       before.id,
       errorCells.length > 0
@@ -411,8 +414,13 @@ export default function TablesGridTab({
   const transformActive = (update: (t: TableSpec) => TableSpec, pushUndo = true) => {
     const spec = liveSpec(active?.id)
     if (!spec) return
-    const next = update(spec)
-    if (next !== spec) commitSpec(spec, next, pushUndo)
+    try {
+      const next = update(spec)
+      if (next !== spec) commitSpec(spec, next, pushUndo)
+      setWarning(spec.id, null)
+    } catch (error) {
+      setWarning(spec.id, error instanceof Error ? error.message : String(error))
+    }
   }
 
   const addTable = (kind: 'function-1d' | 'function-2d' | 'parametric') => {
@@ -443,6 +451,10 @@ export default function TablesGridTab({
   }
 
   const removeTable = (id: string) => {
+    const before = liveSpec(id)
+    if (!before) return
+    undoStack.current.push({ tableId: id, before, after: null })
+    redoStack.current = []
     tablesRef.current = tablesRef.current.filter((t) => t.id !== id)
     onTablesChange((prev) => prev.filter((t) => t.id !== id))
     if (activeTableId === id) onActiveTableIdChange(hosted.find((t) => t.id !== id)?.id ?? null)
@@ -457,9 +469,14 @@ export default function TablesGridTab({
     setRenamingId(null)
   }
 
-  const handleExportCsv = () => {
+  const handleExportCsv = (mode: 'exact' | 'display') => {
     if (!active) return
-    downloadValuesAsCsv(csvValuesFor(active), `${active.name || 'table'}.csv`)
+    const suffix = mode === 'display' ? '.display.csv' : '.csv'
+    downloadValuesAsCsv(
+      csvValuesFor(active, mode),
+      `${active.name || 'table'}${suffix}`,
+      csvExportComments(active, mode),
+    )
   }
 
   const multiCurve = (activeFn?.columns.length ?? 0) > 1
@@ -482,11 +499,21 @@ export default function TablesGridTab({
           <Text size="xs" fw={700} c="dimmed">
             Tables
           </Text>
-          <Tooltip label="Export the active table as CSV">
-            <ActionIcon size="sm" variant="light" aria-label="Export active table as CSV" onClick={handleExportCsv} disabled={!active}>
-              <IconDownload size={14} />
-            </ActionIcon>
-          </Tooltip>
+          <Menu position="bottom-end" shadow="md">
+            <Menu.Target>
+              <ActionIcon size="sm" variant="light" aria-label="Export active table as CSV" disabled={!active}>
+                <IconDownload size={14} />
+              </ActionIcon>
+            </Menu.Target>
+            <Menu.Dropdown>
+              <Menu.Item leftSection={<IconFileTypeCsv size={14} />} onClick={() => handleExportCsv('exact')}>
+                Exact values (round-trip)
+              </Menu.Item>
+              <Menu.Item leftSection={<IconFileTypeCsv size={14} />} onClick={() => handleExportCsv('display')}>
+                Formatted report (6 significant digits)
+              </Menu.Item>
+            </Menu.Dropdown>
+          </Menu>
           <Menu position="bottom-start" shadow="md">
             <Menu.Target>
               <ActionIcon size="sm" variant="light" aria-label="Add table">
@@ -772,6 +799,16 @@ export default function TablesGridTab({
             {warnings[active.id]}
           </Text>
         )}
+        {active && tableInputIssues(active).length > 0 && <Text c="red" size="xs">{tableInputIssues(active).slice(0, 12).join('; ')}</Text>}
+        {activeParam && <Text size="xs">Run status: {activeParam.runStatus ?? 'not-run'}</Text>}
+        {activeParam?.stats && <Text size="xs" c={activeParam.stats.converged === false ? 'orange' : 'dimmed'}>
+          {activeParam.stats.solved}/{activeParam.stats.runs} completed; {activeParam.stats.failed} failed; {activeParam.stats.notRun ?? 0} not run.
+          {' '}{activeParam.stats.passes ?? 1} passes — {activeParam.stats.termination ?? 'completed'}.
+          {activeParam.stats.converged === false && ' Values are provisional; the table has not converged.'}
+        </Text>}
+        {activeParam?.results.some((r) => r.error) && <Text size="xs" c="red">
+          {activeParam.results.flatMap((r, i) => r.error ? [`Run ${i + 1}: ${r.error}`] : []).join('; ')}
+        </Text>}
         {legacyFormulas.length > 0 && (
           <Text size="xs" c="orange.4">
             Stored formulas (ƒ) are shown read-only and no longer recalculate:{' '}
