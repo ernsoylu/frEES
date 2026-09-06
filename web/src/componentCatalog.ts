@@ -1,6 +1,6 @@
 // GENERATED FILE - DO NOT EDIT DIRECTLY.
-// Compiled from src/docs/reference/components/**/*.md by scripts/compile-docs.js
-// (npm run compile-docs). Structured specs for the Component Browser/Wizard.
+// Compiled by scripts/compile-docs.js from this port's parsed component library
+// plus authored Markdown descriptions (npm run compile-docs).
 
 export interface ComponentParam {
   name: string;          // e.g. "U_tp", "fluid$"
@@ -670,7 +670,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     type: `Compressor`,
     library: `fluid`,
     summary: `Raises the pressure of a fluid stream, computing the work from an isentropic efficiency.`,
-    tags: [`compressor`, `component`, `fluid`, `acausal`],
+    tags: [`compressor`, `compressor-family`, `data:eta`, `ports:in-out`, `flow-closed`, `energy-work`, `steady`, `component`, `fluid`, `acausal`],
     ports: [`in`, `out`],
     params: [
       { name: `eta`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Efficiency (0–1).`, required: true, values: [], variants: [`isentropic`, `volumetric`], defaultValue: `` },
@@ -687,7 +687,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     type: `CompressorMap`,
     library: `fluid`,
     summary: `A compressor whose isentropic efficiency comes from a tabulated map (eta vs pressure ratio).`,
-    tags: [`compressormap`, `compressor`, `map`, `component`, `fluid`, `acausal`],
+    tags: [`compressor`, `compressor-family`, `compressormap`, `map`, `data:map-eta`, `ports:in-out`, `flow-closed`, `energy-work`, `steady`, `map-driven`, `component`, `fluid`, `acausal`],
     ports: [`in`, `out`],
     params: [
       { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. R134a, Air).`, required: true, values: [], variants: [], defaultValue: `` },
@@ -740,7 +740,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     type: `Fan`,
     library: `fluid`,
     summary: `Adds a pressure rise to a gas/air stream, computing the fan work.`,
-    tags: [`fan`, `component`, `fluid`, `acausal`],
+    tags: [`fan`, `fan-family`, `constant-rise`, `data:dP0-Q0-eta`, `ports:in-out`, `flow-closed`, `energy-work`, `steady`, `component`, `fluid`, `acausal`],
     ports: [`in`, `out`],
     params: [
       { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [], defaultValue: `` },
@@ -754,7 +754,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     type: `FanCurve`,
     library: `fluid`,
     summary: `A fan whose pressure rise follows a tabulated pressure–flow performance curve.`,
-    tags: [`fancurve`, `component`, `fluid`, `acausal`],
+    tags: [`fan`, `fan-family`, `fancurve`, `curve`, `data:rho-dP0-Q0`, `ports:in-out`, `flow-closed`, `energy-pressure`, `steady`, `component`, `fluid`, `acausal`],
     ports: [`in`, `out`],
     params: [
       { name: `rho`, isString: false, isSelector: false, isMap: false, unit: `kg/m^3`, description: `Density [kg/m³].`, required: true, values: [], variants: [], defaultValue: `` },
@@ -767,7 +767,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     type: `FanMap`,
     library: `fluid`,
     summary: `A fan whose pressure rise comes from a tabulated performance map (ΔP vs volumetric flow).`,
-    tags: [`fanmap`, `fan`, `map`, `component`, `fluid`, `acausal`],
+    tags: [`fan`, `fan-family`, `fanmap`, `map`, `data:rho-map`, `ports:in-out`, `flow-closed`, `energy-pressure`, `steady`, `map-driven`, `component`, `fluid`, `acausal`],
     ports: [`in`, `out`],
     params: [
       { name: `rho`, isString: false, isSelector: false, isMap: false, unit: `kg/m^3`, description: `Density [kg/m³].`, required: true, values: [], variants: [], defaultValue: `` },
@@ -872,7 +872,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     type: `Pump`,
     library: `fluid`,
     summary: `Raises the pressure of a liquid stream, computing the work from a pump efficiency.`,
-    tags: [`pump`, `component`, `fluid`, `acausal`],
+    tags: [`pump`, `pump-family`, `data:eta`, `ports:in-out`, `flow-closed`, `energy-work`, `steady`, `component`, `fluid`, `acausal`],
     ports: [`in`, `out`],
     params: [
       { name: `eta`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Efficiency (0–1).`, required: true, values: [], variants: [], defaultValue: `` },
@@ -884,7 +884,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     type: `PumpMap`,
     library: `fluid`,
     summary: `A pump whose head comes from a tabulated performance map (head vs volumetric flow).`,
-    tags: [`pumpmap`, `pump`, `map`, `component`, `fluid`, `acausal`],
+    tags: [`pump`, `pump-family`, `pumpmap`, `map`, `data:rho-map`, `ports:in-out`, `flow-closed`, `energy-pressure`, `steady`, `map-driven`, `component`, `fluid`, `acausal`],
     ports: [`in`, `out`],
     params: [
       { name: `rho`, isString: false, isSelector: false, isMap: false, unit: `kg/m^3`, description: `Density [kg/m³].`, required: true, values: [], variants: [], defaultValue: `` },
@@ -1724,7 +1724,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     type: `LiquidPump`,
     library: `liquid`,
     summary: `A single-phase liquid pump.`,
-    tags: [`liquidpump`, `component`, `liquid`, `acausal`],
+    tags: [`pump`, `liquid-pump-family`, `liquidpump`, `data:eta`, `ports:in-out`, `flow-closed`, `energy-work`, `steady`, `liquid`, `component`, `acausal`],
     ports: [`in`, `out`],
     params: [
       { name: `eta`, isString: false, isSelector: false, isMap: false, unit: ``, description: `Efficiency (0–1).`, required: true, values: [], variants: [], defaultValue: `` },
@@ -1741,7 +1741,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     type: `LiquidPumpMap`,
     library: `liquid`,
     summary: `Acausal liquid-domain component LiquidPumpMap with ports in, out.`,
-    tags: [`liquidpumpmap`, `component`, `liquid`, `acausal`],
+    tags: [`pump`, `liquid-pump-family`, `liquidpumpmap`, `map`, `data:rho-map`, `ports:in-out`, `flow-closed`, `energy-work`, `steady`, `map-driven`, `liquid`, `component`, `acausal`],
     ports: [`in`, `out`],
     params: [
       { name: `rho`, isString: false, isSelector: false, isMap: false, unit: ``, description: ``, required: true, values: [], variants: [], defaultValue: `` },
@@ -3964,7 +3964,7 @@ export const COMPONENT_CATALOG: ComponentSpec[] = [
     type: `TwoPhaseCompressor`,
     library: `twophase`,
     summary: `A refrigerant compressor with selectable isentropic/volumetric variants.`,
-    tags: [`twophasecompressor`, `component`, `twophase`, `acausal`],
+    tags: [`compressor`, `compressor-family`, `twophasecompressor`, `ports:in-out`, `flow-closed`, `energy-work`, `steady`, `twophase`, `component`, `acausal`],
     ports: [`in`, `out`],
     params: [
       { name: `fluid$`, isString: true, isSelector: false, isMap: false, unit: ``, description: `Fluid name (e.g. Water, R134a, Air).`, required: true, values: [], variants: [], defaultValue: `` },

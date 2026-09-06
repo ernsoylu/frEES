@@ -177,6 +177,8 @@ import {
   loadProjectLocal,
   ProjectSlices,
   readProjectFile,
+  downloadEquationText,
+  projectOnlyNotes,
   saveProject,
   saveProjectLocal,
   saveProjectToHandle,
@@ -1096,6 +1098,18 @@ export default function App() {
   }, [])
 
   const handleSaveProjectAs = useCallback(() => setSaveAsOpen(true), [])
+
+  const handleExportEquations = useCallback(() => {
+    const notes = projectOnlyNotes(buildProject(currentSlices()))
+    downloadEquationText(textRef.current, projectName)
+    notifications.show({
+      color: 'blue',
+      title: 'Exported equation text',
+      message: notes.length
+        ? `Not included (save the project to keep them): ${notes.join('; ')}.`
+        : 'This document has no project-only inputs — the text is the whole model.',
+    })
+  }, [currentSlices, projectName])
 
   // Save As always picks (never the kept handle) — but the file it picks
   // becomes the project's new home, so a following Save writes there.
@@ -2289,6 +2303,7 @@ export default function App() {
         { id: 'proj-open', label: 'Open Project…', leftSection: <IconFolderOpen size={18} />, onClick: handleOpenProject },
         { id: 'proj-save', label: 'Save Project', leftSection: <IconDeviceFloppy size={18} />, onClick: handleSaveProject },
         { id: 'proj-saveas', label: 'Save Project As…', leftSection: <IconDeviceFloppy size={18} />, onClick: handleSaveProjectAs },
+        { id: 'proj-export-text', label: 'Export equation text…', description: 'Download the editor document only — tables, maps, and layout stay in Save project', leftSection: <IconDeviceFloppy size={18} />, onClick: handleExportEquations },
         { id: 'proj-library', label: 'Browser Projects…', description: 'Projects saved in this browser — no server, no files', leftSection: <IconDatabase size={18} />, onClick: () => setLibraryOpen(true) },
         { id: 'proj-save-browser', label: 'Save to Browser', description: 'Keep this project in the browser under its current name', leftSection: <IconDatabase size={18} />, onClick: () => { void handleSaveToBrowser().then((ok) => notifications.show(ok ? { color: 'teal', title: 'Saved to browser', message: `“${projectName}” is stored in this browser.` } : { color: 'yellow', title: 'Could not save to browser', message: 'Browser storage may be unavailable in this browsing mode.' })) } },
       ],
@@ -2920,6 +2935,7 @@ export default function App() {
           onOpenLibrary={() => setLibraryOpen(true)}
           onSaveProject={handleSaveProject}
           onSaveProjectAs={handleSaveProjectAs}
+          onExportEquations={handleExportEquations}
           onInsertFunction={insertFunction}
           onInsertComponent={() => setShowComponentWizard(true)}
           onOpenExamples={() => setShowExamples(true)}

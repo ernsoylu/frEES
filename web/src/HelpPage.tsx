@@ -721,6 +721,10 @@ const CATEGORIES: NavCategory[] = [
     title: 'Examples & Tutorials',
     icon: <IconFileText size={16} />,
     items: [
+      { id: 'journey-scalar', label: 'Journey 1: Scalar with units', blurb: 'Solve one equation, read SI, recover a missing unit.', keywords: ['journey', 'units', 'first solve', 'kpa', 'temperature'] },
+      { id: 'journey-chain', label: 'Journey 2: Component chain', blurb: 'Source–pipe–sink with connect, then recover a missing boundary.', keywords: ['journey', 'connect', 'pipe', 'source', 'sink', 'boundary'] },
+      { id: 'journey-upgrade', label: 'Journey 3: Map or transient', blurb: 'Swap a fan for a map, or add DYNAMIC, without losing the wiring.', keywords: ['journey', 'fanmap', 'map', 'dynamic', 'transient', 'time'] },
+      { id: 'journey-loop', label: 'Mixers and closed loops', blurb: 'When a branch is not a mix, and how a loop actually closes.', keywords: ['mixer', 'closed loop', 'enthalpy', 'connect'] },
       { id: 'tut-msd', label: 'Tutorial: Mass–Spring–Damper → Bode', blurb: 'From a transient ring-down to the plant\'s frequency response, in stages.', keywords: ['tutorial', 'mass spring damper', 'oscillator', 'bode', 'transfer function', 'dynamic', 'vibration', 'resonance', 'damping'] },
       { id: 'tut-coil', label: 'Tutorial: AC Cooling Coil', blurb: 'Psychrometric coil analysis by hand, then rebuilt from components.', keywords: ['tutorial', 'cooling coil', 'psychrometrics', 'hvac', 'dehumidification', 'latent', 'sensible', 'shr', 'moist air', 'air conditioning'] },
       { id: 'tut-rlc', label: 'Tutorial: RLC Filter Response', blurb: 'Phasor spot checks, then the full Bode picture of a low-pass filter.', keywords: ['tutorial', 'rlc', 'filter', 'circuit', 'frequency response', 'bode', 'impedance', 'phasor', 'resonance', 'low-pass'] },

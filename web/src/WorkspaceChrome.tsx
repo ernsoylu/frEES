@@ -55,6 +55,7 @@ import {
   IconVariable,
   IconLink,
   IconPrinter,
+  IconFileExport,
 } from '@tabler/icons-react'
 import { spotlight } from '@mantine/spotlight'
 import { useState } from 'react'
@@ -757,6 +758,8 @@ interface TopBarProps {
   onOpenLibrary: () => void
   onSaveProject: () => void
   onSaveProjectAs: () => void
+  /** File menu: download equation text only (no project tables/layout). */
+  onExportEquations: () => void
   onInsertFunction: (snippet: string) => void
   onInsertComponent: () => void
   onOpenExamples: () => void
@@ -858,12 +861,24 @@ export function TopBar(props: Readonly<TopBarProps>) {
               Print Report…
             </Menu.Item>
             <Menu.Divider />
-            <Menu.Item leftSection={<IconDeviceFloppy size={14} />} onClick={props.onSaveProject}>
+            <Menu.Item
+              leftSection={<IconDeviceFloppy size={14} />}
+              onClick={props.onSaveProject}
+            >
               Save Project
             </Menu.Item>
+            <Text size="xs" c="dimmed" px="sm" pb={4}>
+              .frees file: equations, tables, maps, plots, layout, guesses
+            </Text>
             <Menu.Item leftSection={<IconDeviceFloppy size={14} />} onClick={props.onSaveProjectAs}>
               Save Project As…
             </Menu.Item>
+            <Menu.Item leftSection={<IconFileExport size={14} />} onClick={props.onExportEquations}>
+              Export equation text…
+            </Menu.Item>
+            <Text size="xs" c="dimmed" px="sm" pb={4}>
+              Editor document only — GUI tables, maps, and layout stay in the project
+            </Text>
           </Menu.Dropdown>
         </Menu>
 

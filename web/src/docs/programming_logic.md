@@ -108,6 +108,21 @@ A Function Table built in the **Tables** window is callable exactly like a `TABL
 
 One rule holds for all three: if the document already defines a `TABLE` with that name, **the document's table wins** when the equations are solved — a GUI table never overrides it.
 
+## What wins, and what a file carries
+
+| Input | Origin | Precedence |
+| --- | --- | --- |
+| `TABLE` / `FUNCTION` in the document | equation text | **Wins** over a GUI table of the same name |
+| GUI Function Table, CSV import, digitizer map | Tables window / project file | Used only when the document does not define that name |
+| `GUESS` in the document | equation text | **Wins** over Variable Information on conflict |
+| Variable Information | project file | Fills in where the text is silent |
+| Workspace sliders | project file | Applied as overrides on each solve (last write wins among overrides) |
+| REPL assignments | this session only | Override the solved workspace until `clear`; not in Export equation text |
+
+**Save project** writes a `.frees` JSON file: equation text plus Variable Information, GUI tables, maps, plots, schematic layout, sliders, and opaque legacy slices (spreadsheets / analyzer sessions) so a reload reproduces the effective model.
+
+**Export equation text** writes only the editor document. Anything in the table above that is not in the text is listed in the export notice — those inputs will not travel with a copy-paste of the equations.
+
 [Related: tables-code, table-accessors, digitizer-fit]
 
 [Topic: table-accessors]

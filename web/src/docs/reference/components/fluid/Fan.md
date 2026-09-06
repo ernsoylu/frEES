@@ -2,9 +2,9 @@
 name: Fan
 category: Component (fluid)
 summary: Adds a pressure rise to a gas/air stream, computing the fan work.
-related: []
+related: [FanCurve, FanMap]
 examples: []
-tags: [fan, component, fluid, acausal]
+tags: [fan, fan-family, constant-rise, data:dP0-Q0-eta, ports:in-out, flow-closed, energy-work, steady, component, fluid, acausal]
 ---
 
 # Fan

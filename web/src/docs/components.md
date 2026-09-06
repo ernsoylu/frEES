@@ -3,12 +3,24 @@
 
 frees has a library of **312 components** — reusable, parameterized blocks of physics (pumps, pipes, heat exchangers, resistors, gears, cooling coils …) with typed **ports**. You instantiate them, wire the ports together, and frees expands the network into ordinary scalar equations solved by the same Newton/Tarjan pipeline as everything else. There is no separate "simulation mode": components and plain equations mix freely in one document.
 
+## Default authoring style
+
+Write **named parameters**, **explicit `connect`**, and **single-quoted strings**. The wizard emits this shape; positional stream names are a compact alternative taught after the first network.
+
+```
+Source SUP(fluid$='Water', mdot=2 [kg/s], P=300000 [Pa], T=298 [K])
+Pipe   LINE(fluid$='Water', L=50 [m], D=0.05 [m], rough=0.0001)
+connect(SUP.out, LINE.in)
+```
+
+`"Water"` is a comment, not a fluid name. Prefer `'Water'`.
+
 ## Water through a pipe
 
 ```run
 { Supply -> pipe -> return: what pressure is lost to friction? }
-Source  SUP(fluid$=Water, mdot=2 [kg/s], P=300000 [Pa], T=298 [K])
-Pipe    LINE(fluid$=Water, L=50 [m], D=0.05 [m], rough=0.0001)
+Source  SUP(fluid$='Water', mdot=2 [kg/s], P=300000 [Pa], T=298 [K])
+Pipe    LINE(fluid$='Water', L=50 [m], D=0.05 [m], rough=0.0001)
 Sink    RET()
 
 connect(SUP.out, LINE.in)
@@ -58,9 +70,28 @@ At a node, frees emits the **junction rules** for the ports' domain (see *Domain
 
 Loops close the same way — connecting the last component back to the first is legal and is how closed circuits (refrigeration loops, coolant circuits) are built.
 
-## Style 2 — shared stream names
+## Mixing and closing a loop
 
-For simple series chains there is a terser form: bind ports **positionally** to named streams. Two instances that name the same stream are connected.
+A `connect` of three ports is a legal **branch** (one pressure, mass conserved), but it **does not mix enthalpy**. Two streams at different states that join need an explicit mixer (`Mixer`, `LiquidMixer`, `MixingBox`, …):
+
+```
+connect(SRC.out, MIX.in1)
+connect(RECIRC.out, MIX.in2)
+connect(MIX.out, LINE.in)
+```
+
+A **closed loop** is `connect` back through the load — legal, and how a refrigeration or coolant circuit is written:
+
+```
+connect(PUMP.out, HX.in)
+connect(HX.out, PUMP.in)
+```
+
+See *Connections & Junctions* for the two-port limit on shared stream names, and the mixer pages in the Reference for parameters.
+
+## Style 2 — shared stream names (advanced)
+
+For simple series chains there is a terser form: bind ports **positionally** to named streams. Two instances that name the same stream are connected. Learn `connect` first; use this when a two-port chain is easier to read than two statements.
 
 ```
 Source SUP(s1, fluid$=Water, mdot=2, P=300000, T=298)

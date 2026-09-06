@@ -33,6 +33,7 @@ import {
   KNOWN_FLUIDS,
   ParamValues,
 } from './componentText'
+import { familyOf } from './componentFamilies'
 import { isUaParam, UaResult } from './uaCorrelation'
 import UaBuilderModal from './UaBuilderModal'
 import MapBuilderModal from './MapBuilderModal'
@@ -170,6 +171,7 @@ export default function ComponentWizardModal({ opened, onClose, onInsert, existi
 
   const sections = spec ? buildSections(spec) : []
   const override = spec ? COMPONENT_OVERRIDES[spec.type] : undefined
+  const family = spec ? familyOf(spec.type) : undefined
 
   return (
     <Modal
@@ -245,6 +247,57 @@ export default function ComponentWizardModal({ opened, onClose, onInsert, existi
                 </Box>
                 <Badge variant="light" style={{ flexShrink: 0 }}>{libraryLabel(spec.library)}</Badge>
               </Group>
+
+              {family && (
+                <Box>
+                  <Text size="xs" fw={600} c="dimmed" mb={4}>
+                    Related models — pick by the data you have
+                  </Text>
+                  <ScrollArea type="auto">
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                      <thead>
+                        <tr>
+                          {['Type', 'Required data', 'Ports', 'Flow', 'Energy', 'Steady/transient', 'Assumptions'].map(
+                            (h) => (
+                              <th
+                                key={h}
+                                style={{
+                                  textAlign: 'left',
+                                  padding: '4px 6px',
+                                  borderBottom: '1px solid var(--mantine-color-default-border)',
+                                }}
+                              >
+                                {h}
+                              </th>
+                            ),
+                          )}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {family.members.map((m) => (
+                          <tr
+                            key={m.type}
+                            style={{
+                              background:
+                                m.type === spec.type ? 'var(--mantine-color-blue-light)' : undefined,
+                              cursor: 'pointer',
+                            }}
+                            onClick={() => setSelectedType(m.type)}
+                          >
+                            <td style={{ padding: '4px 6px', fontWeight: 600 }}>{m.type}</td>
+                            <td style={{ padding: '4px 6px' }}>{m.requiredData}</td>
+                            <td style={{ padding: '4px 6px' }}>{m.ports}</td>
+                            <td style={{ padding: '4px 6px' }}>{m.flow}</td>
+                            <td style={{ padding: '4px 6px' }}>{m.energy}</td>
+                            <td style={{ padding: '4px 6px' }}>{m.regime}</td>
+                            <td style={{ padding: '4px 6px' }}>{m.assumptions}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </ScrollArea>
+                </Box>
+              )}
 
               {/* Ports — read-only; the user wires these with connect(...). */}
               {spec.ports.length > 0 && (

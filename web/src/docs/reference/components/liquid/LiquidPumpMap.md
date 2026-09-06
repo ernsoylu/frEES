@@ -2,9 +2,9 @@
 name: LiquidPumpMap
 category: Component (liquid)
 summary: Acausal liquid-domain component LiquidPumpMap with ports in, out.
-related: []
+related: [LiquidPump, PumpMap]
 examples: []
-tags: [liquidpumpmap, component, liquid, acausal]
+tags: [pump, liquid-pump-family, liquidpumpmap, map, data:rho-map, ports:in-out, flow-closed, energy-work, steady, map-driven, liquid, component, acausal]
 references: []
 generated: true
 ---

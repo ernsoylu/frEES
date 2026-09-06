@@ -16,11 +16,13 @@ import { DEFAULT_STOP_CRITERIA } from './api'
 import {
   buildProject,
   loadProjectLocal,
+  projectOnlyNotes,
   readProjectFile,
   saveProjectLocal,
   type AnalyzerSpec,
   type ProjectSlices,
 } from './project'
+import { DEFAULT_DRAFT } from './VariableInfoModal'
 
 // A real Phase-2 analyzer session, in the shape the removed feature wrote it.
 const analyzer: AnalyzerSpec = {
@@ -139,5 +141,24 @@ describe('project v3 schematic slice', () => {
       const p = await readProjectFile(asFile({ ...buildProject(slices), schematic: bad }))
       expect(p.schematic).toEqual({})
     }
+  })
+})
+
+describe('projectOnlyNotes', () => {
+  it('is empty when only equation text would travel', () => {
+    expect(projectOnlyNotes({ ...slices, analyzers: [] })).toEqual([])
+  })
+
+  it('names GUI tables, guesses, and layout that Export equation text drops', () => {
+    const notes = projectOnlyNotes({
+      ...slices,
+      varDrafts: { x: { ...DEFAULT_DRAFT, guess: '2' } },
+      tables: [{ id: 't1', name: 'map', kind: 'function', columns: [], rows: [] } as never],
+      schematic: { p1: { dx: 1, dy: 0 } },
+    })
+    expect(notes.join(' ')).toMatch(/Variable Information/)
+    expect(notes.join(' ')).toMatch(/GUI table/)
+    expect(notes.join(' ')).toMatch(/schematic layout/)
+    expect(notes.join(' ')).toMatch(/legacy analyzer/)
   })
 })
