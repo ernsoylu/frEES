@@ -1,3 +1,4 @@
+import { flushSync } from 'react-dom'
 import { helpUrl } from './helpUrl'
 import { ChangeEvent, lazy, startTransition, Suspense, useCallback, useEffect, useMemo, useState, useRef, type ReactNode } from 'react'
 import {
@@ -670,12 +671,33 @@ export default function App() {
   const openIds = useMemo(() => openWindows.map((w) => w.id), [openWindows])
   // Tables (Epic 8): any number of Parametric and Curve Tables; the active
   // parametric table is the one Check/Solve Table and the plots act on.
-  const [tables, setTables] = useState<TableSpec[]>(() => {
+  const [tables, setTablesState] = useState<TableSpec[]>(() => {
     if (boot) return boot.tables
     const raw = localStorage.getItem('frees.tables')
     if (raw) return loadTables()
     return []
   })
+  const tablesRef = useRef(tables)
+  function writeTables(update: React.SetStateAction<TableSpec[]>) {
+    const next = typeof update === 'function' ? update(tablesRef.current) : update
+    tablesRef.current = next
+    setTablesState(next)
+  }
+  function setTables(update: React.SetStateAction<TableSpec[]>) {
+    const next = typeof update === 'function' ? update(tablesRef.current) : update
+    if (next === tablesRef.current) return
+    modelRevisionRef.current.bump()
+    modelRevisionRef.current.invalidateCheck()
+    setCheckResult(null)
+    setResult(null)
+    writeTables(next.map((t) => t.kind === 'parametric' ? invalidateActiveParam(t) : t))
+  }
+  function flushTableEdits() {
+    flushSync(() => {
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
+    })
+    flushTablesWorkbook()
+  }
   const [activeTableId, setActiveTableId] = useState<string | null>(null)
   const [solvingTableId, setSolvingTableId] = useState<string | null>(null)
   const [showConfigureTable, setShowConfigureTable] = useState(false)
@@ -1370,18 +1392,18 @@ export default function App() {
   // build from the returned fresh specs — React state lands a render later,
   // too late for the calling handler's closure.
   const functionTableDtos = () => {
-    const fresh = flushTablesWorkbook()
-    return fresh ? toFunctionTableDtos(fresh) : toFunctionTableDtos(tables)
+    flushTablesWorkbook()
+    return toFunctionTableDtos(tablesRef.current)
   }
 
   function updateParamTable(id: string, update: (t: ParamTableSpec) => ParamTableSpec) {
-    setTables((all) =>
+    writeTables((all) =>
       all.map((t) => (t.id === id && t.kind === 'parametric' ? update(t) : t)),
     )
   }
 
   function updateActiveParam(update: (t: ParamTableSpec) => ParamTableSpec) {
-    if (activeParam) updateParamTable(activeParam.id, update)
+    if (activeParam) setTables((all) => all.map((t) => t.id === activeParam.id && t.kind === 'parametric' ? update(t) : t))
   }
 
   function sendDigitizedToFunctionTable(data: DigitizedExport) {
@@ -1560,6 +1582,7 @@ export default function App() {
 
   async function onCheck(): Promise<CheckResponse | null> {
     if (checking) return null
+    flushTableEdits()
     const requestRevision = modelRevisionRef.current.startCheck()
     setChecking(true)
     setResult(null)
@@ -1583,7 +1606,7 @@ export default function App() {
         return null
       }
       setCheckResult(response)
-      setTables((all) => mergeCodeTables(all, response.codeTables, response.parametricTables))
+      writeTables((all) => mergeCodeTables(all, response.codeTables, response.parametricTables))
       // Sync the Variable Information table: keep edited rows for variables
       // that still exist, add defaults for new ones.
       setVariables(response.variables)
@@ -1702,7 +1725,7 @@ export default function App() {
     // Text edits invalidate the runs of every parametric table. Return the same
     // array when there is nothing to clear so a plain keystroke doesn't
     // re-render every table consumer.
-    setTables((all) => {
+    writeTables((all) => {
       let changed = false
       const next = all.map((t) => {
         if (t.kind !== 'parametric') return t
@@ -1723,9 +1746,17 @@ export default function App() {
   // React state update from the flush lands a render too late for this
   // handler's closure.
   function freshParamTable(tableId: string): ParamTableSpec | undefined {
+    flushTableEdits()
     const fresh = flushTablesWorkbook()?.find((t) => t.id === tableId)
-    const t = fresh ?? tables.find((x) => x.id === tableId)
+    const t = fresh ?? tablesRef.current.find((x) => x.id === tableId)
     return t?.kind === 'parametric' ? t : undefined
+  }
+
+  function tableRequestCurrent(revision: number, snapshot: ParamTableSpec): boolean {
+    const current = tablesRef.current.find((t) => t.id === snapshot.id)
+    return modelRevisionRef.current.isCurrent(revision) && current?.kind === 'parametric'
+      && current.rows.length === snapshot.rows.length
+      && current.rows.every((row, i) => row.id === snapshot.rows[i].id)
   }
 
   async function onCheckTable(tableIdArg?: string, overrideTbl?: ParamTableSpec): Promise<CheckResponse | null> {
@@ -1733,6 +1764,7 @@ export default function App() {
     if (checkingTableId !== null || !tableId) return null
     const tbl = overrideTbl ?? freshParamTable(tableId)
     if (!tbl || tbl.kind !== 'parametric') return null
+    const tableRevision = modelRevisionRef.current.current
     const tVars = tbl.vars
     const tRows = tbl.rows
     setCheckingTableId(tableId)
@@ -1746,6 +1778,7 @@ export default function App() {
         augmented += `\n${name} = ${value}`
       }
       const response = await check(augmented, buildVariableInfo(), complexMode, functionTableDtos())
+      if (!tableRequestCurrent(tableRevision, tbl)) return null
       updateParamTable(tableId, (t) => ({ ...t, checkResult: response }))
 
       // Sync variable list and units so the column headers show units for
@@ -1759,7 +1792,7 @@ export default function App() {
         updateParamTable(tableId, (t) => ({
           ...t,
           checkMessage:
-            `Table check passed: ${response.equations} equations and ` +
+            `Structural representative check passed: ${response.equations} equations and ` +
             `${response.unknowns} variables, with ${filled.size} value(s) ` +
             `supplied by the table.`,
         }))
@@ -1773,6 +1806,7 @@ export default function App() {
       }
       return response
     } catch (e) {
+      if (!tableRequestCurrent(tableRevision, tbl)) return null
       updateParamTable(tableId, (t) => ({
         ...t,
         checkResult: null,
@@ -1821,7 +1855,7 @@ export default function App() {
         functionTableDtos(),
         reportSolveProgress,
       )
-      if (!modelRevisionRef.current.isCurrent(solveTableRevision)) {
+      if (!tableRequestCurrent(solveTableRevision, tbl)) {
         return false
       }
       updateParamTable(tableId, (t) => ({
@@ -1843,7 +1877,7 @@ export default function App() {
       }
       return true
     } catch (e) {
-      if (!modelRevisionRef.current.isCurrent(solveTableRevision)) {
+      if (!tableRequestCurrent(solveTableRevision, tbl)) {
         return false
       }
       if (e instanceof Error && e.message === 'Operation stopped') {
@@ -1870,6 +1904,7 @@ export default function App() {
     overridePlots?: PlotSpec[],
     checkOverride?: CheckResponse,
   ): Promise<boolean> {
+    flushTableEdits()
     const isCurrentSolvable = modelRevisionRef.current.isCheckValidAndSolvable()
     const canRun = checkOverride ? checkOverride.solvable === true : (isCurrentSolvable && solvable)
     if (solving || !canRun) return false
@@ -1907,7 +1942,7 @@ export default function App() {
       // The Variable Explorer lives in the right edge group (expanded by default)
       // and shows the solved variables — it replaces the old Solution panel.
       // Solving updates its contents; the user can collapse it via its edge tab.
-      setTables((all) => mergeCodeTables(all, response.codeTables, response.parametricTables, response.odeTables))
+      writeTables((all) => mergeCodeTables(all, response.codeTables, response.parametricTables, response.odeTables))
       setLastSolvedWithFillMissing(shouldFillMissing && response.success)
       // Once the user has solved successfully, they've learned the core
       // workflow — retire the first-run welcome banner so it stops eating
@@ -1990,6 +2025,7 @@ export default function App() {
   // passed through so the solve guard doesn't read stale `solvable` state.
   async function checkThenSolve(): Promise<'workspace' | 'table' | void> {
     if (solving || checking) return
+    flushTableEdits()
     const isCurrentSolvable = modelRevisionRef.current.isCheckValidAndSolvable()
     if (isCurrentSolvable && solvable) {
       const ok = await onSolve()
@@ -2538,10 +2574,10 @@ export default function App() {
                       Configure Columns
                     </Button>
                     <Group grow>
-                      <Button size="xs" variant="default" onClick={() => updateParamTable(t.id, (pt) => invalidateActiveParam({ ...pt, rows: [...pt.rows, newParamRow()] }))}>
+                      <Button size="xs" variant="default" onClick={() => setTables((all) => all.map((pt) => pt.id === t.id && pt.kind === 'parametric' ? invalidateActiveParam({ ...pt, rows: [...pt.rows, newParamRow()] }) : pt))}>
                         Add Row
                       </Button>
-                      <Button size="xs" variant="default" onClick={() => updateParamTable(t.id, (pt) => invalidateActiveParam({ ...pt, rows: pt.rows.slice(0, -1) }))}>
+                      <Button size="xs" variant="default" onClick={() => setTables((all) => all.map((pt) => pt.id === t.id && pt.kind === 'parametric' ? invalidateActiveParam({ ...pt, rows: pt.rows.slice(0, -1) }) : pt))}>
                         Remove Row
                       </Button>
                     </Group>

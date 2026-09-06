@@ -61,6 +61,7 @@ declare module 'plotly.js/lib/core' {
   }
 
   export interface PlotlyLayout {
+    annotations?: Record<string, unknown>[]
     title?: { text: string; font?: { size?: number } }
     paper_bgcolor?: string
     plot_bgcolor?: string
