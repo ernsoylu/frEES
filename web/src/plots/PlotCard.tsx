@@ -57,8 +57,9 @@ function runValue(
   result: TableRowResult | undefined,
   name: string,
 ): number | undefined {
+  if (result && !result.success) return undefined
   const solved = result?.success ? result.values[name] : undefined
-  if (solved !== undefined) return solved
+  if (solved !== undefined) return Number.isFinite(solved) ? solved : undefined
   const raw = (row.values[name] ?? '').trim()
   if (raw === '') return undefined
   const value = Number(raw)
@@ -90,15 +91,15 @@ function buildXYSeries(
       const hasZ = !zVar || zValue !== undefined
       const hasSize = !sizeVar || sizeValue !== undefined
 
-      if (hasX && hasY && hasZ && hasSize) {
-        x.push(xValue)
-        y.push(yValue)
-        if (zVar && zValue !== undefined) z.push(zValue)
-        if (sizeVar && sizeValue !== undefined) size.push(sizeValue)
-      }
+      const valid = hasX && hasY && hasZ && hasSize
+      x.push(valid ? xValue : Number.NaN)
+      y.push(valid ? yValue : Number.NaN)
+      if (zVar) z.push(valid ? zValue! : Number.NaN)
+      if (sizeVar) size.push(valid ? sizeValue! : Number.NaN)
     })
     return {
       name: yVar,
+      sampleIds: rows.map((row) => row.id),
       x,
       y,
       z: zVar ? z : undefined,
@@ -131,21 +132,15 @@ function buildArrayXYSeries(
   yVars: string[],
   axis: 'y' | 'y2' = 'y',
 ): XYSeries[] {
-  const xArr = arrayValues(variables, xVar)
-  const indices = [...xArr.keys()].sort((a, b) => a - b)
-  return yVars.map((yVar) => {
-    const yArr = arrayValues(variables, yVar)
-    const x: number[] = []
-    const y: number[] = []
-    for (const i of indices) {
-      const yValue = yArr.get(i)
-      if (yValue !== undefined) {
-        x.push(xArr.get(i) as number)
-        y.push(yValue)
-      }
-    }
-    return { name: yVar, x, y, axis }
+  const channels = [xVar, ...yVars]
+  const arrays = channels.map((name) => arrayValues(variables, name))
+  const indices = [...new Set(arrays.flatMap((array) => [...array.keys()]))].sort((a, b) => a - b)
+  const rows: ParamRow[] = []
+  indices.forEach((index, i) => {
+    if (i > 0 && index > indices[i - 1] + 1) rows.push({ id: `gap-${index}`, values: {} })
+    rows.push({ id: String(index), values: Object.fromEntries(channels.map((name, j) => [name, arrays[j].has(index) ? String(arrays[j].get(index)) : ''])) })
   })
+  return buildXYSeries(rows, [], xVar, yVars, null, null, axis)
 }
 
 export function useDiagramData(spec: PlotSpec) {
