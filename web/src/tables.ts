@@ -1,3 +1,4 @@
+import { requireValidTable, tableShape } from './tableValidation'
 import { CheckResponse, FunctionTableDto, OdeTableDto, ParametricTableDto, TableRowResult, TableStats } from './api'
 
 /** One parametric-table run: a stable identity plus the cell drafts.
@@ -25,6 +26,7 @@ export function newParamRow(): ParamRow {
 export interface ParamTableSpec {
   id: string
   kind: 'parametric'
+  recoveredContent?: unknown
   resultRevision?: number
   runStatus?: 'not-run' | 'stale' | 'running' | 'completed' | 'cancelled'
   name: string
@@ -56,6 +58,7 @@ interface CurveRow {
 export interface FunctionTableSpec {
   id: string
   kind: 'function'
+  recoveredContent?: unknown
   name: string // function name callable in equations
   argName: string // first column: the lookup argument, e.g. Re
   paramName: string // family parameter name, e.g. T ('' for a lone curve)
@@ -88,6 +91,26 @@ export function detachLegacyFormulas<T extends TableSpec>(table: T): T {
   return { ...table, formulas: undefined, detachedFormulas: [...(table.detachedFormulas ?? []), table.formulas] }
 }
 
+export function uniqueTableName(base: string, tables: TableSpec[]): string {
+  const occupied = new Set(tables.map((t) => t.name.toLowerCase()))
+  let name = base
+  for (let i = 2; occupied.has(name.toLowerCase()); i++) name = `${base}${i}`
+  return name
+}
+
+/** Keep malformed imports recoverable without feeding their shape to the grid. */
+export function normalizeTables(raw: unknown): TableSpec[] {
+  if (!Array.isArray(raw)) return []
+  const ids = new Set<string>()
+  return raw.map((value, i) => {
+    if (!tableShape(value) || ids.has(value.id)) return {
+      ...newParamTable([]), name: `Recovered table ${i + 1}`, recoveredContent: value,
+    }
+    ids.add(value.id)
+    return value.kind === 'parametric' ? { ...value, results: [], stats: null, checkResult: null, checkMessage: '', runStatus: 'not-run' } : value
+  })
+}
+
 let tableCounter = 1
 
 export function newTableId(): string {
@@ -99,7 +122,7 @@ export function newParamTable(existing: TableSpec[]): ParamTableSpec {
   return {
     id: newTableId(),
     kind: 'parametric',
-    name: `Parametric ${count + 1}`,
+    name: uniqueTableName(`Parametric ${count + 1}`, existing),
     vars: [],
     rows: [newParamRow(), newParamRow(), newParamRow()],
     results: [],
@@ -114,7 +137,7 @@ export function newFunctionTable(existing: TableSpec[], is1D: boolean): Function
   return {
     id: newTableId(),
     kind: 'function',
-    name: `func${count + 1}`,
+    name: uniqueTableName(`func${count + 1}`, existing),
     argName: 'x',
     paramName: '',
     xLog: false,
@@ -130,9 +153,14 @@ export function newFunctionTable(existing: TableSpec[], is1D: boolean): Function
  * text itself, so re-sending them would be redundant. */
 export function toFunctionTableDtos(tables: TableSpec[]): FunctionTableDto[] {
   const dtos: FunctionTableDto[] = []
+  const names = new Set<string>()
   for (const table of tables) {
-    if (table.kind !== 'function' || table.name.trim() === '') continue
+    if (table.kind !== 'function') continue
     if (table.source === 'code') continue
+    requireValidTable(table)
+    const key = table.name.trim().toLowerCase()
+    if (names.has(key)) throw new Error(`Duplicate function table name: ${table.name}`)
+    names.add(key)
     const curves = table.columns.map((paramRaw, j) => {
       const points: number[][] = []
       for (const row of table.rows) {
@@ -435,9 +463,9 @@ export function mergeCodeTables(
 /** Makes an independent, editable GUI copy of a code-defined table, decoupled
  * from the editor text. The copy is renamed to avoid clashing with the
  * code-defined original (which still wins in the solver by its text name). */
-export function duplicateAsEditable(table: TableSpec): TableSpec {
+export function duplicateAsEditable(table: TableSpec, existing: TableSpec[] = [table]): TableSpec {
   table = detachLegacyFormulas(table)
-  const name = `${table.name}_copy`
+  const name = uniqueTableName(`${table.name}_copy`, existing)
   if (table.kind === 'function') {
     return {
       ...table,
@@ -467,19 +495,7 @@ export function loadTables(): TableSpec[] {
   try {
     const raw = localStorage.getItem(TABLES_KEY)
     if (!raw) return []
-    // Persisted JSON of unknown shape; migrated below and cast back to TableSpec
-    // at this deserialization boundary.
-    const tables = JSON.parse(raw) as Array<Record<string, unknown>>
-    // Migrate 'curve' kind to 'function' kind, and run results/check state are transient.
-    return tables.map((t) => {
-      let mapped = t
-      if (t.kind === 'curve') {
-        mapped = { ...t, kind: 'function' }
-      }
-      return mapped.kind === 'parametric'
-        ? { ...mapped, results: [], stats: null, checkResult: null, checkMessage: '' }
-        : mapped
-    }) as unknown as TableSpec[]
+    return normalizeTables(JSON.parse(raw))
   } catch {
     return []
   }

@@ -1,3 +1,4 @@
+import { requireValidTable } from '../tableValidation'
 // tablesGrid/composeTables.ts
 //
 // Pure conversions behind the Wave-H composition features (D10 phase 4):
@@ -117,6 +118,7 @@ function finishRows(entries: { xNum: number; x: string; ys: string[] }[]): Built
  */
 export function functionSpecFromParamColumns(input: SweepFunctionInput): ComposeResult {
   const { table, xVar, yVar, name } = input
+  requireValidTable(table, false)
   const familyVar = input.familyVar ?? null
   let used = 0
   let skipped = 0

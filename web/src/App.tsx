@@ -1,3 +1,4 @@
+import { tableInputIssues } from './tableValidation'
 import { resolvePlotSource } from './plots/sources'
 import { flushSync } from 'react-dom'
 import { helpUrl } from './helpUrl'
@@ -1776,6 +1777,11 @@ export default function App() {
     const tbl = overrideTbl ?? freshParamTable(tableId)
     if (!tbl || tbl.kind !== 'parametric') return null
     const tableRevision = modelRevisionRef.current.current
+    const issues = tableInputIssues(tbl)
+    if (issues.length) {
+      updateParamTable(tableId, (t) => ({ ...t, checkMessage: issues.join('; ') }))
+      return null
+    }
     const tVars = tbl.vars
     const tRows = tbl.rows
     setCheckingTableId(tableId)
@@ -1834,6 +1840,11 @@ export default function App() {
     if (solvingTableId !== null || !tableId) return false
     const tbl = overrideTbl ?? freshParamTable(tableId)
     if (!tbl || tbl.kind !== 'parametric' || tbl.vars.length === 0) return false
+    const issues = tableInputIssues(tbl)
+    if (issues.length) {
+      updateParamTable(tableId, (t) => ({ ...t, checkMessage: issues.join('; ') }))
+      return false
+    }
     // When checkOverride is explicitly provided (from checkThenSolveTable), honour it.
     // When called directly from a per-window "Run Table" button we skip the gate so
     // independent-block equations (e.g. two separate circuits) still solve correctly

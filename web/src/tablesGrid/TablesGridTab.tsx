@@ -1,3 +1,4 @@
+import { tableInputIssues } from '../tableValidation'
 // tablesGrid/TablesGridTab.tsx
 //
 // The Tables workbook, rebuilt on glide-data-grid (decision D10: the Univer
@@ -782,6 +783,7 @@ export default function TablesGridTab({
             {warnings[active.id]}
           </Text>
         )}
+        {active && tableInputIssues(active).length > 0 && <Text c="red" size="xs">{tableInputIssues(active).slice(0, 12).join('; ')}</Text>}
         {activeParam && <Text size="xs">Run status: {activeParam.runStatus ?? 'not-run'}</Text>}
         {activeParam?.stats && <Text size="xs" c={activeParam.stats.converged === false ? 'orange' : 'dimmed'}>
           {activeParam.stats.solved}/{activeParam.stats.runs} completed; {activeParam.stats.failed} failed; {activeParam.stats.notRun ?? 0} not run.

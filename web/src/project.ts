@@ -1,3 +1,4 @@
+import { normalizeTables } from './tables'
 // Story 10.10: Unified project file (`.frees` JSON).
 //
 // A single document capturing the entire workspace — equation text, Variable
@@ -226,7 +227,7 @@ function sanitizeProject(project: FreesProject): FreesProject | null {
     unitSystem: ALLOWED_UNIT_SYSTEMS.includes(project.unitSystem) ? project.unitSystem : 'SI',
     fillMissing: Boolean(project.fillMissing),
     stateUnitIds: plainJson(project.stateUnitIds) ?? {},
-    tables: Array.isArray(project.tables) ? plainJson(project.tables) : [],
+    tables: normalizeTables(plainJson(project.tables)),
     plots: Array.isArray(project.plots) ? plainJson(project.plots) : [],
     spreadsheets: Array.isArray(project.spreadsheets) ? plainJson(project.spreadsheets) : [],
     analyzers: Array.isArray(project.analyzers) ? plainJson(project.analyzers) : [],
@@ -282,7 +283,7 @@ function migrate(p: FreesProject): FreesProject {
     unitSystem: p.unitSystem ?? 'SI',
     fillMissing: Boolean(p.fillMissing),
     stateUnitIds: p.stateUnitIds ?? {},
-    tables: p.tables ?? [],
+    tables: normalizeTables(p.tables),
     plots: p.plots ?? [],
     spreadsheets: p.spreadsheets ?? [],
     analyzers: p.analyzers ?? [],

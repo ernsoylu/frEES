@@ -1,3 +1,4 @@
+import { tableInputIssues } from '../tableValidation'
 // tablesGrid/CreateFunctionModal.tsx
 //
 // Sweep → Function (Wave H, the flagship composition feature): turns columns
@@ -58,6 +59,7 @@ export default function CreateFunctionModal({
   onCreate,
   onClose,
 }: Readonly<Props>) {
+  const inputIssues = tableInputIssues(table, false)
   const vars = table.vars
   const [xVar, setXVar] = useState<string>(vars[0] ?? '')
   const [yVars, setYVars] = useState<string[]>(vars.length > 1 ? [vars[1]] : [])
@@ -68,7 +70,7 @@ export default function CreateFunctionModal({
   const nameOf = (yVar: string) => nameEdits[yVar] ?? defaultName(yVar)
 
   const picks: Pick[] = useMemo(
-    () =>
+    () => inputIssues.length ? [] :
       yVars
         .filter((y) => y !== xVar && vars.includes(y))
         .map((yVar) => {
@@ -124,6 +126,7 @@ export default function CreateFunctionModal({
       </Text>
 
       <Stack gap="sm">
+        {inputIssues.length > 0 && <Text c="red" size="sm">{inputIssues.slice(0, 12).join('; ')}</Text>}
         <Group grow align="flex-start">
           <Select
             label="X column (lookup argument)"

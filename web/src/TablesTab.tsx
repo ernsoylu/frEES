@@ -78,7 +78,7 @@ export default function TablesTab(props: Readonly<Props>) {
             <Button
               size="compact-xs"
               variant="default"
-              onClick={() => props.onCopyToEditable?.(duplicateAsEditable(active))}
+              onClick={() => props.onCopyToEditable?.(duplicateAsEditable(active, tables))}
             >
               Editable copy
             </Button>
