@@ -1017,7 +1017,11 @@ fn ode_tables(solution: &Solution) -> Vec<Value> {
                     .iter()
                     .map(|row| {
                         row.iter()
-                            .map(|v| if v.is_finite() { json!(v) } else { Value::Null })
+                            .map(|v| {
+                                serde_json::Number::from_f64(*v)
+                                    .map(Value::Number)
+                                    .unwrap_or(Value::Null)
+                            })
                             .collect::<Vec<_>>()
                     })
                     .collect::<Vec<_>>(),

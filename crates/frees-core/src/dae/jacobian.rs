@@ -15,7 +15,7 @@
 //!
 //! # Two increment rules, deliberately
 //!
-//! [`perturbation`] is the frees rule (`1e-7·max(|v|,1)`) that the Java feeds
+//! [`perturbation`] is the frees rule (`1e-7·max(|v|, 1)`) that the Java feeds
 //! IDA through `IDASetJacFn` on the **sparse** path. IDA's own dense
 //! difference-quotient Jacobian uses a different increment, and the Java engine
 //! leaves that path to IDA — so the port keeps both:
@@ -133,6 +133,141 @@ pub fn color_columns(sparsity_rows: &[Vec<usize>], n: usize) -> Vec<usize> {
 /// [`dense_colored`] will spend).
 pub fn color_count(color: &[usize]) -> usize {
     color.iter().map(|&c| c + 1).max().unwrap_or(0)
+}
+
+/// Scratch buffers for finite-difference Jacobian evaluation.
+/// Reused across calls to eliminate per-color and per-Jacobian allocations.
+#[derive(Debug, Clone, Default)]
+pub struct DaeJacobianScratch {
+    pub f0: Vec<f64>,
+    pub fp: Vec<f64>,
+    pub y_pert: Vec<f64>,
+    pub yp_pert: Vec<f64>,
+    pub eps: Vec<f64>,
+}
+
+impl DaeJacobianScratch {
+    pub fn new(n: usize) -> Self {
+        Self {
+            f0: vec![0.0; n],
+            fp: vec![0.0; n],
+            y_pert: vec![0.0; n],
+            yp_pert: vec![0.0; n],
+            eps: vec![0.0; n],
+        }
+    }
+
+    pub fn ensure_capacity(&mut self, n: usize) {
+        if self.f0.len() < n {
+            self.f0.resize(n, 0.0);
+            self.fp.resize(n, 0.0);
+            self.y_pert.resize(n, 0.0);
+            self.yp_pert.resize(n, 0.0);
+            self.eps.resize(n, 0.0);
+        }
+    }
+}
+
+/// Coloured finite-difference combined Jacobian written directly into CSC storage.
+///
+/// Uses `#colours` residual evaluations instead of `n`, and directly fills the
+/// CSC value buffer `out_values` corresponding to `(col_ptr, row_idx)` without
+/// allocating any `n × n` dense intermediate.
+///
+/// If `f0` is provided (`Some(f0)`), it reuses the base residual already evaluated
+/// by the caller. Reuses `scratch` buffers for `fp`, `y_pert`, `yp_pert`, `eps`.
+#[allow(clippy::too_many_arguments)]
+pub fn csc_colored_into(
+    res: &dyn DaeResidual,
+    t: f64,
+    cj: f64,
+    y: &[f64],
+    yp: &[f64],
+    f0: Option<&[f64]>,
+    col_rows: &[Vec<usize>],
+    color: &[usize],
+    col_ptr: &[usize],
+    out_values: &mut [f64],
+    scratch: &mut DaeJacobianScratch,
+) -> Result<()> {
+    let n = y.len();
+    scratch.ensure_capacity(n);
+
+    let base_f0 = match f0 {
+        Some(f) => f,
+        None => {
+            res.eval(t, y, yp, &mut scratch.f0[..n])?;
+            &scratch.f0[..n]
+        }
+    };
+
+    for c in 0..n {
+        scratch.eps[c] = perturbation(y[c]);
+    }
+
+    scratch.y_pert[..n].copy_from_slice(y);
+    scratch.yp_pert[..n].copy_from_slice(yp);
+
+    let ncolors = color_count(color);
+    for g in 0..ncolors {
+        for c in 0..n {
+            if color[c] == g {
+                scratch.y_pert[c] += scratch.eps[c];
+                scratch.yp_pert[c] += cj * scratch.eps[c];
+            }
+        }
+
+        res.eval(
+            t,
+            &scratch.y_pert[..n],
+            &scratch.yp_pert[..n],
+            &mut scratch.fp[..n],
+        )?;
+
+        for c in 0..n {
+            if color[c] == g {
+                let start = col_ptr[c];
+                for (offset, &row) in col_rows[c].iter().enumerate() {
+                    out_values[start + offset] = (scratch.fp[row] - base_f0[row]) / scratch.eps[c];
+                }
+                scratch.y_pert[c] = y[c];
+                scratch.yp_pert[c] = yp[c];
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Coloured finite-difference combined Jacobian into a newly allocated CSC value buffer.
+#[allow(clippy::too_many_arguments)]
+pub fn csc_colored(
+    res: &dyn DaeResidual,
+    t: f64,
+    cj: f64,
+    y: &[f64],
+    yp: &[f64],
+    col_rows: &[Vec<usize>],
+    color: &[usize],
+    col_ptr: &[usize],
+    nnz: usize,
+) -> Result<Vec<f64>> {
+    let mut values = vec![0.0; nnz];
+    let mut scratch = DaeJacobianScratch::new(y.len());
+    csc_colored_into(
+        res,
+        t,
+        cj,
+        y,
+        yp,
+        None,
+        col_rows,
+        color,
+        col_ptr,
+        &mut values,
+        &mut scratch,
+    )?;
+    Ok(values)
 }
 
 /// Coloured finite-difference combined Jacobian, returned dense — identical (to
@@ -273,6 +408,95 @@ mod tests {
         for i in 0..3 {
             for c in 0..3 {
                 assert_eq!(j[i][c], ORACLE_DENSE[i][c], "coloured J[{i}][{c}]");
+            }
+        }
+    }
+
+    #[test]
+    fn csc_colored_matches_dense_colored_bitwise() {
+        let res = probe_residual();
+        let y = [1.5, -0.75, 2.25];
+        let yp = [0.5, 0.25, -1.0];
+        let rows = vec![vec![0, 1], vec![0, 1], vec![0, 1, 2]];
+        let color = color_columns(&rows, 3);
+        let col_rows = transpose_pattern(&rows, 3);
+        let mut col_ptr = vec![0];
+        for c in &col_rows {
+            col_ptr.push(col_ptr.last().unwrap() + c.len());
+        }
+        let nnz = *col_ptr.last().unwrap();
+        let csc_vals =
+            csc_colored(&res, 0.3, 4.0, &y, &yp, &col_rows, &color, &col_ptr, nnz).unwrap();
+
+        let j_dense = dense_colored(&res, 0.3, 4.0, &y, &yp, &col_rows, &color).unwrap();
+
+        // Verify each CSC entry matches the corresponding dense entry bitwise.
+        for c in 0..3 {
+            let start = col_ptr[c];
+            for (offset, &r) in col_rows[c].iter().enumerate() {
+                assert_eq!(
+                    csc_vals[start + offset],
+                    j_dense[r][c],
+                    "Mismatch at col={c}, row={r}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn csc_colored_scratch_reuse_matches() {
+        let res = probe_residual();
+        let y = [1.5, -0.75, 2.25];
+        let yp = [0.5, 0.25, -1.0];
+        let rows = vec![vec![0, 1], vec![0, 1], vec![0, 1, 2]];
+        let color = color_columns(&rows, 3);
+        let col_rows = transpose_pattern(&rows, 3);
+        let mut col_ptr = vec![0];
+        for c in &col_rows {
+            col_ptr.push(col_ptr.last().unwrap() + c.len());
+        }
+        let nnz = *col_ptr.last().unwrap();
+        let mut values1 = vec![0.0; nnz];
+        let mut values2 = vec![0.0; nnz];
+        let mut scratch = DaeJacobianScratch::new(3);
+
+        csc_colored_into(
+            &res,
+            0.3,
+            4.0,
+            &y,
+            &yp,
+            None,
+            &col_rows,
+            &color,
+            &col_ptr,
+            &mut values1,
+            &mut scratch,
+        )
+        .unwrap();
+
+        // Reusing scratch on a second call with different inputs
+        let y2 = [2.0, -1.0, 3.0];
+        csc_colored_into(
+            &res,
+            0.5,
+            2.0,
+            &y2,
+            &yp,
+            None,
+            &col_rows,
+            &color,
+            &col_ptr,
+            &mut values2,
+            &mut scratch,
+        )
+        .unwrap();
+
+        let j_dense2 = dense_colored(&res, 0.5, 2.0, &y2, &yp, &col_rows, &color).unwrap();
+        for c in 0..3 {
+            let start = col_ptr[c];
+            for (offset, &r) in col_rows[c].iter().enumerate() {
+                assert_eq!(values2[start + offset], j_dense2[r][c]);
             }
         }
     }

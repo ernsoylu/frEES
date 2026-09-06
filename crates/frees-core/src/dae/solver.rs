@@ -254,13 +254,24 @@ impl SparseCsc {
         Ok(())
     }
 
-    /// Writes a dense matrix's pattern entries into the value buffer.
-    fn fill_from_dense(&mut self, dense: &[Vec<f64>]) {
-        for c in 0..self.n {
-            for p in self.col_ptr[c]..self.col_ptr[c + 1] {
-                self.values[p] = dense[self.row_idx[p]][c];
-            }
-        }
+    pub fn col_ptr(&self) -> &[usize] {
+        &self.col_ptr
+    }
+
+    pub fn row_idx(&self) -> &[usize] {
+        &self.row_idx
+    }
+
+    pub fn values(&self) -> &[f64] {
+        &self.values
+    }
+
+    pub fn values_mut(&mut self) -> &mut [f64] {
+        &mut self.values
+    }
+
+    pub fn col_ptr_and_values_mut(&mut self) -> (&[usize], &mut [f64]) {
+        (&self.col_ptr, &mut self.values)
     }
 }
 
@@ -517,12 +528,17 @@ impl Step {
 enum LinearPath {
     /// `SUNDenseMatrix` + `SUNLinSol_Dense`, with IDA's own difference-quotient
     /// Jacobian.
-    Dense,
+    Dense {
+        fp: Vec<f64>,
+        y_pert: Vec<f64>,
+        yp_pert: Vec<f64>,
+    },
     /// `SUNSparseMatrix(CSC)` + KLU, with the frees `DaeJacobian` coloured FD.
     Sparse {
         col_rows: Vec<Vec<usize>>,
         color: Vec<usize>,
         matrix: SparseCsc,
+        scratch: jacobian::DaeJacobianScratch,
     },
 }
 
@@ -640,7 +656,11 @@ impl<'a> IdaDaeSolver<'a> {
             variable_id: None,
             nroots: 0,
             root_fn: None,
-            path: LinearPath::Dense,
+            path: LinearPath::Dense {
+                fp: vec![0.0; n],
+                y_pert: vec![0.0; n],
+                yp_pert: vec![0.0; n],
+            },
             phi: vec![vec![0.0; n]; MXORDP1],
             psi: [0.0; MXORDP1],
             alpha: [0.0; MXORDP1],
@@ -772,13 +792,21 @@ impl<'a> IdaDaeSolver<'a> {
         match SparseCsc::from_columns(&col_rows) {
             // An empty or malformed pattern degrades to dense, exactly as the
             // Java degrades when the native sparse libraries are absent.
-            None => self.path = LinearPath::Dense,
+            None => {
+                self.path = LinearPath::Dense {
+                    fp: vec![0.0; self.n],
+                    y_pert: vec![0.0; self.n],
+                    yp_pert: vec![0.0; self.n],
+                };
+            }
             Some(matrix) => {
+                let scratch = jacobian::DaeJacobianScratch::new(self.n);
                 self.path = LinearPath::Sparse {
                     col_rows,
                     color,
                     matrix,
-                }
+                    scratch,
+                };
             }
         }
         Ok(self)
@@ -887,18 +915,31 @@ impl<'a> IdaDaeSolver<'a> {
 
     /// `idaLsSetup`: build `J = ∂F/∂y + cj·∂F/∂y'` and factor it.
     fn lsetup(&mut self, y: &[f64], yp: &[f64], f0: &[f64]) -> Result<bool> {
-        let factored = match &self.path {
-            LinearPath::Dense => {
+        let factored = match &mut self.path {
+            LinearPath::Dense {
+                fp,
+                y_pert,
+                yp_pert,
+            } => {
                 let mut j = vec![vec![0.0; self.n]; self.n];
-                let mut fp = vec![0.0; self.n];
-                let mut y_pert = y.to_vec();
-                let mut yp_pert = yp.to_vec();
+                if fp.len() < self.n {
+                    fp.resize(self.n, 0.0);
+                    y_pert.resize(self.n, 0.0);
+                    yp_pert.resize(self.n, 0.0);
+                }
+                y_pert[..self.n].copy_from_slice(y);
+                yp_pert[..self.n].copy_from_slice(yp);
                 for c in 0..self.n {
                     let inc =
                         jacobian::ida_dense_increment(y[c], yp[c], self.hh, 1.0 / self.ewt[c]);
-                    y_pert[c] = y[c] + inc;
-                    yp_pert[c] = yp[c] + self.cj * inc;
-                    self.res.eval(self.tn, &y_pert, &yp_pert, &mut fp)?;
+                    y_pert[c] += inc;
+                    yp_pert[c] += self.cj * inc;
+                    self.res.eval(
+                        self.tn,
+                        &y_pert[..self.n],
+                        &yp_pert[..self.n],
+                        &mut fp[..self.n],
+                    )?;
                     let inv = 1.0 / inc;
                     for i in 0..self.n {
                         j[i][c] = inv * (fp[i] - f0[i]);
@@ -912,21 +953,26 @@ impl<'a> IdaDaeSolver<'a> {
                 col_rows,
                 color,
                 matrix,
+                scratch,
             } => {
-                // Materialising the coloured Jacobian dense and then scattering
-                // the pattern entries is what `IdaDaeSolver.fillSparseJacobian`
-                // does too (it calls `DaeJacobian.denseColored` and copies
-                // `j[row][c]` into the CSC value buffer). The saving the sparse
-                // path buys is in the *residual evaluations* — `#colours`
-                // instead of `n` — not in this `n²` scratch buffer. Above a few
-                // hundred unknowns that buffer becomes the binding cost and
-                // `dense_colored` should grow a CSC-writing variant; the Java
-                // has the same ceiling.
-                let dense =
-                    jacobian::dense_colored(self.res, self.tn, self.cj, y, yp, col_rows, color)?;
-                let mut m = matrix.clone();
-                m.fill_from_dense(&dense);
-                SparseLu::factor(&m).map(Factored::Sparse)
+                // Directly write coloured finite differences into existing CSC storage.
+                // Eliminates the n × n dense intermediate buffer, avoids recomputing f0,
+                // and reuses perturbation and residual scratch vectors.
+                let (col_ptr, values) = matrix.col_ptr_and_values_mut();
+                jacobian::csc_colored_into(
+                    self.res,
+                    self.tn,
+                    self.cj,
+                    y,
+                    yp,
+                    Some(f0),
+                    col_rows,
+                    color,
+                    col_ptr,
+                    values,
+                    scratch,
+                )?;
+                SparseLu::factor(matrix).map(Factored::Sparse)
             }
         };
         self.jac = factored;

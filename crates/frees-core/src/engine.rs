@@ -95,7 +95,8 @@ use crate::parser::{parse_document, Document, GuessDirective};
 use crate::procedures::flatten_calls_counted;
 use crate::solver::blocker::{block_system, unknowns, Block, BlockingReport};
 use crate::solver::newton::{
-    newton_solve_problem, newton_solve_problem_with, NewtonProblem, NewtonWorkspace, SolverSettings,
+    newton_solve_problem, newton_solve_problem_prepared, validate_solver_settings, NewtonProblem,
+    NewtonWorkspace, SolverSettings,
 };
 // Aliased: `slots` is also the natural name for a slot *vector* here, and the
 // two would shadow each other inside `solve_block`.
@@ -738,6 +739,15 @@ struct PinnedBlockCache {
     /// Indexed exactly like the report's `blocks`; the merge rescue's
     /// synthetic blocks are not here and compute fresh, as before.
     per_block: Vec<PinnedBlockStruct>,
+}
+
+impl PinnedBlockCache {
+    #[allow(dead_code)]
+    pub(crate) fn invalidate_bounds(&self) {
+        for b in &self.per_block {
+            b.scratch.borrow_mut().ws.invalidate_bounds();
+        }
+    }
 }
 
 /// See [`PinnedBlockCache`].
@@ -3564,7 +3574,7 @@ fn solve_block(
                 last_property_error: &mut last_property_error,
             };
             let ws = ws.expect("a compiled block is a cached block");
-            newton_solve_problem_with(problem, x, settings, Some(bounds), ws)
+            newton_solve_problem_prepared(problem, x, settings, Some(bounds), ws)
         }
         None => {
             let problem = BlockProblem {
@@ -3579,7 +3589,7 @@ fn solve_block(
             match ws {
                 // The cached path hands Newton this block's cross-call buffers;
                 // the fresh path is the old allocate-per-call entry, verbatim.
-                Some(ws) => newton_solve_problem_with(problem, x, settings, Some(bounds), ws),
+                Some(ws) => newton_solve_problem_prepared(problem, x, settings, Some(bounds), ws),
                 None => newton_solve_problem(problem, x, settings, Some(bounds)),
             }
         }
@@ -4343,6 +4353,13 @@ fn run_blocks(
     cache: Option<&PinnedBlockCache>,
     mut dense: Option<&mut DenseRun<'_>>,
 ) -> std::result::Result<usize, BlockLoopFailure> {
+    if let Err(e) = validate_solver_settings(settings) {
+        return Err(BlockLoopFailure {
+            error: e,
+            failed_block_index: 0,
+            iterations: 0,
+        });
+    }
     let mut iterations = 0usize;
     // Blocks a merge rescue already solved (Java's `skipIndices`).
     let mut skip: HashSet<usize> = HashSet::new();

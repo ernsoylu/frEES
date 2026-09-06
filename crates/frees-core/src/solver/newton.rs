@@ -328,7 +328,7 @@ where
 /// reuse sound. A workspace whose `Scratch` was sized for a different `n` is
 /// dropped and lazily rebuilt, so the entry stays safe for any caller.
 pub(crate) fn newton_solve_problem_with<P>(
-    mut problem: P,
+    problem: P,
     x: &mut [f64],
     settings: &SolverSettings,
     bounds: Option<&[(f64, f64)]>,
@@ -337,7 +337,36 @@ pub(crate) fn newton_solve_problem_with<P>(
 where
     P: NewtonProblem,
 {
-    validate(settings)?;
+    newton_solve_problem_internal(problem, x, settings, bounds, ws, true)
+}
+
+pub(crate) fn newton_solve_problem_prepared<P>(
+    problem: P,
+    x: &mut [f64],
+    settings: &SolverSettings,
+    bounds: Option<&[(f64, f64)]>,
+    ws: &mut NewtonWorkspace,
+) -> Result<NewtonReport>
+where
+    P: NewtonProblem,
+{
+    newton_solve_problem_internal(problem, x, settings, bounds, ws, false)
+}
+
+fn newton_solve_problem_internal<P>(
+    mut problem: P,
+    x: &mut [f64],
+    settings: &SolverSettings,
+    bounds: Option<&[(f64, f64)]>,
+    ws: &mut NewtonWorkspace,
+    validate_settings: bool,
+) -> Result<NewtonReport>
+where
+    P: NewtonProblem,
+{
+    if validate_settings {
+        validate(settings)?;
+    }
 
     let n = x.len();
     if n == 0 {
@@ -350,16 +379,21 @@ where
         });
     }
 
+    if !ws.bounds_cached || ws.lo.len() != n {
+        unpack_bounds_into(bounds, n, &mut ws.lo, &mut ws.hi)?;
+        ws.bounds_cached = true;
+    }
+
     let NewtonWorkspace {
         lo,
         hi,
         f,
         scale,
         scratch: scratch_store,
+        ..
     } = ws;
 
     // Java IterationContext: lo/hi arrays from the specs, ±∞ where absent.
-    unpack_bounds_into(bounds, n, lo, hi)?;
     let (lo, hi): (&[f64], &[f64]) = (lo, hi);
 
     f.clear();
@@ -661,6 +695,10 @@ fn success(iterations: usize, f: &[f64]) -> NewtonReport {
     }
 }
 
+pub fn validate_solver_settings(settings: &SolverSettings) -> Result<()> {
+    validate(settings)
+}
+
 fn validate(settings: &SolverSettings) -> Result<()> {
     if settings.max_iterations < 1 {
         return Err(FreesError::solver(
@@ -833,6 +871,14 @@ pub(crate) struct NewtonWorkspace {
     f: Vec<f64>,
     scale: Vec<f64>,
     scratch: Option<Scratch>,
+    bounds_cached: bool,
+}
+
+impl NewtonWorkspace {
+    #[allow(dead_code)]
+    pub(crate) fn invalidate_bounds(&mut self) {
+        self.bounds_cached = false;
+    }
 }
 
 /// A candidate point, its residuals and their 2-norm.
