@@ -20,12 +20,59 @@ const EXPORT_WIDTH = 1200
 const EXPORT_HEIGHT = 800
 const RASTER_SCALE = 4
 
-async function figureToSvg(figure: PlotlyFigure): Promise<string> {
+export interface ExportPlotOptions {
+  /** 'current' preserves active layout; 'full' autoscales all axes to fit all data. */
+  viewMode?: 'current' | 'full'
+  /** Background color override (e.g. '#ffffff' for publication). */
+  background?: string
+  width?: number
+  height?: number
+}
+
+export function prepareFigureForExport(
+  figure: PlotlyFigure,
+  options?: ExportPlotOptions,
+): PlotlyFigure {
+  const layout = { ...figure.layout }
+  if (options?.background) {
+    layout.paper_bgcolor = options.background
+    layout.plot_bgcolor = options.background
+  }
+  if (options?.viewMode === 'full') {
+    if (layout.xaxis) {
+      layout.xaxis = { ...layout.xaxis, range: undefined, autorange: true }
+    }
+    if (layout.yaxis) {
+      layout.yaxis = { ...layout.yaxis, range: undefined, autorange: true }
+    }
+    if (layout.yaxis2) {
+      layout.yaxis2 = { ...layout.yaxis2, range: undefined, autorange: true }
+    }
+    if (layout.scene) {
+      layout.scene = {
+        ...layout.scene,
+        xaxis: layout.scene.xaxis ? { ...layout.scene.xaxis, autorange: true } : undefined,
+        yaxis: layout.scene.yaxis ? { ...layout.scene.yaxis, autorange: true } : undefined,
+        zaxis: layout.scene.zaxis ? { ...layout.scene.zaxis, autorange: true } : undefined,
+      }
+    }
+  }
+  return {
+    data: figure.data,
+    layout,
+  }
+}
+
+async function figureToSvg(
+  figure: PlotlyFigure,
+  width = EXPORT_WIDTH,
+  height = EXPORT_HEIGHT,
+): Promise<string> {
   const { default: Plotly } = await import('./plotlyBundle')
   const url = await Plotly.toImage(figure, {
     format: 'svg',
-    width: EXPORT_WIDTH,
-    height: EXPORT_HEIGHT,
+    width,
+    height,
   })
   // Plotly returns a data URL: data:image/svg+xml,<percent-encoded svg>
   return decodeURIComponent(url.substring(url.indexOf(',') + 1))
@@ -50,18 +97,23 @@ export async function exportPlot(
   figure: PlotlyFigure,
   format: ExportFormat,
   baseName: string,
+  options?: ExportPlotOptions,
 ): Promise<void> {
+  const fig = prepareFigureForExport(figure, options)
   const filename = `${baseName || 'plot'}.${format}`
+  const width = options?.width ?? EXPORT_WIDTH
+  const height = options?.height ?? EXPORT_HEIGHT
+
   if (format === 'svg') {
-    const svg = await figureToSvg(figure)
+    const svg = await figureToSvg(fig, width, height)
     downloadBlob(new Blob([svg], { type: 'image/svg+xml' }), filename)
     return
   }
   const { default: Plotly } = await import('./plotlyBundle')
-  const url = await Plotly.toImage(figure, {
+  const url = await Plotly.toImage(fig, {
     format: format === 'jpg' ? 'jpeg' : 'png',
-    width: EXPORT_WIDTH,
-    height: EXPORT_HEIGHT,
+    width,
+    height,
     scale: RASTER_SCALE,
   })
   download(url, filename)

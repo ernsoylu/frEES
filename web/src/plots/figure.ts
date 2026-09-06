@@ -93,10 +93,14 @@ function curveTrace(
   }
 }
 
-/** Axis range bound in plot coordinates; log axes take the exponent. */
+/** Axis range bound in plot coordinates; log axes take the exponent. Nonpositive values are rejected. */
 function rangeValue(value: number | null | undefined, log: boolean): number | null {
   if (value === null || value === undefined) return null
-  return log ? Math.log10(Math.max(value, 1e-20)) : value
+  if (log) {
+    if (value <= 0) return null
+    return Math.log10(value)
+  }
+  return value
 }
 
 function axisLayout(
@@ -138,11 +142,14 @@ function baseLayout(
   xLog: boolean,
   yLog: boolean,
   theme: PlotTheme,
+  revision?: string | number,
 ): PlotlyLayout {
   const colors = THEMES[theme]
   const background = theme === 'dark' ? 'rgba(0,0,0,0)' : '#ffffff'
+  const revPart = revision !== undefined ? `_${revision}` : ''
   return {
     title: format.title ? { text: format.title } : undefined,
+    uirevision: `${xLog}_${yLog}_${format.xUnit ?? ''}_${format.yUnit ?? ''}${revPart}`,
     paper_bgcolor: background,
     plot_bgcolor: background,
     font: { color: colors.font, size: format.fontSize },
@@ -169,11 +176,13 @@ function controlAxesLayout(
   format: PlotFormat,
   theme: PlotTheme,
   opts: { xLabel: string; yLabel: string; squareAspect?: boolean; legend?: boolean },
+  revision?: string | number,
 ): PlotlyLayout {
   const colors = THEMES[theme]
   const background = theme === 'dark' ? 'rgba(0,0,0,0)' : '#ffffff'
   const layout: PlotlyLayout = {
     title: format.title ? { text: format.title } : undefined,
+    uirevision: revision !== undefined ? `control_${revision}` : 'control',
     paper_bgcolor: background,
     plot_bgcolor: background,
     font: { color: colors.font, size: format.fontSize },
@@ -217,7 +226,7 @@ function connectionTrace(
   xUnit: UnitChoice,
   yUnit: UnitChoice,
 ): PlotlyTrace | null {
-  let name = 'Cycle Connections'
+  let name = 'Schematic Connections'
   let linePoints = overlay.close && points.length > 2 ? [...points, points[0]] : points
 
   if (cyclePath && cyclePath.length > 0) {
@@ -232,6 +241,7 @@ function connectionTrace(
     type: 'scatter',
     mode: 'lines',
     name,
+    uid: cyclePath && cyclePath.length > 0 ? 'cycle_path' : 'schematic_connections',
     x: linePoints.map((p) => p.x * xUnit.scale + xUnit.offset),
     y: linePoints.map((p) => p.y * yUnit.scale + yUnit.offset),
     line: { color, width: 2 },
@@ -266,6 +276,7 @@ function stateTraces(
     type: 'scatter',
     mode: 'markers+text',
     name: 'States',
+    uid: 'states',
     x: points.map((p) => p.x * xUnit.scale + xUnit.offset),
     y: points.map((p) => p.y * yUnit.scale + yUnit.offset),
     marker: { color: stateColor, size: 9 },
@@ -285,6 +296,7 @@ export function buildPropertyFigure(
   states: StateTable,
   theme: PlotTheme,
   cyclePath?: Record<string, number>[],
+  revision?: string | number,
 ): PlotlyFigure {
   const colors = THEMES[theme]
   const xUnit = resolveUnit(diagram.xProperty, format.xUnit, format.celsius)
@@ -295,7 +307,9 @@ export function buildPropertyFigure(
     if (curve.family === 'quality' && !config.quality) continue
     if (curve.family !== 'quality' && !config.isolines) continue
     const style = FAMILY_STYLES[curve.family] ?? FAMILY_STYLES.isobar
-    traces.push(curveTrace(curve, style, xUnit.scale, xUnit.offset, yUnit.scale, yUnit.offset))
+    const trace = curveTrace(curve, style, xUnit.scale, xUnit.offset, yUnit.scale, yUnit.offset)
+    trace.uid = `${curve.family}_${curve.label}`
+    traces.push(trace)
   }
   for (const dome of diagram.dome) {
     traces.push({
@@ -307,6 +321,26 @@ export function buildPropertyFigure(
         yUnit.scale,
         yUnit.offset,
       ),
+      uid: 'dome',
+      showlegend: true,
+    })
+  }
+  if (diagram.markers && diagram.markers.length > 0) {
+    traces.push({
+      type: 'scatter',
+      mode: 'markers+text',
+      name: 'Critical point',
+      uid: 'critical_markers',
+      x: diagram.markers.map((m) => m.x * xUnit.scale + xUnit.offset),
+      y: diagram.markers.map((m) => m.y * yUnit.scale + yUnit.offset),
+      marker: {
+        symbol: 'diamond',
+        size: 9,
+        color: colors.dome,
+      },
+      text: diagram.markers.map((m) => m.label),
+      textposition: 'top center',
+      textfont: { color: colors.font, size: 10 },
       showlegend: true,
     })
   }
@@ -337,6 +371,7 @@ export function buildPropertyFigure(
     format.xLog ?? diagram.xLog,
     format.yLog ?? diagram.yLog,
     theme,
+    revision,
   )
   layout.title ??= { text: `${diagram.fluid}` }
   return { data: traces, layout }
@@ -349,23 +384,25 @@ export function buildPsychroFigure(
   states: StateTable,
   theme: PlotTheme,
   cyclePath?: Record<string, number>[],
+  revision?: string | number,
 ): PlotlyFigure {
   const colors = THEMES[theme]
   const xUnit = resolveUnit('T', format.xUnit, format.celsius)
   const yUnit = resolveUnit('w', format.yUnit, false)
   const traces: PlotlyTrace[] = []
-  for (const curve of chart.curves) {
-    if (curve.family === 'wetbulb' && !config.wetBulb) continue
-    if (curve.family === 'enthalpy' && !config.enthalpy) continue
-    if (curve.family === 'volume' && !config.volume) continue
+  chart.curves.forEach((curve, i) => {
+    if (curve.family === 'wetbulb' && !config.wetBulb) return
+    if (curve.family === 'enthalpy' && !config.enthalpy) return
+    if (curve.family === 'volume' && !config.volume) return
     const saturation = curve.family === 'saturation'
     const style: FamilyStyle = saturation
       ? { color: colors.dome, width: 2.5, dash: 'solid' }
       : (FAMILY_STYLES[curve.family] ?? FAMILY_STYLES.rh)
     const trace = curveTrace(curve, style, xUnit.scale, xUnit.offset, yUnit.scale, yUnit.offset)
+    trace.uid = `${curve.family}_${i}`
     trace.showlegend = saturation
     traces.push(trace)
-  }
+  })
   if (config.overlayStates) {
     const customStateColor = format.lineColors?.['states']
     traces.push(
@@ -387,6 +424,7 @@ export function buildPsychroFigure(
     format.xLog ?? false,
     format.yLog ?? false,
     theme,
+    revision,
   )
   layout.title ??= {
     text: `Psychrometric chart — ${(chart.pressure / 1000).toFixed(2)} kPa`,
@@ -419,6 +457,7 @@ export function buildXYFigure(
   yLabel: string,
   theme: PlotTheme,
   config?: XYConfig,
+  revision?: string | number,
 ): PlotlyFigure {
   const chartType = config?.chartType || 'line'
   const traces: PlotlyTrace[] = []
@@ -439,6 +478,7 @@ export function buildXYFigure(
         labels: s.x.map(String),
         values: s.y,
         name: displayVar(s.name),
+        uid: s.name,
         textposition: 'inside',
         hoverinfo: 'label+value+percent',
       })
@@ -449,6 +489,7 @@ export function buildXYFigure(
         type: 'histogram',
         x: s.y,
         name: displayVar(s.name),
+        uid: s.name,
         opacity: 0.75,
         marker: { color: format.lineColors?.[s.name] || undefined },
       })
@@ -458,6 +499,7 @@ export function buildXYFigure(
       traces.push({
         type: 'bar',
         name: displayVar(s.name),
+        uid: s.name,
         x: s.x,
         y: s.y,
         marker: { color: format.lineColors?.[s.name] || undefined },
@@ -471,6 +513,7 @@ export function buildXYFigure(
         type: 'scatter',
         mode: 'markers',
         name: displayVar(s.name),
+        uid: s.name,
         x: s.x,
         y: s.y,
         marker: {
@@ -487,6 +530,7 @@ export function buildXYFigure(
         traces.push({
           type: 'mesh3d',
           name: displayVar(s.name),
+          uid: s.name,
           x: s.x,
           y: s.y,
           z: s.z,
@@ -505,6 +549,7 @@ export function buildXYFigure(
         connectgaps: false,
         customdata: s.sampleIds,
         name: displayVar(s.name),
+        uid: s.name,
         x: s.x,
         y: s.y,
         line: { color: format.lineColors?.[s.name] || undefined },
@@ -520,6 +565,7 @@ export function buildXYFigure(
     chartType === 'histogram' ? false : (format.xLog ?? false),
     chartType === 'histogram' ? false : (format.yLog ?? false),
     theme,
+    revision,
   )
 
   if (chartType !== 'line') layout.annotations = [{ text: counts.join('; '), xref: 'paper', yref: 'paper', x: 0, y: 1.08, showarrow: false }]
@@ -561,6 +607,7 @@ export function buildBodeFigure(
   phase: number[],
   format: PlotFormat,
   theme: PlotTheme,
+  revision?: string | number,
 ): PlotlyFigure {
   const colors = THEMES[theme]
   const background = theme === 'dark' ? 'rgba(0,0,0,0)' : '#ffffff'
@@ -569,6 +616,7 @@ export function buildBodeFigure(
       type: 'scatter',
       mode: 'lines',
       name: 'Magnitude',
+      uid: 'bode_magnitude',
       x: omega,
       y: mag,
       yaxis: 'y2',
@@ -579,6 +627,7 @@ export function buildBodeFigure(
       type: 'scatter',
       mode: 'lines',
       name: 'Phase',
+      uid: 'bode_phase',
       x: omega,
       y: phase,
       yaxis: 'y',
@@ -589,6 +638,7 @@ export function buildBodeFigure(
 
   const layout: PlotlyLayout = {
     title: format.title ? { text: format.title } : undefined,
+    uirevision: revision !== undefined ? `bode_${revision}` : 'bode',
     paper_bgcolor: background,
     plot_bgcolor: background,
     font: { color: colors.font, size: format.fontSize },
@@ -689,6 +739,7 @@ export function buildNicholsFigure(
   phase: number[],
   format: PlotFormat,
   theme: PlotTheme,
+  revision?: string | number,
 ): PlotlyFigure {
   const gridColor = theme === 'dark' ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.15)'
 
@@ -696,25 +747,25 @@ export function buildNicholsFigure(
   for (const mDb of NICHOLS_M_DB) {
     const locus = nicholsMLocus(mDb)
     traces.push({
-      type: 'scatter', mode: 'lines', name: `M ${mDb} dB`, x: locus.x, y: locus.y,
+      type: 'scatter', mode: 'lines', name: `M ${mDb} dB`, uid: `nichols_m_${mDb}`, x: locus.x, y: locus.y,
       line: { color: gridColor, width: 1 }, hoverinfo: 'skip', showlegend: false,
     })
   }
   for (const aDeg of NICHOLS_N_DEG) {
     const locus = nicholsNLocus(aDeg)
     traces.push({
-      type: 'scatter', mode: 'lines', name: `N ${aDeg}°`, x: locus.x, y: locus.y,
+      type: 'scatter', mode: 'lines', name: `N ${aDeg}°`, uid: `nichols_n_${aDeg}`, x: locus.x, y: locus.y,
       line: { color: gridColor, width: 1, dash: 'dot' }, hoverinfo: 'skip', showlegend: false,
     })
   }
   // The −1 critical point sits at (−180 deg, 0 dB).
   traces.push({
-    type: 'scatter', mode: 'markers', name: 'Critical point', x: [-180], y: [0],
+    type: 'scatter', mode: 'markers', name: 'Critical point', uid: 'nichols_critical', x: [-180], y: [0],
     marker: { color: '#ff6b6b', size: 9, symbol: 'x' }, hoverinfo: 'skip', showlegend: false,
   })
   // The open-loop locus.
   traces.push({
-    type: 'scatter', mode: 'lines+markers', name: 'Open loop',
+    type: 'scatter', mode: 'lines+markers', name: 'Open loop', uid: 'nichols_open_loop',
     x: phase, y: mag,
     line: { color: '#4dabf7', width: 2 }, marker: { color: '#4dabf7', size: 4 },
     showlegend: false,
@@ -724,7 +775,7 @@ export function buildNicholsFigure(
     xLabel: 'Open-loop phase [deg]',
     yLabel: 'Open-loop gain [dB]',
     legend: false,
-  })
+  }, revision)
 
   return { data: traces, layout }
 }
@@ -734,12 +785,14 @@ export function buildNyquistFigure(
   imag: number[],
   format: PlotFormat,
   theme: PlotTheme,
+  revision?: string | number,
 ): PlotlyFigure {
   const traces: PlotlyTrace[] = [
     {
       type: 'scatter',
       mode: 'lines',
       name: 'Nyquist Curve',
+      uid: 'nyquist_curve',
       x: real,
       y: imag,
       line: { color: '#38d9a9', width: 2 },
@@ -749,6 +802,7 @@ export function buildNyquistFigure(
       type: 'scatter',
       mode: 'markers',
       name: 'Critical Point (-1+j0)',
+      uid: 'nyquist_critical',
       x: [-1.0],
       y: [0.0],
       marker: { symbol: 'x', color: '#ff6b6b', size: 12 },
@@ -760,7 +814,7 @@ export function buildNyquistFigure(
     xLabel: 'Real Axis',
     yLabel: 'Imaginary Axis',
     squareAspect: true,
-  })
+  }, revision)
 
   return { data: traces, layout }
 }
@@ -772,6 +826,7 @@ export function buildPoleZeroFigure(
   zi: number[],
   format: PlotFormat,
   theme: PlotTheme,
+  revision?: string | number,
 ): PlotlyFigure {
   const background = theme === 'dark' ? 'rgba(0,0,0,0)' : '#ffffff'
   const traces: PlotlyTrace[] = []
@@ -781,6 +836,7 @@ export function buildPoleZeroFigure(
       type: 'scatter',
       mode: 'markers',
       name: 'Poles',
+      uid: 'pz_poles',
       x: pr,
       y: pi,
       marker: { symbol: 'x', size: 10, color: '#ff6b6b' },
@@ -793,6 +849,7 @@ export function buildPoleZeroFigure(
       type: 'scatter',
       mode: 'markers',
       name: 'Zeros',
+      uid: 'pz_zeros',
       x: zr,
       y: zi,
       marker: {
@@ -809,7 +866,7 @@ export function buildPoleZeroFigure(
     xLabel: 'Real Axis [1/s]',
     yLabel: 'Imaginary Axis [rad/s]',
     squareAspect: true,
-  })
+  }, revision)
 
   return { data: traces, layout }
 }
@@ -821,6 +878,7 @@ export function buildRootLocusFigure(
   zi: number[],
   format: PlotFormat,
   theme: PlotTheme,
+  revision?: string | number,
 ): PlotlyFigure {
   const background = theme === 'dark' ? 'rgba(0,0,0,0)' : '#ffffff'
   const traces: PlotlyTrace[] = []
@@ -840,6 +898,7 @@ export function buildRootLocusFigure(
       type: 'scatter',
       mode: 'lines',
       name: `Branch ${j + 1}`,
+      uid: `rl_branch_${j + 1}`,
       x: bx,
       y: by,
       line: { width: 2 },
@@ -860,6 +919,7 @@ export function buildRootLocusFigure(
       type: 'scatter',
       mode: 'markers',
       name: 'Open-loop Poles',
+      uid: 'rl_poles',
       x: px,
       y: py,
       marker: { symbol: 'x', size: 10, color: '#ff6b6b' },
@@ -873,6 +933,7 @@ export function buildRootLocusFigure(
       type: 'scatter',
       mode: 'markers',
       name: 'Open-loop Zeros',
+      uid: 'rl_zeros',
       x: zr,
       y: zi,
       marker: {
@@ -889,7 +950,7 @@ export function buildRootLocusFigure(
     xLabel: 'Real Axis [1/s]',
     yLabel: 'Imaginary Axis [rad/s]',
     squareAspect: true,
-  })
+  }, revision)
 
   return { data: traces, layout }
 }

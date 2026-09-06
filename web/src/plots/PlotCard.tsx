@@ -204,6 +204,7 @@ export interface FigureInputs {
   /** Declared STATE TABLE blocks, so a plot can overlay just one circuit. */
   stateTableDefs?: StateTableDto[]
   theme: PlotTheme
+  revision?: string | number
 }
 
 function getArrayValues(variables: VariableResult[], base: string | null): number[] {
@@ -243,59 +244,68 @@ function getMatrixValues(variables: VariableResult[], base: string | null): numb
 }
 
 export function buildFigure(spec: PlotSpec, inputs: FigureInputs): PlotlyFigure | null {
-  const { states, cyclePath, variables = [], diagram, psychart, stateTableDefs, theme } = inputs
+  const { states, cyclePath, variables = [], diagram, psychart, stateTableDefs, theme, revision } = inputs
   // When the plot targets one declared STATE TABLE circuit, overlay only that
-  // circuit's states (else all detected states).
+  // circuit's states (else all detected states). If the named circuit is missing,
+  // do not fall back silently to all detected states across circuits.
   const overlayStates = (name?: string | null): StateTable => {
-    if (!name || !stateTableDefs?.length) return states
-    return detectStateTables(variables, stateTableDefs).find((t) => t.name === name) ?? states
+    if (!name) return states
+    if (!stateTableDefs?.length) return { indices: [], columns: [], values: {} }
+    return detectStateTables(variables, stateTableDefs).find((t) => t.name === name) ?? { indices: [], columns: [], values: {} }
   }
   if (spec.kind === 'property' && diagram) {
-    return buildPropertyFigure(diagram, spec.property, spec.format, overlayStates(spec.property.stateTable), theme, cyclePath)
+    const selectedCircuit = spec.property.stateTable
+      ? stateTableDefs?.find((s) => s.name === spec.property.stateTable)
+      : undefined
+    const fluidMatches = selectedCircuit
+      ? (!selectedCircuit.fluid || selectedCircuit.fluid.toLowerCase() === spec.property.fluid.toLowerCase())
+      : (!stateTableDefs || stateTableDefs.length <= 1 || stateTableDefs.every((s) => !s.fluid || s.fluid.toLowerCase() === spec.property.fluid.toLowerCase()))
+    const effectiveCyclePath = fluidMatches ? cyclePath : undefined
+    return buildPropertyFigure(diagram, spec.property, spec.format, overlayStates(spec.property.stateTable), theme, effectiveCyclePath, revision)
   }
   if (spec.kind === 'psychro' && psychart) {
-    return buildPsychroFigure(psychart, spec.psychro, spec.format, overlayStates(spec.psychro.stateTable), theme, cyclePath)
+    return buildPsychroFigure(psychart, spec.psychro, spec.format, overlayStates(spec.psychro.stateTable), theme, undefined, revision)
   }
   if (spec.kind === 'xy' && !spec.source) return null
   if (spec.kind === 'xy' && (spec.xy.xVar || spec.xy.chartType === 'histogram') && spec.xy.yVars.length > 0 && (spec.xy.chartType !== 'surface3d' || spec.xy.zVar)) {
-    return buildXyFigureFromSpec(spec, inputs, spec.xy.chartType === 'histogram' ? '' : spec.xy.xVar!)
+    return buildXyFigureFromSpec(spec, inputs, spec.xy.chartType === 'histogram' ? '' : spec.xy.xVar!, revision)
   }
   if (spec.kind === 'bode' && spec.control.omega && spec.control.mag && spec.control.phase) {
     const omega = getArrayValues(variables, spec.control.omega)
     const mag = getArrayValues(variables, spec.control.mag)
     const phase = getArrayValues(variables, spec.control.phase)
-    return buildBodeFigure(omega, mag, phase, spec.format, theme)
+    return buildBodeFigure(omega, mag, phase, spec.format, theme, revision)
   }
   if (spec.kind === 'nyquist' && spec.control.real && spec.control.imag) {
     const real = getArrayValues(variables, spec.control.real)
     const imag = getArrayValues(variables, spec.control.imag)
-    return buildNyquistFigure(real, imag, spec.format, theme)
+    return buildNyquistFigure(real, imag, spec.format, theme, revision)
   }
   if (spec.kind === 'nichols' && spec.control.mag && spec.control.phase) {
     const mag = getArrayValues(variables, spec.control.mag)
     const phase = getArrayValues(variables, spec.control.phase)
-    return buildNicholsFigure(mag, phase, spec.format, theme)
+    return buildNicholsFigure(mag, phase, spec.format, theme, revision)
   }
   if (spec.kind === 'polezero' && spec.control.pr && spec.control.pi) {
     const pr = getArrayValues(variables, spec.control.pr)
     const pi = getArrayValues(variables, spec.control.pi)
     const zr = getArrayValues(variables, spec.control.zr)
     const zi = getArrayValues(variables, spec.control.zi)
-    return buildPoleZeroFigure(pr, pi, zr, zi, spec.format, theme)
+    return buildPoleZeroFigure(pr, pi, zr, zi, spec.format, theme, revision)
   }
   if (spec.kind === 'rootlocus' && spec.control.pr && spec.control.pi) {
     const cpr = getMatrixValues(variables, spec.control.pr)
     const cpi = getMatrixValues(variables, spec.control.pi)
     const zr = getArrayValues(variables, spec.control.zr)
     const zi = getArrayValues(variables, spec.control.zi)
-    return buildRootLocusFigure(cpr, cpi, zr, zi, spec.format, theme)
+    return buildRootLocusFigure(cpr, cpi, zr, zi, spec.format, theme, revision)
   }
   return null
 }
 
 /** Builds the XY figure: series from parametric-table rows (or solved arrays as a
  *  fallback), with unit-annotated axis labels. */
-function buildXyFigureFromSpec(spec: PlotSpec, inputs: FigureInputs, xVar: string): PlotlyFigure {
+function buildXyFigureFromSpec(spec: PlotSpec, inputs: FigureInputs, xVar: string, revision?: string | number): PlotlyFigure {
   const { tableRows, tableResults, variables = [], theme } = inputs
   // Use solved array variables when there is no parametric table, or when the
   // table exists but has not been run yet (results empty). Fall back to
@@ -337,6 +347,7 @@ function buildXyFigureFromSpec(spec: PlotSpec, inputs: FigureInputs, xVar: strin
     withUnit(spec.xy.yVars.map(displayVar).join(', '), yUnit),
     theme,
     spec.xy,
+    revision,
   )
 }
 
@@ -361,6 +372,28 @@ export default function PlotCard({
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
   const [publicationStyle, setPublicationStyle] = useState(true)
+  const [viewResetKey, setViewResetKey] = useState(0)
+  const [exportViewMode, setExportViewMode] = useState<'current' | 'full'>('current')
+
+  const circuitWarning = useMemo(() => {
+    if (spec.kind !== 'property') return null
+    if (spec.property.stateTable) {
+      const exists = stateTableDefs?.some((s) => s.name === spec.property.stateTable)
+      if (stateTableDefs && stateTableDefs.length > 0 && !exists) {
+        return `State table "${spec.property.stateTable}" not found. No states overlaid.`
+      }
+      const circuit = stateTableDefs?.find((s) => s.name === spec.property.stateTable)
+      if (circuit?.fluid && circuit.fluid.toLowerCase() !== spec.property.fluid.toLowerCase()) {
+        return `Circuit "${spec.property.stateTable}" fluid (${circuit.fluid}) does not match diagram fluid (${spec.property.fluid}); cycle path suppressed.`
+      }
+    } else if (cyclePath && stateTableDefs && stateTableDefs.length > 1) {
+      const distinctFluids = new Set(stateTableDefs.map((s) => s.fluid?.toLowerCase()).filter(Boolean))
+      if (distinctFluids.size > 1) {
+        return `Multiple circuits with different fluids detected; cycle path suppressed for ambiguous diagram.`
+      }
+    }
+    return null
+  }, [spec, stateTableDefs, cyclePath])
 
   useEffect(() => {
     if (exportTrigger) {
@@ -371,8 +404,21 @@ export default function PlotCard({
   }, [exportTrigger])
 
   const figure = useMemo(
-    () => buildFigure(spec, { states, cyclePath, tableRows, tableResults, variables, tableUnits, diagram, psychart, stateTableDefs, theme: 'dark' }),
-    [spec, states, cyclePath, tableRows, tableResults, variables, tableUnits, diagram, psychart, stateTableDefs],
+    () =>
+      buildFigure(spec, {
+        states,
+        cyclePath,
+        tableRows,
+        tableResults,
+        variables,
+        tableUnits,
+        diagram,
+        psychart,
+        stateTableDefs,
+        theme: 'dark',
+        revision: viewResetKey,
+      }),
+    [spec, states, cyclePath, tableRows, tableResults, variables, tableUnits, diagram, psychart, stateTableDefs, viewResetKey],
   )
 
   async function onExport(format: (typeof EXPORT_FORMATS)[number]['value']) {
@@ -388,12 +434,16 @@ export default function PlotCard({
       psychart,
       stateTableDefs,
       theme,
+      revision: viewResetKey,
     })
     if (!exportFigure) return
     setExporting(true)
     setExportError(null)
     try {
-      await exportPlot(exportFigure, format, spec.name.replace(/\s+/g, '_'))
+      await exportPlot(exportFigure, format, spec.name.replace(/\s+/g, '_'), {
+        viewMode: exportViewMode,
+        background: publicationStyle ? '#ffffff' : undefined,
+      })
     } catch (e) {
       setExportError(String(e instanceof Error ? e.message : e))
     } finally {
@@ -411,6 +461,9 @@ export default function PlotCard({
               <Badge size="xs">Code-owned</Badge>
               <Button variant="default" size="xs" onClick={onDuplicate}>Duplicate as editable</Button>
             </> : <Button variant="default" size="xs" onClick={onConfigure}>Configure</Button>}
+            <Button variant="default" size="xs" onClick={() => setViewResetKey((k) => k + 1)}>
+              Fit data
+            </Button>
             <Menu shadow="md">
               <Menu.Target>
                 <Button variant="default" size="xs" loading={exporting}>
@@ -418,11 +471,26 @@ export default function PlotCard({
                 </Button>
               </Menu.Target>
               <Menu.Dropdown>
+                <Menu.Label>Format</Menu.Label>
                 {EXPORT_FORMATS.map((f) => (
                   <Menu.Item key={f.value} onClick={() => void onExport(f.value)}>
                     {f.label}
                   </Menu.Item>
                 ))}
+                <Menu.Divider />
+                <Menu.Label>Export Scope</Menu.Label>
+                <Menu.Item
+                  onClick={() => setExportViewMode('current')}
+                  rightSection={exportViewMode === 'current' ? '✓' : undefined}
+                >
+                  Current view
+                </Menu.Item>
+                <Menu.Item
+                  onClick={() => setExportViewMode('full')}
+                  rightSection={exportViewMode === 'full' ? '✓' : undefined}
+                >
+                  Full data view (autoscale)
+                </Menu.Item>
                 <Menu.Divider />
                 <Menu.Item
                   onClick={() => setPublicationStyle((v) => !v)}
@@ -448,6 +516,11 @@ export default function PlotCard({
       {exportError && (
         <Alert color="orange" mb="xs" withCloseButton onClose={() => setExportError(null)}>
           Export failed: {exportError}
+        </Alert>
+      )}
+      {circuitWarning && (
+        <Alert color="yellow" mb="xs">
+          {circuitWarning}
         </Alert>
       )}
       {!!spec.codeDiagnostics?.length && (
