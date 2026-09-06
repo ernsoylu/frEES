@@ -532,3 +532,22 @@ fn accessor_row_success_does_not_claim_table_convergence() {
     assert_eq!(settled["stats"]["converged"], true);
     assert_eq!(settled["stats"]["termination"], "completed");
 }
+
+#[test]
+fn deadline_returns_row_statuses_instead_of_discarding_the_table() {
+    let rows = vec![serde_json::json!({"x": 1}); 5000];
+    let request = serde_json::json!({"table":{"variables":["x", "y"], "rows":rows},"stopCriteria":{"elapsedTimeSeconds":0.001}});
+    let out = call("y = x * 2", &request.to_string());
+    assert!(out.get("error").is_none(), "{out}");
+    assert_eq!(out["results"].as_array().unwrap().len(), 5000);
+    assert_eq!(out["stats"]["termination"], "deadline");
+    assert_eq!(out["stats"]["converged"], false);
+    for row in out["results"].as_array().unwrap() {
+        if row["success"] == true {
+            assert_eq!(row["values"]["y"], 2.0);
+            assert_eq!(row["status"], "completed");
+        } else {
+            assert_eq!(row["status"], "not-run");
+        }
+    }
+}

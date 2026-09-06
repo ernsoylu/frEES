@@ -1873,7 +1873,7 @@ export default function App() {
         ...t,
         results: response.results,
         stats: response.stats,
-        runStatus: 'completed',
+        runStatus: response.results.some((r) => r.status === 'cancelled') ? 'cancelled' : 'completed',
       }))
       if (response.stats?.converged !== false && response.variables && response.variables.length > 0) {
         setResult((prev) => ({

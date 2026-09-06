@@ -656,6 +656,7 @@ function tablePill(
   checkMessage: string,
   stats?: TableStats | null,
 ): PillContent | null {
+  if (results.some((r) => r.status === 'cancelled')) return { color: 'orange', label: 'Table stopped', message: 'Worker stopped. Undelivered rows have unknown completion; rerun the table.', warnings: [] }
   if (stats?.converged === false) return {
     color: 'orange', label: 'Table not converged',
     message: `${stats.passes} passes; ${stats.termination}. Last-pass values are provisional.`, warnings: [],

@@ -784,7 +784,7 @@ export default function TablesGridTab({
         )}
         {activeParam && <Text size="xs">Run status: {activeParam.runStatus ?? 'not-run'}</Text>}
         {activeParam?.stats && <Text size="xs" c={activeParam.stats.converged === false ? 'orange' : 'dimmed'}>
-          {activeParam.stats.solved}/{activeParam.stats.runs} completed; {activeParam.stats.failed} failed.
+          {activeParam.stats.solved}/{activeParam.stats.runs} completed; {activeParam.stats.failed} failed; {activeParam.stats.notRun ?? 0} not run.
           {' '}{activeParam.stats.passes ?? 1} passes — {activeParam.stats.termination ?? 'completed'}.
           {activeParam.stats.converged === false && ' Values are provisional; the table has not converged.'}
         </Text>}

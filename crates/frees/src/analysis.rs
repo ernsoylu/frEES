@@ -315,6 +315,10 @@ fn solve_table_inner(source: &str, request_json: &str) -> Result<Value, String> 
             }
             Err(failure) => {
                 let message = failure.to_string_message();
+                if message == deadline_message(budget) || (now_ms() - started) / 1000.0 > budget {
+                    deadline_hit = true;
+                    return RowOutcome::failed(message);
+                }
                 *slot = Some(RowSide {
                     success: false,
                     values: BTreeMap::new(),
@@ -329,10 +333,6 @@ fn solve_table_inner(source: &str, request_json: &str) -> Result<Value, String> 
             }
         }
     });
-
-    if deadline_hit {
-        return Err(deadline_message(budget));
-    }
 
     // `SolveTableResponse`: per-row results in display units, the aggregated
     // stats (iterations summed, residual maxed, equations/unknowns assigned
@@ -360,6 +360,7 @@ fn solve_table_inner(source: &str, request_json: &str) -> Result<Value, String> 
                 }
                 json!({
                     "success": side.success,
+                    "status": if side.success { "completed" } else { "failed" },
                     "values": side.values,
                     "error": side.error,
                 })
@@ -368,6 +369,7 @@ fn solve_table_inner(source: &str, request_json: &str) -> Result<Value, String> 
                 "success": false,
                 "values": {},
                 "error": "The row was not solved.",
+                "status": "not-run",
             }),
         })
         .collect();
@@ -379,13 +381,14 @@ fn solve_table_inner(source: &str, request_json: &str) -> Result<Value, String> 
     Ok(json!({
         "results": results,
         "stats": {
-            "converged": sweep.converged,
+            "converged": sweep.converged && !deadline_hit,
             "passes": sweep.passes,
-            "termination": if sweep.converged { "completed" } else { "pass-limit" },
+            "termination": if deadline_hit { "deadline" } else if sweep.converged { "completed" } else { "pass-limit" },
             "accessor": frees_core::analysis::parametric::mentions_parametric_accessor(source),
             "runs": run_count,
             "solved": solved,
-            "failed": run_count - solved,
+            "failed": sides.iter().filter(|s| s.as_ref().is_some_and(|s| !s.success)).count(),
+            "notRun": sides.iter().filter(|s| s.is_none()).count(),
             "equations": equations,
             "unknowns": unknowns,
             "iterations": iterations,
