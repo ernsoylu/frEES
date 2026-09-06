@@ -171,7 +171,7 @@ test('wasm constrained optimization benchmark', async ({ page }) => {
     })
 
     const probe = JSON.parse(mod.optimize(optSource, optReq))
-    if (!probe.converged) return { error: probe.warning || 'optimization did not converge' }
+    if (!probe.success) return { error: probe.warning || 'optimization did not converge' }
 
     // 3 warmup iterations
     for (let i = 0; i < 3; i++) mod.optimize(optSource, optReq)

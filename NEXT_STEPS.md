@@ -33,6 +33,7 @@ Performance improvements below are candidates, not measured speedup promises. Re
 | 5 | Reduce sparse-solver memory and remaining measured overhead | Phase 4 profile | Medium |
 | 6 | Complete existing capabilities and align documentation | Phases 0–1; performance phases precede broader feature work | Medium |
 | 7 | Add further throughput or modeling capabilities when justified | Measured need after earlier phases | Conditional |
+| 8 | Scaled linear algebra performance for large dense blocks and stiff sparse networks | Phase 0 baseline | Medium |
 
 Effort describes relative implementation complexity, not a delivery-date commitment. Each phase should land in small, independently reviewable changes. Fix incorrect executable documentation early even though the broader documentation work belongs to Phase 6.
 
@@ -190,6 +191,25 @@ Primary files: [DAE Jacobian](crates/frees-core/src/dae/jacobian.rs), [DAE solve
 - [x] Documentation capability checks remain valid in a standalone checkout without the Java reference repository.
 
 Primary files: [all-roots solver](crates/frees-core/src/analysis/allroots.rs), [WASM analysis boundary](crates/frees/src/analysis.rs), [editor](web/src/EquationEditor.tsx), [documentation sources](web/src/docs), [manifest generator](web/scripts/build-doc-manifest.mjs), [documentation checker](web/scripts/check-doc-coverage.mjs), [CLI](crates/frees-cli/src/main.rs).
+
+## Phase 8 — Scaled linear algebra performance for large dense blocks and stiff sparse networks
+
+### Work
+
+- [ ] Flatten dense Newton matrix workspaces (`crates/frees-core/src/solver/newton.rs`) from `Vec<Vec<f64>>` to contiguous 1D buffers (`Vec<f64>`) with flat index `i * n + j`. Eliminate pointer indirection overhead, improve L1/L2 cache locality, and enable LLVM SIMD auto-vectorization (`f64x2` in WebAssembly, AVX2 natively).
+- [ ] Implement register-tiled elimination for dense blocks ($N > 16$), unrolling row updates in $2 \times 2$ or $4 \times 4$ blocks to increase arithmetic intensity and close the gap with dense BLAS without adding external dependencies.
+- [ ] Add a reusable, zero-allocation `SparseLuWorkspace` to the sparse DAE solver (`crates/frees-core/src/dae/solver.rs`), hoisting scratch vectors (`x`, `pinv`, `mark`, `stack`, `pstack`, `order`) out of `SparseLu::factor` so transient solves avoid heap allocation churn across ODE steps.
+- [ ] Precompute a Column Approximate Minimum Degree (COLAMD) fill-reducing permutation during `PreparedDocument` compilation for fixed-topology DAE networks, eliminating factorization fill-in across transient time steps.
+
+### Acceptance criteria
+
+- [ ] Small block solves ($N \le 10$) maintain sub-microsecond latency with zero regressions.
+- [ ] Dense solves for $N = 30\text{–}100$ demonstrate a measured 30–50% throughput improvement.
+- [ ] Stiff transient simulation (`stiff_thermofluid_transient`) demonstrates measurable runtime reduction and zero per-step heap allocations during factorization.
+- [ ] All 1,308 golden corpus fixtures maintain 100% bit/oracle parity across all shards.
+- [ ] Raw WASM bundle size remains strictly < 4,096 KiB.
+
+Primary files: [Newton solver](crates/frees-core/src/solver/newton.rs), [DAE sparse solver](crates/frees-core/src/dae/solver.rs), [prepared document](crates/frees-core/src/engine/prepared.rs), [native benchmarks](crates/frees-core/benches/solve_bench.rs), [browser benchmarks](web/bench/wasm-bench.spec.ts).
 
 ## Phase 7 — Conditional extensions
 
