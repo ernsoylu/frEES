@@ -157,7 +157,7 @@ function unscaleVal(v: number, log: boolean): number {
 }
 
 function fmtCell(v: number): string {
-  return Number.parseFloat(v.toPrecision(6)).toString()
+  return String(v)
 }
 
 /**
@@ -251,7 +251,7 @@ export function readOnlyCellText(
   const draft = row?.values[name] ?? ''
   if (draft.trim() !== '') return draft
   const computed = outcome?.success ? outcome.values[name] : undefined
-  return computed !== undefined && Number.isFinite(computed) ? fmt6(computed) : draft
+  return computed !== undefined && Number.isFinite(computed) ? String(computed) : draft
 }
 
 /** Sanitizes free text (axis labels, column headers) into an identifier:
@@ -278,18 +278,7 @@ export function functionTableFromDigitizer(input: {
   curves: { param: string; points: { x: number; y: number }[] }[]
 }): FunctionTableSpec {
   const count = input.existing.filter((t) => t.kind === 'function').length
-  const xKeys = new Set<string>()
-  for (const curve of input.curves) {
-    for (const p of curve.points) xKeys.add(fmt6(p.x))
-  }
-  const xs = [...xKeys].map(Number).sort((a, b) => a - b)
-  const rows: CurveRow[] = xs.map((x) => ({
-    x: fmt6(x),
-    ys: input.curves.map((curve) => {
-      const hit = curve.points.find((p) => fmt6(p.x) === fmt6(x))
-      return hit ? fmt6(hit.y) : ''
-    }),
-  }))
+  const rows = alignedCurveRows(input.curves.map((curve) => curve.points.map((p) => [p.x, p.y])))
   const is1D = input.curves.length <= 1
   const table: FunctionTableSpec = {
     id: newTableId(),
@@ -306,23 +295,26 @@ export function functionTableFromDigitizer(input: {
   return fillMissingCells(table)
 }
 
+/** Align exact numeric X values once per curve. Exact duplicates keep the first sample. */
+function alignedCurveRows(curves: number[][][]): CurveRow[] {
+  const indexes = curves.map((points) => {
+    const byX = new Map<number, number>()
+    for (const [x, y] of points) if (!byX.has(x)) byX.set(x, y)
+    return byX
+  })
+  const xs = [...new Set(indexes.flatMap((index) => [...index.keys()]))].sort((a, b) => a - b)
+  return xs.map((x) => ({
+    x: String(x),
+    ys: indexes.map((index) => index.has(x) ? String(index.get(x)) : ''),
+  }))
+}
+
 /** Builds a read-only Function Table spec from a solver-wire DTO (a TABLE
  * block the backend parsed out of the editor text). The x grid is the union of
  * every curve's x samples; each curve fills its own rows. */
 function functionTableFromDto(dto: FunctionTableDto): FunctionTableSpec {
   const is1D = dto.curves.length <= 1 && (dto.curves[0]?.param == null)
-  const xKeys = new Set<string>()
-  for (const curve of dto.curves) {
-    for (const p of curve.points) xKeys.add(fmt6(p[0]))
-  }
-  const xs = [...xKeys].map(Number).sort((a, b) => a - b)
-  const rows: CurveRow[] = xs.map((x) => ({
-    x: fmt6(x),
-    ys: dto.curves.map((curve) => {
-      const hit = curve.points.find((p) => fmt6(p[0]) === fmt6(x))
-      return hit ? fmt6(hit[1]) : ''
-    }),
-  }))
+  const rows = alignedCurveRows(dto.curves.map((curve) => curve.points))
   return {
     // Stable id keyed by name so the table keeps its identity across solves.
     id: `code-${dto.name.toLowerCase()}`,
@@ -332,7 +324,7 @@ function functionTableFromDto(dto: FunctionTableDto): FunctionTableSpec {
     paramName: is1D ? '' : (dto.argNames[1] ?? 'param'),
     xLog: dto.xLog,
     yLog: dto.yLog,
-    columns: dto.curves.map((c) => (c.param == null ? '' : fmt6(c.param))),
+    columns: dto.curves.map((c) => (c.param == null ? '' : String(c.param))),
     rows,
     is1D,
     source: 'code',
@@ -345,7 +337,7 @@ export function paramTableFromDto(dto: ParametricTableDto): ParamTableSpec {
     const values: Record<string, string> = {}
     dto.vars.forEach((v, j) => {
       const cell = row[j]
-      values[v] = cell == null ? '' : fmt6(cell)
+      values[v] = cell == null ? '' : String(cell)
     })
     return { id: crypto.randomUUID(), values }
   })
@@ -373,7 +365,7 @@ function odeTableFromDto(dto: OdeTableDto): ParamTableSpec {
     const values: Record<string, string> = {}
     dto.vars.forEach((v, j) => {
       const cell = row[j]
-      values[v] = cell == null ? '' : fmt6(cell)
+      values[v] = cell == null ? '' : String(cell)
     })
     return { id: crypto.randomUUID(), values }
   })

@@ -42,8 +42,8 @@ describe('readOnlyCellText', () => {
     expect(readOnlyCellText(row({ x: '' }), solved({ x: Number.POSITIVE_INFINITY }), 'x')).toBe('')
   })
 
-  it('formats to six significant figures, matching the input cells beside it', () => {
-    expect(readOnlyCellText(row({ x: '' }), solved({ x: 4.898979485566356 }), 'x')).toBe('4.89898')
+  it('retains full precision for clipboard data', () => {
+    expect(readOnlyCellText(row({ x: '' }), solved({ x: 4.898979485566356 }), 'x')).toBe('4.898979485566356')
   })
 
   it('is blank for a variable the solve did not produce', () => {

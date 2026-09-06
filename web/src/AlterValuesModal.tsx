@@ -55,7 +55,7 @@ export default function AlterValuesModal({
     for (let i = 0; i < rowCount; i++) {
       const t = rowCount === 1 ? 0 : i / (rowCount - 1)
       const value = mode === 'linear' ? a + (b - a) * t : a * Math.pow(b / a, t)
-      values.push(Number(value.toPrecision(12)))
+      values.push(value)
     }
     onApply(values)
   }

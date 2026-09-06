@@ -13,7 +13,7 @@ import '@glideapps/glide-data-grid/dist/index.css'
 import { Button, Group, Stack, Text, useComputedColorScheme, useMantineTheme } from '@mantine/core'
 import { IconChartLine } from '@tabler/icons-react'
 import { useElementSize } from '@mantine/hooks'
-import { ParamRow, readOnlyCellText } from './tables'
+import { fmt6, ParamRow, readOnlyCellText } from './tables'
 import { TableRowResult } from './api'
 import { VariableDraft } from './VariableInfoModal'
 import { displayVar } from './varDisplay'
@@ -125,16 +125,7 @@ export default function DataGridReadOnly({ vars, rows, results, varDrafts, colum
     [vars, varDrafts, columnUnits, widthOverrides],
   )
 
-  // Input cells are already formatted strings (fmt6) on the ParamRow; solved
-  // cells are merged in from `results` here, per cell, so the merge stays as
-  // lazy as the virtualized paint and a long ODE trajectory never materializes
-  // a second copy of itself.
-  //
-  // The rule is the one paramComputedValue() applies in
-  // spreadsheet/tableBinding.ts — computed only where the row solved and the
-  // input was blank — reimplemented rather than imported because that module
-  // pulls in the Univer adapter, by far the largest chunk in the bundle and
-  // deliberately kept out of this lazily-loaded grid.
+  // Keep clipboard data exact; round only the painted cell.
   const getCellContent = useCallback(
     ([col, row]: Item): GridCell => {
       const name = vars[col]
@@ -142,7 +133,7 @@ export default function DataGridReadOnly({ vars, rows, results, varDrafts, colum
       return {
         kind: GridCellKind.Text,
         data: value,
-        displayData: value,
+        displayData: value.trim() !== '' && Number.isFinite(Number(value)) ? fmt6(Number(value)) : value,
         allowOverlay: false,
         contentAlign: 'right',
       }
