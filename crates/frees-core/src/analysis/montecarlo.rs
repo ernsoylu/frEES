@@ -154,15 +154,51 @@ pub fn run_with_tables<F>(
     first_order_sigma: &BTreeMap<String, f64>,
     sample_count: usize,
     seed: i64,
-    mut expired: F,
+    expired: F,
     extra_tables: &[FunctionTableDef],
 ) -> Result<Outcome>
 where
     F: FnMut() -> bool,
 {
-    let base = solve_with_tables(text, settings, &overrides_from(specs), extra_tables)
-        .map_err(|e| e.error)?;
-    let base_values: BTreeMap<String, f64> = base.values;
+    run_with_tables_and_base(
+        text,
+        settings,
+        specs,
+        first_order_sigma,
+        sample_count,
+        seed,
+        expired,
+        extra_tables,
+        None,
+    )
+}
+
+/// [`run_with_tables`] with an optional precomputed base solve's variable values.
+///
+/// When `precomputed_base` is `Some`, the redundant base solve is skipped.
+#[allow(clippy::too_many_arguments)]
+pub fn run_with_tables_and_base<F>(
+    text: &str,
+    settings: &SolverSettings,
+    specs: &BTreeMap<String, UncertaintySpec>,
+    first_order_sigma: &BTreeMap<String, f64>,
+    sample_count: usize,
+    seed: i64,
+    mut expired: F,
+    extra_tables: &[FunctionTableDef],
+    precomputed_base: Option<&BTreeMap<String, f64>>,
+) -> Result<Outcome>
+where
+    F: FnMut() -> bool,
+{
+    let base_values: BTreeMap<String, f64> = match precomputed_base {
+        Some(values) => values.clone(),
+        None => {
+            let base = solve_with_tables(text, settings, &overrides_from(specs), extra_tables)
+                .map_err(|e| e.error)?;
+            base.values
+        }
+    };
 
     // Sorted by construction: `specs` is a BTreeMap, and the Java sorts too.
     let sources: Vec<String> = specs

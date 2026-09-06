@@ -86,6 +86,8 @@ struct Session {
     /// the **request wins** over a document definition of the same name —
     /// note this is the opposite of the solve path's `withExtraDefs` rule).
     extra_tables: Vec<frees_core::parser::defs::FunctionTableDef>,
+    /// Cached parsed definitions from the solve's source, with extra_tables merged.
+    defs: frees_core::parser::defs::Definitions,
     /// True once a solve has stored a workspace.
     solved: bool,
 }
@@ -147,6 +149,18 @@ pub fn store_session(
         session.source = source.to_string();
         session.display_names = solution.display_names.clone();
         session.extra_tables = extra_tables.to_vec();
+        let mut defs = match frees_core::parse_document(source) {
+            Ok(document) => document.defs,
+            Err(_) => frees_core::parser::defs::Definitions::default(),
+        };
+        for table in extra_tables {
+            defs.functions.retain(|f| f.name != table.name);
+            defs.procedures.retain(|p| p.name != table.name);
+            defs.modules.retain(|m| m.name != table.name);
+            defs.tables.retain(|t| t.name != table.name);
+            defs.tables.push(table.clone());
+        }
+        session.defs = defs;
         session.vars = vars;
         for (name, var) in overlays {
             session.vars.insert(name, var);
@@ -405,36 +419,15 @@ fn assignment(target: &str, rhs: &str) -> Outcome {
 /// against the registry, and executes nothing. There is no `eval`-of-source
 /// path here.
 fn eval_in_workspace(expr: &Expr) -> Result<f64, FreesError> {
-    let (scope, source, extra_tables) = SESSION.with(|cell| {
+    let (scope, defs) = SESSION.with(|cell| {
         let session = cell.borrow();
         let scope: frees_core::eval::Scope = session
             .vars
             .iter()
             .map(|(name, var)| (name.clone(), var.si))
             .collect();
-        (scope, session.source.clone(), session.extra_tables.clone())
+        (scope, session.defs.clone())
     });
-    // The document's definitions come from re-parsing the stored source. A
-    // document that no longer parses (the editor changed under the REPL)
-    // simply contributes none, which is the Java behaviour when the cached
-    // `defs` are stale. The solve request's GUI Function Tables were converted
-    // at request time, so they stay callable either way — and they merge with
-    // the *REPL* direction, the Java's
-    // `replDefs = new HashMap<>(parsed.defs()); replDefs.putAll(functionDefs)`
-    // (`SolveController.computeSolve`): a request table REPLACES a document
-    // definition of the same name, the opposite of the solve path's
-    // `withExtraDefs` rule.
-    let mut defs = match frees_core::parse_document(&source) {
-        Ok(document) => document.defs,
-        Err(_) => frees_core::parser::defs::Definitions::default(),
-    };
-    for table in extra_tables {
-        defs.functions.retain(|f| f.name != table.name);
-        defs.procedures.retain(|p| p.name != table.name);
-        defs.modules.retain(|m| m.name != table.name);
-        defs.tables.retain(|t| t.name != table.name);
-        defs.tables.push(table);
-    }
     frees_core::eval::eval_with(
         expr,
         &scope,
@@ -1004,5 +997,26 @@ mod tests {
         assert!(starts_with_word("CALL foo(a : b)", "call"));
         assert!(!starts_with_word("calling", "call"));
         assert_eq!(split_top_level_commas("f(a, b), c"), vec!["f(a, b)", " c"]);
+    }
+
+    #[test]
+    fn repl_cached_definitions_invalidate_when_session_changes() {
+        // First solve defines triple(x) = 3 * x
+        let doc1 = "FUNCTION triple(x)\n  triple := 3 * x\nEND\ny = 10\n";
+        seed(doc1);
+        let v1 = line("triple(4)");
+        assert_eq!(v1["success"], true, "{v1}");
+        assert_eq!(v1["value"].as_f64(), Some(12.0), "{v1}");
+
+        // Second solve changes definition to quad(x) = 4 * x, triple is no longer defined
+        let doc2 = "FUNCTION quad(x)\n  quad := 4 * x\nEND\ny = 20\n";
+        seed(doc2);
+        let v2 = line("quad(4)");
+        assert_eq!(v2["success"], true, "{v2}");
+        assert_eq!(v2["value"].as_f64(), Some(16.0), "{v2}");
+
+        // Stale definition 'triple' should no longer be callable
+        let v3 = line("triple(4)");
+        assert_eq!(v3["success"], false, "{v3}");
     }
 }

@@ -242,6 +242,10 @@ fn solve_table_inner(source: &str, request_json: &str) -> Result<Value, String> 
     sides.resize_with(run_count, || None);
     let mut deadline_hit = false;
 
+    let mut prepared =
+        frees_core::engine::PreparedDocument::new(source, &settings, &overrides, &extra_tables)
+            .ok();
+
     let sweep = run_sweep(&table, source, |job: RowJob<'_>| {
         // The cooperative deadline, at the Java's two check sites collapsed
         // into one: entry to every row solve, on every pass.
@@ -260,13 +264,17 @@ fn solve_table_inner(source: &str, request_json: &str) -> Result<Value, String> 
             1.0 / job.total_runs.max(1) as f64,
         );
         let slot = &mut sides[job.run - 1];
-        match frees_core::solve_with_parametric_tables(
-            &job.source,
-            &settings,
-            &overrides,
-            job.accessors,
-            &extra_tables,
-        ) {
+        let solve_res = match prepared.as_mut() {
+            Some(p) => p.solve_with_pins(job.cells, job.accessors),
+            None => frees_core::solve_with_parametric_tables(
+                &job.source,
+                &settings,
+                &overrides,
+                job.accessors,
+                &extra_tables,
+            ),
+        };
+        match solve_res {
             Ok(mut solution) => {
                 // The Java table row fills missing properties unconditionally,
                 // scoped to the table's own columns — not gated on the
@@ -532,7 +540,7 @@ fn monte_carlo_inner(source: &str, request_json: &str) -> Result<Value, String> 
         .map_err(|failure| failure.to_string_message())?;
 
     let started = now_ms();
-    let outcome = frees_core::analysis::montecarlo::run_with_tables(
+    let outcome = frees_core::analysis::montecarlo::run_with_tables_and_base(
         source,
         &settings,
         &specs,
@@ -541,6 +549,7 @@ fn monte_carlo_inner(source: &str, request_json: &str) -> Result<Value, String> 
         seed,
         || (now_ms() - started) / 1000.0 > MAX_MC_SECONDS,
         &extra_tables,
+        Some(&base.values),
     )
     .map_err(|e| e.to_string_message())?;
 

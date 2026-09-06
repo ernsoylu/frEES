@@ -299,6 +299,8 @@ pub struct RowJob<'a> {
     /// The table as the previous pass left it, or `None` on an accessor-free
     /// table and on the first pass of an accessor table.
     pub accessors: Option<&'a ParametricAccessors>,
+    /// The row's non-empty pinned cells as `(name, value)` pairs.
+    pub cells: &'a [(String, f64)],
 }
 
 /// What one run produced.
@@ -428,13 +430,15 @@ where
     if !mentions_parametric_accessor(base_source) {
         let outcomes: Vec<RowOutcome> = sources
             .iter()
+            .zip(&cells)
             .enumerate()
-            .map(|(i, source)| {
+            .map(|(i, (source, row))| {
                 solve_row(RowJob {
                     run: i + 1,
                     total_runs,
                     source: source.clone(),
                     accessors: None,
+                    cells: row.as_slice(),
                 })
             })
             .collect();
@@ -466,13 +470,14 @@ where
         let mut installed =
             ParametricAccessors::install(1, total_runs, columns.clone(), var_order.clone());
         outcomes = Vec::with_capacity(total_runs);
-        for (i, source) in sources.iter().enumerate() {
+        for (i, (source, row)) in sources.iter().zip(&cells).enumerate() {
             installed.set_run(i + 1);
             outcomes.push(solve_row(RowJob {
                 run: i + 1,
                 total_runs,
                 source: source.clone(),
                 accessors: Some(&installed),
+                cells: row.as_slice(),
             }));
         }
         let next = build_columns(&outcomes, total_runs);

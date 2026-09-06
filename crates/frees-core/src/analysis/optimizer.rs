@@ -66,7 +66,7 @@
 use std::cmp::Ordering;
 
 use crate::diag::{FreesError, Result};
-use crate::engine::{variable_override_spec, Solution, VariableOverride};
+use crate::engine::{variable_override_spec, PreparedDocument, Solution, VariableOverride};
 use crate::solver::SolverSettings;
 
 // ---------------------------------------------------------------------------
@@ -341,6 +341,25 @@ fn tolerance(c: &ParsedConstraint) -> f64 {
     CONSTRAINT_TOLERANCE * jmax(1.0, c.rhs_value.abs())
 }
 
+/// Appends constraint assignment equations `<prefix><i> = <c.lhs_expr>` to the
+/// problem text so they are included in the prepared document once.
+fn make_augmented_base_source(
+    text: &str,
+    constraints: &[ParsedConstraint],
+    con_var_prefix: &str,
+) -> String {
+    let mut augmented = String::with_capacity(text.len() + 32 * constraints.len());
+    augmented.push_str(text);
+    for c in constraints {
+        augmented.push('\n');
+        augmented.push_str(con_var_prefix);
+        augmented.push_str(&c.index.to_string());
+        augmented.push_str(" = ");
+        augmented.push_str(&c.lhs_expr);
+    }
+    augmented
+}
+
 // ---------------------------------------------------------------------------
 // Entry point
 // ---------------------------------------------------------------------------
@@ -411,8 +430,11 @@ fn validate(problem: &Problem) -> Result<()> {
 
 /// The Java `unconstrainedOptimize`.
 fn unconstrained_optimize(problem: &Problem) -> Result<OptimizeResult> {
+    let mut prep = PreparedDocument::new(&problem.text, &problem.settings, &problem.overrides, &[])
+        .map_err(|failure| failure.error)?;
+
     if problem.decisions.len() == 1 && problem.is_brent() {
-        let mut ctx = Ctx::new(problem, &[], "", MAX_EVALUATIONS);
+        let mut ctx = Ctx::new(problem, &mut prep, "", MAX_EVALUATIONS);
         // `SearchInterval(lo, hi)` starts at the midpoint; Brent never sees
         // the spec's guess in the 1-D path.
         let point = brent_optimize(
@@ -431,7 +453,7 @@ fn unconstrained_optimize(problem: &Problem) -> Result<OptimizeResult> {
         })?;
 
         let decision_values = vec![point];
-        let solution = solve_with_decisions(problem, &decision_values)?;
+        let solution = ctx.solve_point(&decision_values)?;
         let objective_value = read_objective(&solution, &problem.objective)?;
         return Ok(OptimizeResult {
             decision_values,
@@ -441,7 +463,7 @@ fn unconstrained_optimize(problem: &Problem) -> Result<OptimizeResult> {
             warning: None,
         });
     }
-    multivariate_optimize(problem, &[], "", &[], 0.0, &[], 0.0, None, None)
+    multivariate_optimize(&mut prep, problem, &[], "", &[], 0.0, &[], 0.0, None, None)
 }
 
 // ---------------------------------------------------------------------------
@@ -465,6 +487,10 @@ fn constrained_optimize(problem: &Problem) -> Result<OptimizeResult> {
         .cloned()
         .collect();
 
+    let base_source = make_augmented_base_source(&problem.text, &all_constraints, &con_var_prefix);
+    let mut prep = PreparedDocument::new(&base_source, &problem.settings, &problem.overrides, &[])
+        .map_err(|failure| failure.error)?;
+
     let mut lambda = vec![0.0f64; equalities.len()];
     let mut rho = if equalities.is_empty() {
         0.0
@@ -483,6 +509,7 @@ fn constrained_optimize(problem: &Problem) -> Result<OptimizeResult> {
 
     for _outer in 0..CONSTRAINED_MAX_OUTER_ITERATIONS {
         let inner = multivariate_optimize(
+            &mut prep,
             problem,
             &all_constraints,
             &con_var_prefix,
@@ -609,8 +636,9 @@ fn build_constraint_warning(
 /// The Java `multivariateOptimize`, both overloads (`inequalities`/`equalities`
 /// empty ⇒ the plain unconstrained path).
 fn multivariate_optimize(
+    prep: &mut PreparedDocument,
     problem: &Problem,
-    all_constraints: &[ParsedConstraint],
+    _all_constraints: &[ParsedConstraint],
     con_var_prefix: &str,
     inequalities: &[ParsedConstraint],
     mu: f64,
@@ -620,12 +648,7 @@ fn multivariate_optimize(
     warm_start: Option<&[f64]>,
 ) -> Result<OptimizeResult> {
     let n = problem.decisions.len();
-    let mut ctx = Ctx::new(
-        problem,
-        all_constraints,
-        con_var_prefix,
-        MULTIVARIATE_MAX_EVALUATIONS,
-    );
+    let mut ctx = Ctx::new(problem, prep, con_var_prefix, MULTIVARIATE_MAX_EVALUATIONS);
     ctx.penalty = if inequalities.is_empty() && equalities.is_empty() {
         None
     } else {
@@ -684,7 +707,7 @@ fn multivariate_optimize(
         best_points[i] = jmax(lower_bounds[i], jmin(upper_bounds[i], best_points[i]));
     }
 
-    let solution = solve_candidate(problem, &best_points, all_constraints, con_var_prefix)?;
+    let solution = ctx.solve_point(&best_points)?;
     let objective_value = read_objective(&solution, &problem.objective)?;
     Ok(OptimizeResult {
         decision_values: best_points,
@@ -744,7 +767,8 @@ type EvalResult = std::result::Result<f64, EvalAbort>;
 /// ```
 struct Ctx<'a> {
     problem: &'a Problem,
-    all_constraints: &'a [ParsedConstraint],
+    prep: &'a mut PreparedDocument,
+    pins: Vec<(String, f64)>,
     con_var_prefix: &'a str,
     /// The Java `AtomicInteger evaluations` — full system solves attempted.
     evaluations: usize,
@@ -764,13 +788,15 @@ struct Ctx<'a> {
 impl<'a> Ctx<'a> {
     fn new(
         problem: &'a Problem,
-        all_constraints: &'a [ParsedConstraint],
+        prep: &'a mut PreparedDocument,
         con_var_prefix: &'a str,
         max: usize,
     ) -> Ctx<'a> {
+        let pins = problem.decisions.iter().map(|d| (d.clone(), 0.0)).collect();
         Ctx {
             problem,
-            all_constraints,
+            prep,
+            pins,
             con_var_prefix,
             evaluations: 0,
             used: 0,
@@ -783,6 +809,15 @@ impl<'a> Ctx<'a> {
             tracked_point: Vec::new(),
             tracked_value: f64::INFINITY,
         }
+    }
+
+    fn solve_point(&mut self, point: &[f64]) -> Result<Solution> {
+        for (pin, &val) in self.pins.iter_mut().zip(point) {
+            pin.1 = val;
+        }
+        self.prep
+            .solve_with_pins(&self.pins, None)
+            .map_err(|failure| failure.error)
     }
 
     /// Apache `BaseOptimizer.computeObjectiveValue`: `incrementEvaluationCount()`
@@ -858,12 +893,7 @@ impl<'a> Ctx<'a> {
             PENALTY
         };
 
-        let Ok(solution) = solve_candidate(
-            self.problem,
-            point,
-            self.all_constraints,
-            self.con_var_prefix,
-        ) else {
+        let Ok(solution) = self.solve_point(point) else {
             return Ok(infeasible);
         };
 
@@ -926,35 +956,30 @@ impl<'a> Ctx<'a> {
 // ---------------------------------------------------------------------------
 
 /// Pin the decisions, add one `<prefix><i> = <c.lhs_expr>` equation per
-/// constraint, and solve once.
+/// constraint, and solve once using PreparedDocument.
+#[allow(dead_code)]
 fn solve_candidate(
     problem: &Problem,
     values: &[f64],
     constraints: &[ParsedConstraint],
     con_var_prefix: &str,
 ) -> Result<Solution> {
-    let mut augmented =
-        String::with_capacity(problem.text.len() + 32 * (values.len() + constraints.len()));
-    augmented.push_str(&problem.text);
-    for (name, value) in problem.decisions.iter().zip(values) {
-        augmented.push('\n');
-        augmented.push_str(name);
-        augmented.push_str(" = ");
-        augmented.push_str(&plain_string(*value));
-    }
-    for c in constraints {
-        augmented.push('\n');
-        augmented.push_str(con_var_prefix);
-        augmented.push_str(&c.index.to_string());
-        augmented.push_str(" = ");
-        augmented.push_str(&c.lhs_expr);
-    }
-    crate::engine::solve_with(&augmented, &problem.settings, &problem.overrides)
+    let base_source = make_augmented_base_source(&problem.text, constraints, con_var_prefix);
+    let mut prep = PreparedDocument::new(&base_source, &problem.settings, &problem.overrides, &[])
+        .map_err(|failure| failure.error)?;
+    let pins: Vec<(String, f64)> = problem
+        .decisions
+        .iter()
+        .cloned()
+        .zip(values.iter().copied())
+        .collect();
+    prep.solve_with_pins(&pins, None)
         .map_err(|failure| failure.error)
 }
 
 /// The Java `solveWithDecisions`: append `decision = value` for every decision
 /// and re-solve the whole document.
+#[allow(dead_code)]
 fn solve_with_decisions(problem: &Problem, values: &[f64]) -> Result<Solution> {
     solve_candidate(problem, values, &[], "")
 }
