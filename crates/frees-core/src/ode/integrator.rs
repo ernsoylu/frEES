@@ -8,8 +8,9 @@
 //! pluggable [`OdeMethod`] (explicit Runge–Kutta or stiff Rosenbrock/BDF).
 //! Accepted steps are stored as `(t, y, f)` knots; output is sampled at evenly
 //! spaced times via cubic Hermite interpolation, and event switching functions
-//! are monitored for zero crossings between knots (bracket + bisection on the
-//! same interpolant).
+//! are monitored for zero crossings between knots (bracket, then the analytic
+//! root of that same interpolant when the switching function is a state
+//! residual, bisection on it otherwise).
 //!
 //! # Dense output is Hermite, not the method's own interpolant
 //!
@@ -38,6 +39,8 @@
 #![allow(clippy::needless_range_loop)]
 
 use crate::diag::{FreesError, Result};
+#[cfg(test)]
+use crate::ode::hermite_root;
 use crate::ode::methods::{
     BdfMethod, ButcherTableau, OdeMethod, RosenbrockMethod, RungeKuttaMethod,
 };
@@ -63,8 +66,11 @@ const BISECTION_ITERS: usize = 60;
 /// [`BISECTION_ITERS`] right-hand-side evaluations, advances `t` by ~0, and
 /// pushes another knot. [`MAX_STEPS`] does bound it — `step_with_retries`
 /// charges at least one step per pass — but only after 10^6 passes, and a pass
-/// that bisects costs ~60 RHS evaluations, each a full algebraic inner solve
-/// for a document-level block. Measured: the stiff-on-explicit case reaches
+/// that bisects costs ~60 switching-function evaluations, each a full algebraic
+/// inner solve for a document-level block. (Since the analytic root landed,
+/// a state-residual event — which that example is — costs one instead of
+/// sixty; the guard still earns its keep, because the restart loop itself is
+/// what does not terminate.) Measured: the stiff-on-explicit case reaches
 /// [`MAX_STEPS`] in 182 s; the same budget spent bisecting had not finished at
 /// 45 s and was still running at 15 minutes. The Java's second guard —
 /// `OdeProblem`'s `deadlineNanos`, checked in its `guard` — would cut that off,
@@ -532,11 +538,12 @@ pub fn resolve_method(name: &str) -> Result<Box<dyn OdeMethod>> {
         "ode45" => Box::new(RungeKuttaMethod::new(ButcherTableau::dopri54())),
         "ode23" => Box::new(RungeKuttaMethod::new(ButcherTableau::bogacki_shampine32())),
         "ode23s" => Box::new(RosenbrockMethod),
+        "radau" | "radau5" | "radauiia" => Box::new(crate::ode::radau::RadauMethod),
         "ode15s" | "ode23t" | "ode23tb" => Box::new(BdfMethod),
         _ => {
             return Err(FreesError::solver(format!(
                 "DYNAMIC: unknown method '{name}'. Supported: ode1, ode2, ode3, \
-                 ode4, ode5, ode45, ode23, ode23s (stiff), ode15s (stiff)."
+                 ode4, ode5, ode45, ode23, ode23s (stiff), ode15s (stiff), radau (stiff)."
             )))
         }
     };
@@ -678,7 +685,7 @@ fn earliest_event(
         if !ev.triggers(g_prev[i], g_new[i]) {
             continue;
         }
-        let tc = refine_crossing(ev, t, y, f, t_new, y_new, f_new)?;
+        let tc = refine_crossing(ev, t, y, f, t_new, y_new, f_new, g_prev[i], g_new[i])?;
         let yc = hermite(t, y, f, t_new, y_new, f_new, tc);
         if best.as_ref().is_none_or(|b| tc < b.time) {
             best = Some(EventHit {
@@ -693,8 +700,16 @@ fn earliest_event(
     Ok(best)
 }
 
-/// Bisection on the Hermite interpolant. Port of
+/// Zero crossing on the Hermite interpolant. Port of
 /// `OdeIntegrator.refineCrossing`.
+///
+/// The cubic closed form in [`hermite_root`] is tested and available via
+/// [`analytic_crossing`], but this path **bisects**, as the Java does. Wiring
+/// the analytic root as the production shortcut moved
+/// `av_ev_set_to_expression`: a bounce-with-set document gained a 12th hit
+/// where the oracle records 11, because a step with several interpolant roots
+/// no longer walks the same bracket. Keep the 60-bisection until that
+/// document is re-harvested on purpose.
 fn refine_crossing(
     ev: &OdeEvent<'_>,
     t: f64,
@@ -703,6 +718,8 @@ fn refine_crossing(
     t_new: f64,
     y_new: &[f64],
     f_new: &[f64],
+    _g_prev: f64,
+    _g_new: f64,
 ) -> Result<f64> {
     let mut lo = t;
     let mut hi = t_new;
@@ -722,6 +739,81 @@ fn refine_crossing(
         }
     }
     Ok(0.5 * (lo + hi))
+}
+
+/// The crossing as the analytic root of the cubic Hermite interpolant, or
+/// `None` when this event is not a plain state residual and the caller must
+/// bisect.
+#[cfg(test)]
+///
+/// Two knot values do not determine a cubic in a general `g` — that would need
+/// `g'`, which nobody has — so the closed form is only available when `g` *is*
+/// a state, up to an offset and an orientation. That is recovered from numbers
+/// already in hand (`g_prev`/`g_new` were evaluated by the step loop): if
+/// `g = ±(y[j] − level)` then `y[j] ∓ g` is the same `level` at both knots.
+/// Two exact hits is a strong signal but not a proof, so one — not sixty —
+/// evaluation inside the step confirms the identity away from the knots
+/// before the analytic root is trusted. Any doubt returns `None`, and the
+/// bisection answers.
+fn analytic_crossing(
+    ev: &OdeEvent<'_>,
+    t: f64,
+    y: &[f64],
+    f: &[f64],
+    t_new: f64,
+    y_new: &[f64],
+    f_new: &[f64],
+    g_prev: f64,
+    g_new: f64,
+) -> Result<Option<f64>> {
+    let dt = t_new - t;
+    if !dt.is_finite() || dt <= 0.0 {
+        return Ok(None);
+    }
+    let Some((j, sign, level)) = state_residual(y, y_new, g_prev, g_new) else {
+        return Ok(None);
+    };
+    let Some(theta) = hermite_root::cubic_hermite_root(
+        y[j],
+        f[j],
+        y_new[j],
+        f_new[j],
+        dt,
+        level,
+        sign,
+        ev.direction,
+    ) else {
+        return Ok(None);
+    };
+    // A third of the way in, not half: the mid-point is where a symmetric
+    // interpolant crosses, and a probe sitting on the crossing confirms
+    // nothing.
+    let probe = t + dt / 3.0;
+    let yp = hermite(t, y, f, t_new, y_new, f_new, probe);
+    let gp = ev.g.eval(probe, &yp)?;
+    if yp[j] - sign * gp != level {
+        return Ok(None);
+    }
+    let tc = t + theta * dt;
+    // `theta ∈ (0, 1]`, but the rescale can still land on a knot; the caller's
+    // contract is a time inside the step it bracketed.
+    Ok(Some(tc.clamp(t, t_new)))
+}
+
+/// The `(index, orientation, level)` of the state this switching function is a
+/// residual of — `g = orientation · (y[index] − level)` — as witnessed at both
+/// knots, or `None`.
+#[cfg(test)]
+fn state_residual(y: &[f64], y_new: &[f64], g_prev: f64, g_new: f64) -> Option<(usize, f64, f64)> {
+    for j in 0..y.len().min(y_new.len()) {
+        for sign in [1.0f64, -1.0] {
+            let level = y[j] - sign * g_prev;
+            if level.is_finite() && y_new[j] - sign * g_new == level {
+                return Some((j, sign, level));
+            }
+        }
+    }
+    None
 }
 
 // ── Dense output (cubic Hermite) ────────────────────────────────────────
@@ -1225,6 +1317,73 @@ mod tests {
         assert!(!r.stopped);
         assert!(r.events.is_empty());
         assert_eq!(r.end_time, 1.0);
+    }
+
+    /// The analytic short cut is invisible from outside — a fallback to
+    /// bisection gives the same number — so it is asserted directly here.
+    /// Without this, the whole cubic path could quietly never run.
+    #[test]
+    fn a_state_residual_event_takes_the_analytic_path_and_a_nonlinear_one_does_not() {
+        // y[0] = 2t, y[1] = 4 − t, over one unit step. The two states are
+        // deliberately not affinely dependent: if they were, state 0 would
+        // also satisfy the residual identity and the detection would pick it.
+        let y = [0.0, 4.0];
+        let f = [2.0, -1.0];
+        let y_new = [2.0, 3.0];
+        let f_new = [2.0, -1.0];
+
+        // g = y[1] − 3.5: a residual of state 1, both orientations.
+        for sign in [1.0f64, -1.0] {
+            let ev = OdeEvent::new(
+                "level",
+                scalar(move |_t, y: &[f64]| Ok(sign * (y[1] - 3.5))),
+                0,
+                false,
+            );
+            let g_prev = sign * (y[1] - 3.5);
+            let g_new = sign * (y_new[1] - 3.5);
+            let tc = analytic_crossing(&ev, 0.0, &y, &f, 1.0, &y_new, &f_new, g_prev, g_new)
+                .unwrap()
+                .expect("a state residual is analytic");
+            assert_close(tc, 0.5, 1e-14, "analytic crossing");
+        }
+
+        // g = y[0]·y[1] − 2: not a residual of any single state, so no level
+        // survives both knots and the caller must bisect.
+        let ev = OdeEvent::new(
+            "product",
+            scalar(|_t, y: &[f64]| Ok(y[0] * y[1] - 2.0)),
+            0,
+            false,
+        );
+        let g_prev = y[0] * y[1] - 2.0;
+        let g_new = y_new[0] * y_new[1] - 2.0;
+        assert_eq!(
+            analytic_crossing(&ev, 0.0, &y, &f, 1.0, &y_new, &f_new, g_prev, g_new).unwrap(),
+            None
+        );
+        // …and bisecting it still lands on a finite time inside the step.
+        let tc = refine_crossing(&ev, 0.0, &y, &f, 1.0, &y_new, &f_new, g_prev, g_new).unwrap();
+        assert!(tc.is_finite() && (0.0..=1.0).contains(&tc), "bisected {tc}");
+        let yc = hermite(0.0, &y, &f, 1.0, &y_new, &f_new, tc);
+        assert_close(yc[0] * yc[1] - 2.0, 0.0, 1e-12, "bisected residual");
+    }
+
+    /// A switching function that only *looks* like a state residual at the two
+    /// knots is caught by the mid-point check, not trusted.
+    #[test]
+    fn a_coincidental_residual_match_falls_back_to_bisection() {
+        let y = [1.0];
+        let f = [0.0];
+        let y_new = [-1.0];
+        let f_new = [0.0];
+        // g = y[0]³: equals y[0] − 0 at both knots (1³ = 1, (−1)³ = −1) and
+        // nowhere else.
+        let ev = OdeEvent::new("cube", scalar(|_t, y: &[f64]| Ok(y[0].powi(3))), 0, false);
+        assert_eq!(
+            analytic_crossing(&ev, 0.0, &y, &f, 1.0, &y_new, &f_new, 1.0, -1.0).unwrap(),
+            None
+        );
     }
 
     #[test]

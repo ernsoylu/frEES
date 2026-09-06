@@ -59,6 +59,7 @@
 #![allow(clippy::if_same_then_else)]
 
 use crate::dae::assembly::{DaeAssembly, DaeResidual, DaeRootFn};
+use crate::dae::colamd;
 use crate::dae::jacobian;
 use crate::diag::{FreesError, Result};
 
@@ -284,11 +285,59 @@ impl SparseCsc {
 /// reordering and AMD fill-reducing permutation — which affect speed and fill,
 /// never the answer.
 ///
-/// **Crossover.** Fill is not controlled here, so a matrix whose natural
-/// ordering fills badly costs more than KLU would. For the C-R-C networks this
-/// path exists for (banded, one storage state per cell) the natural ordering is
-/// already near-optimal. If a future model shows heavy fill, the fix is an AMD
-/// ordering in front of this factorization, not a different factorization.
+/// **Crossover.** Fill is not reduced at factor time. [`colamd::order`] is
+/// implemented and unit-tested; applying it as `A P` moved an IDA golden
+/// (see [`SparseLuWorkspace::from_matrix`]). For the C-R-C networks this path
+/// exists for (banded, one storage state per cell) the natural ordering is
+/// already near-optimal.
+/// Reusable, zero-allocation scratch workspace for sparse LU factorization and triangular solves.
+#[derive(Debug, Clone, Default)]
+pub struct SparseLuWorkspace {
+    x: Vec<f64>,
+    pinv: Vec<usize>,
+    mark: Vec<usize>,
+    stack: Vec<usize>,
+    pstack: Vec<usize>,
+    order: Vec<usize>,
+    solve_x: Vec<f64>,
+    /// Column AMD: new column `k` is original column `col_perm[k]`.
+    col_perm: Vec<usize>,
+}
+
+impl SparseLuWorkspace {
+    pub fn new(n: usize) -> Self {
+        SparseLuWorkspace {
+            x: vec![0.0; n],
+            pinv: vec![usize::MAX; n],
+            mark: vec![0; n],
+            stack: Vec::with_capacity(n),
+            pstack: Vec::with_capacity(n),
+            order: Vec::with_capacity(n),
+            solve_x: vec![0.0; n],
+            col_perm: colamd::identity(n),
+        }
+    }
+
+    /// Workspace sized to `a`. Column AMD ([`colamd::order`]) is computed and
+    /// tested, but **not** applied here: permuting `A` before Gilbert–Peierls
+    /// moved `steady-by-integration-chiller-bridge` off its 2.5e-9 IDA
+    /// tolerance (~5e-9 on enthalpy). Natural ordering stays until that
+    /// trajectory is re-graded on purpose.
+    pub fn from_matrix(a: &SparseCsc) -> Self {
+        Self::new(a.n)
+    }
+
+    pub fn resize(&mut self, n: usize) {
+        if self.x.len() != n {
+            self.x.resize(n, 0.0);
+            self.pinv.resize(n, usize::MAX);
+            self.mark.resize(n, 0);
+            self.solve_x.resize(n, 0.0);
+            self.col_perm = colamd::identity(n);
+        }
+    }
+}
+
 struct SparseLu {
     n: usize,
     /// `L` in CSC with unit diagonal, rows already permuted.
@@ -301,30 +350,50 @@ struct SparseLu {
     ux: Vec<f64>,
     /// `pinv[row] = k` when `row` is the `k`-th pivot row.
     pinv: Vec<usize>,
+    /// Column AMD used while factoring `A P`. Identity when unused.
+    col_perm: Vec<usize>,
 }
 
 impl SparseLu {
+    #[allow(dead_code)]
     fn factor(a: &SparseCsc) -> Option<SparseLu> {
+        let mut work = SparseLuWorkspace::new(a.n);
+        Self::factor_with(a, &mut work)
+    }
+
+    fn factor_with(a: &SparseCsc, work: &mut SparseLuWorkspace) -> Option<SparseLu> {
         let n = a.n;
-        let mut x = vec![0.0f64; n];
-        let mut pinv = vec![usize::MAX; n];
+        work.resize(n);
+        if work.col_perm.len() != n {
+            work.col_perm = colamd::identity(n);
+        }
+        let col_perm = work.col_perm.clone();
+        let SparseLuWorkspace {
+            x,
+            pinv,
+            mark,
+            stack,
+            pstack,
+            order,
+            ..
+        } = work;
+
+        x.fill(0.0);
+        pinv.fill(usize::MAX);
+        mark.fill(0);
+
         let mut lp = vec![0usize; n + 1];
         let mut up = vec![0usize; n + 1];
         let (mut li, mut lx): (Vec<usize>, Vec<f64>) = (Vec::new(), Vec::new());
         let (mut ui, mut ux): (Vec<usize>, Vec<f64>) = (Vec::new(), Vec::new());
-        // DFS workspace. `mark[i] == k + 1` means "row i already reached while
-        // building column k", which avoids clearing a visited set per column.
-        let mut mark = vec![0usize; n];
-        let mut stack: Vec<usize> = Vec::with_capacity(n);
-        let mut pstack: Vec<usize> = Vec::with_capacity(n);
-        let mut order: Vec<usize> = Vec::with_capacity(n);
 
         for k in 0..n {
             lp[k] = li.len();
             up[k] = ui.len();
             order.clear();
-            // --- symbolic: reachability of A(:,k) through L (cs_dfs)
-            for p in a.col_ptr[k]..a.col_ptr[k + 1] {
+            let acol = col_perm[k];
+            // --- symbolic: reachability of A(:, perm[k]) through L (cs_dfs)
+            for p in a.col_ptr[acol]..a.col_ptr[acol + 1] {
                 let j = a.row_idx[p];
                 if mark[j] == k + 1 {
                     continue;
@@ -368,7 +437,7 @@ impl SparseLu {
                 }
             }
             // --- numeric: scatter, then solve in topological order
-            for p in a.col_ptr[k]..a.col_ptr[k + 1] {
+            for p in a.col_ptr[acol]..a.col_ptr[acol + 1] {
                 x[a.row_idx[p]] = a.values[p];
             }
             for &node in order.iter().rev() {
@@ -387,7 +456,7 @@ impl SparseLu {
             // --- pivot among the rows that are not yet pivotal
             let mut ipiv = usize::MAX;
             let mut best = 0.0f64;
-            for &i in &order {
+            for &i in order.iter() {
                 if pinv[i] == usize::MAX {
                     let t = x[i].abs();
                     if t > best {
@@ -408,7 +477,7 @@ impl SparseLu {
             pinv[ipiv] = k;
             li.push(ipiv);
             lx.push(1.0);
-            for &i in &order {
+            for &i in order.iter() {
                 if pinv[i] == usize::MAX {
                     li.push(i);
                     lx.push(x[i] / pivot);
@@ -430,38 +499,48 @@ impl SparseLu {
             up,
             ui,
             ux,
-            pinv,
+            pinv: pinv.clone(),
+            col_perm,
         })
     }
 
-    /// Solves `A x = b` from the factorization.
-    fn solve(&self, b: &[f64]) -> Vec<f64> {
+    /// Solves `A x = b` into a caller-supplied pre-allocated buffer `out`.
+    /// `out` must not alias `b`: the permutation writes `out[pinv[i]] = b[i]`.
+    fn solve_into(&self, b: &[f64], out: &mut [f64]) {
         let n = self.n;
         // Permute: x = P b.
-        let mut x = vec![0.0f64; n];
         for i in 0..n {
-            x[self.pinv[i]] = b[i];
+            out[self.pinv[i]] = b[i];
         }
         // Forward substitution through unit-diagonal L.
         for c in 0..n {
-            let xc = x[c];
+            let xc = out[c];
             if xc != 0.0 {
                 for p in (self.lp[c] + 1)..self.lp[c + 1] {
-                    x[self.li[p]] -= self.lx[p] * xc;
+                    out[self.li[p]] -= self.lx[p] * xc;
                 }
             }
         }
         // Back substitution through U (its last entry per column is the diagonal).
         for c in (0..n).rev() {
             let diag = self.ux[self.up[c + 1] - 1];
-            x[c] /= diag;
-            let xc = x[c];
+            out[c] /= diag;
+            let xc = out[c];
             if xc != 0.0 {
                 for p in self.up[c]..(self.up[c + 1] - 1) {
-                    x[self.ui[p]] -= self.ux[p] * xc;
+                    out[self.ui[p]] -= self.ux[p] * xc;
                 }
             }
         }
+    }
+
+    /// Solves `A x = b` from the factorization, in original variable order.
+    #[allow(dead_code)]
+    fn solve(&self, b: &[f64]) -> Vec<f64> {
+        let mut z = vec![0.0f64; self.n];
+        self.solve_into(b, &mut z);
+        let mut x = vec![0.0f64; self.n];
+        colamd::apply_column_perm(&self.col_perm, &z, &mut x);
         x
     }
 }
@@ -477,12 +556,16 @@ impl SparseLu {
 /// special-casing.
 pub struct SparseSteady {
     matrix: SparseCsc,
+    work: SparseLuWorkspace,
 }
 
 impl SparseSteady {
     /// Builds a solver for the fixed CSC pattern `column -> ascending row list`.
     pub fn create(column_rows: &[Vec<usize>]) -> Option<SparseSteady> {
-        SparseCsc::from_columns(column_rows).map(|matrix| SparseSteady { matrix })
+        SparseCsc::from_columns(column_rows).map(|matrix| {
+            let work = SparseLuWorkspace::from_matrix(&matrix);
+            SparseSteady { matrix, work }
+        })
     }
 
     /// Number of stored entries; the caller sizes its value buffer with this.
@@ -497,7 +580,11 @@ impl SparseSteady {
         if b.len() != self.matrix.n || self.matrix.set_values(csc_values).is_err() {
             return None;
         }
-        SparseLu::factor(&self.matrix).map(|lu| lu.solve(b))
+        let lu = SparseLu::factor_with(&self.matrix, &mut self.work)?;
+        lu.solve_into(b, &mut self.work.solve_x);
+        let mut x = vec![0.0; self.matrix.n];
+        colamd::apply_column_perm(&lu.col_perm, &self.work.solve_x, &mut x);
+        Some(x)
     }
 }
 
@@ -539,6 +626,7 @@ enum LinearPath {
         color: Vec<usize>,
         matrix: SparseCsc,
         scratch: jacobian::DaeJacobianScratch,
+        lu_work: Box<SparseLuWorkspace>,
     },
 }
 
@@ -624,6 +712,8 @@ pub struct IdaDaeSolver<'a> {
     jac: Option<Factored>,
     jcur: bool,
     force_setup: bool,
+    /// Scratch for [`SparseLu::solve_into`]; sized once in [`IdaDaeSolver::new`].
+    lu_sol: Vec<f64>,
 
     // root-finding state
     tlo: f64,
@@ -696,6 +786,7 @@ impl<'a> IdaDaeSolver<'a> {
             jac: None,
             jcur: false,
             force_setup: false,
+            lu_sol: vec![0.0; n],
             tlo: 0.0,
             thi: 0.0,
             trout: 0.0,
@@ -801,11 +892,13 @@ impl<'a> IdaDaeSolver<'a> {
             }
             Some(matrix) => {
                 let scratch = jacobian::DaeJacobianScratch::new(self.n);
+                let lu_work = Box::new(SparseLuWorkspace::from_matrix(&matrix));
                 self.path = LinearPath::Sparse {
                     col_rows,
                     color,
                     matrix,
                     scratch,
+                    lu_work,
                 };
             }
         }
@@ -954,6 +1047,7 @@ impl<'a> IdaDaeSolver<'a> {
                 color,
                 matrix,
                 scratch,
+                lu_work,
             } => {
                 // Directly write coloured finite differences into existing CSC storage.
                 // Eliminates the n × n dense intermediate buffer, avoids recomputing f0,
@@ -972,7 +1066,7 @@ impl<'a> IdaDaeSolver<'a> {
                     values,
                     scratch,
                 )?;
-                SparseLu::factor(matrix).map(Factored::Sparse)
+                SparseLu::factor_with(matrix, lu_work.as_mut()).map(Factored::Sparse)
             }
         };
         self.jac = factored;
@@ -985,26 +1079,27 @@ impl<'a> IdaDaeSolver<'a> {
     }
 
     /// `idaLsSolve`: solve `J x = b`, then apply IDA's `cj`-ratio correction.
-    fn lsolve(&self, b: &mut Vec<f64>) -> bool {
+    fn lsolve(&mut self, b: &mut [f64]) -> bool {
+        let cjratio = self.cjratio;
+        let apply_cj = |b: &mut [f64]| {
+            if cjratio != 1.0 {
+                let s = 2.0 / (1.0 + cjratio);
+                b.iter_mut().for_each(|v| *v *= s);
+            }
+        };
         match &self.jac {
             None => false,
             Some(Factored::Dense(lu)) => {
                 dense_lu_solve(lu, b);
-                self.apply_cj_correction(b);
+                apply_cj(b);
                 b.iter().all(|v| v.is_finite())
             }
             Some(Factored::Sparse(lu)) => {
-                *b = lu.solve(b);
-                self.apply_cj_correction(b);
+                lu.solve_into(b, &mut self.lu_sol);
+                colamd::apply_column_perm(&lu.col_perm, &self.lu_sol, b);
+                apply_cj(b);
                 b.iter().all(|v| v.is_finite())
             }
-        }
-    }
-
-    fn apply_cj_correction(&self, b: &mut [f64]) {
-        if self.cjratio != 1.0 {
-            let s = 2.0 / (1.0 + self.cjratio);
-            b.iter_mut().for_each(|v| *v *= s);
         }
     }
 
@@ -2073,7 +2168,7 @@ impl<'a> IdaDaeSolver<'a> {
         t0: f64,
         yy0: &mut Vec<f64>,
         yp0: &mut Vec<f64>,
-        delta: &mut Vec<f64>,
+        delta: &mut [f64],
         steptol: f64,
     ) -> std::result::Result<(), SlowOrFail> {
         let scale = |v: f64, s: &Self| {

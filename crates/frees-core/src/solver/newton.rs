@@ -897,7 +897,7 @@ struct Scratch {
     /// `solve_linear`: column scales, the equilibrated copy, the gauss
     /// right-hand side, the unscaled step, and gauss's solution vector.
     lin_d: Vec<f64>,
-    lin_scaled: Vec<Vec<f64>>,
+    lin_scaled: Vec<f64>,
     lin_b: Vec<f64>,
     lin_y: Vec<f64>,
     step: Vec<f64>,
@@ -906,9 +906,9 @@ struct Scratch {
     candidate: Vec<f64>,
     candidate_residual: Vec<f64>,
     /// `damped_rescue`: the normal equations and the per-trial damped copy.
-    jtj: Vec<Vec<f64>>,
+    jtj: Vec<f64>,
     jtr: Vec<f64>,
-    damped_a: Vec<Vec<f64>>,
+    damped_a: Vec<f64>,
     damped_b: Vec<f64>,
     damped_y: Vec<f64>,
     /// `numerical_jacobian`: the probe point and its residuals.
@@ -927,7 +927,7 @@ impl Scratch {
         Scratch {
             jacobian: vec![vec![0.0; n]; n],
             lin_d: vec![0.0; n],
-            lin_scaled: vec![vec![0.0; n]; n],
+            lin_scaled: vec![0.0; n * n],
             lin_b: vec![0.0; n],
             lin_y: vec![0.0; n],
             step: vec![0.0; n],
@@ -946,9 +946,9 @@ impl Scratch {
     /// Size the damped-rescue buffers on first use.
     fn ensure_rescue(&mut self, n: usize) {
         if self.jtr.len() != n {
-            self.jtj = vec![vec![0.0; n]; n];
+            self.jtj = vec![0.0; n * n];
             self.jtr = vec![0.0; n];
-            self.damped_a = vec![vec![0.0; n]; n];
+            self.damped_a = vec![0.0; n * n];
             self.damped_b = vec![0.0; n];
             self.damped_y = vec![0.0; n];
         }
@@ -1000,9 +1000,9 @@ struct DampedStep {
 /// seven parameters, so the call sites stay readable and the split borrows
 /// happen in one place.
 struct RescueBufs<'a> {
-    jtj: &'a mut [Vec<f64>],
+    jtj: &'a mut [f64],
     jtr: &'a mut [f64],
-    damped_a: &'a mut [Vec<f64>],
+    damped_a: &'a mut [f64],
     damped_b: &'a mut [f64],
     damped_y: &'a mut [f64],
     candidate: &'a mut [f64],
@@ -1261,7 +1261,7 @@ fn solve_linear_into(
     jacobian: &[Vec<f64>],
     rhs: &[f64],
     d: &mut [f64],
-    scaled: &mut [Vec<f64>],
+    scaled: &mut [f64],
     b: &mut [f64],
     y: &mut [f64],
     step: &mut [f64],
@@ -1284,14 +1284,15 @@ fn solve_linear_into(
             *slot = inv;
         }
     }
-    for i in 0..n {
-        for j in 0..n {
-            scaled[i][j] = jacobian[i][j] * d[j];
+    for (i, row) in jacobian.iter().enumerate() {
+        let dest = &mut scaled[i * n..i * n + n];
+        for (slot, (&aij, &dj)) in dest.iter_mut().zip(row.iter().zip(d.iter())) {
+            *slot = aij * dj;
         }
     }
     b.copy_from_slice(rhs);
 
-    let path = match gauss_solve_into(scaled, b, y) {
+    let path = match gauss_solve_into(scaled, n, b, y) {
         Ok(()) => LinearPath::Factored,
         // The Java `solveLinear` catches Commons Math's
         // `SingularMatrixException` and re-solves the *same equilibrated*
@@ -1367,34 +1368,34 @@ fn svd_fallback(
 /// [`gauss_solve_into`] with reused buffers (G3b) — same arithmetic, no
 /// allocation.
 #[cfg(test)]
-fn gauss_solve(
-    mut a: Vec<Vec<f64>>,
-    mut b: Vec<f64>,
-) -> std::result::Result<Vec<f64>, LinearFailure> {
-    let mut y = vec![0.0f64; b.len()];
-    gauss_solve_into(&mut a, &mut b, &mut y)?;
+fn gauss_solve(a: Vec<Vec<f64>>, mut b: Vec<f64>) -> std::result::Result<Vec<f64>, LinearFailure> {
+    let n = b.len();
+    let mut flat = Vec::with_capacity(n * n);
+    for row in a {
+        flat.extend(row);
+    }
+    let mut y = vec![0.0f64; n];
+    gauss_solve_into(&mut flat, n, &mut b, &mut y)?;
     Ok(y)
 }
 
 /// See [`gauss_solve`]: the elimination itself, writing the solution into `y`.
 fn gauss_solve_into(
-    a: &mut [Vec<f64>],
+    a: &mut [f64],
+    n: usize,
     b: &mut [f64],
     y: &mut [f64],
 ) -> std::result::Result<(), LinearFailure> {
-    let n = b.len();
     if n == 0 {
         return Ok(());
     }
 
     let mut largest = 0.0f64;
-    for row in a.iter() {
-        for &v in row {
-            if !v.is_finite() {
-                return Err(LinearFailure::NonFinite);
-            }
-            largest = largest.max(v.abs());
+    for &v in a.iter() {
+        if !v.is_finite() {
+            return Err(LinearFailure::NonFinite);
         }
+        largest = largest.max(v.abs());
     }
     for &v in b.iter() {
         if !v.is_finite() {
@@ -1405,9 +1406,9 @@ fn gauss_solve_into(
 
     for col in 0..n {
         let mut pivot = col;
-        let mut best = a[col][col].abs();
-        for (r, row) in a.iter().enumerate().skip(col + 1) {
-            let candidate = row[col].abs();
+        let mut best = a[col * n + col].abs();
+        for r in (col + 1)..n {
+            let candidate = a[r * n + col].abs();
             if candidate > best {
                 best = candidate;
                 pivot = r;
@@ -1419,32 +1420,77 @@ fn gauss_solve_into(
             return Err(LinearFailure::Singular);
         }
         if pivot != col {
-            a.swap(pivot, col);
+            let (first, second) = a.split_at_mut(pivot * n);
+            first[col * n..col * n + n].swap_with_slice(&mut second[..n]);
             b.swap(pivot, col);
         }
 
-        let (upper, lower) = a.split_at_mut(col + 1);
-        let pivot_row = &upper[col];
-        let diagonal = pivot_row[col];
-        for (r, row) in lower.iter_mut().enumerate() {
-            let factor = row[col] / diagonal;
-            if factor == 0.0 {
-                continue;
+        let pivot_row_offset = col * n;
+        let diagonal = a[pivot_row_offset + col];
+
+        // For small blocks (N <= 16), perform 1-row elimination to guarantee
+        // bit-for-bit equivalence and minimum overhead.
+        // For larger blocks (N > 16), apply register-tiled elimination (2-row unrolling)
+        // to maximize arithmetic intensity and cache/SIMD efficiency.
+        if n <= 16 {
+            for r in (col + 1)..n {
+                let r_offset = r * n;
+                let factor = a[r_offset + col] / diagonal;
+                if factor == 0.0 {
+                    continue;
+                }
+                a[r_offset + col] = 0.0;
+                for c in (col + 1)..n {
+                    a[r_offset + c] -= factor * a[pivot_row_offset + c];
+                }
+                b[r] -= factor * b[col];
             }
-            row[col] = 0.0;
-            for (c, &above) in pivot_row.iter().enumerate().skip(col + 1) {
-                row[c] -= factor * above;
+        } else {
+            let mut r = col + 1;
+            while r + 1 < n {
+                let r0 = r;
+                let r1 = r + 1;
+                let r0_offset = r0 * n;
+                let r1_offset = r1 * n;
+                let factor0 = a[r0_offset + col] / diagonal;
+                let factor1 = a[r1_offset + col] / diagonal;
+                if factor0 == 0.0 && factor1 == 0.0 {
+                    r += 2;
+                    continue;
+                }
+                a[r0_offset + col] = 0.0;
+                a[r1_offset + col] = 0.0;
+
+                for c in (col + 1)..n {
+                    let above = a[pivot_row_offset + c];
+                    a[r0_offset + c] -= factor0 * above;
+                    a[r1_offset + c] -= factor1 * above;
+                }
+                b[r0] -= factor0 * b[col];
+                b[r1] -= factor1 * b[col];
+                r += 2;
             }
-            b[col + 1 + r] -= factor * b[col];
+            if r < n {
+                let r_offset = r * n;
+                let factor = a[r_offset + col] / diagonal;
+                if factor != 0.0 {
+                    a[r_offset + col] = 0.0;
+                    for c in (col + 1)..n {
+                        a[r_offset + c] -= factor * a[pivot_row_offset + c];
+                    }
+                    b[r] -= factor * b[col];
+                }
+            }
         }
     }
 
     for i in (0..n).rev() {
         let mut sum = b[i];
+        let i_offset = i * n;
         for j in i + 1..n {
-            sum -= a[i][j] * y[j];
+            sum -= a[i_offset + j] * y[j];
         }
-        let v = sum / a[i][i];
+        let v = sum / a[i_offset + i];
         if !v.is_finite() {
             return Err(LinearFailure::NonFinite);
         }
@@ -1547,9 +1593,7 @@ where
         candidate,
         candidate_residual,
     } = bufs;
-    for row in jtj.iter_mut() {
-        row.fill(0.0);
-    }
+    jtj.fill(0.0);
     jtr.fill(0.0);
     let mut any_row = false;
     for i in 0..n {
@@ -1562,14 +1606,15 @@ where
         let row = &jacobian[i];
         for j in 0..n {
             jtr[j] += row[j] * residual[i];
+            let j_offset = j * n;
             for k in 0..n {
-                jtj[j][k] += row[j] * row[k];
+                jtj[j_offset + k] += row[j] * row[k];
             }
         }
     }
     let mut max_diagonal = 0.0f64;
-    for (j, row) in jtj.iter().enumerate() {
-        max_diagonal = max_diagonal.max(row[j]);
+    for j in 0..n {
+        max_diagonal = max_diagonal.max(jtj[j * n + j]);
     }
     if !any_row || max_diagonal <= 0.0 || !max_diagonal.is_finite() {
         return Ok(None); // no usable curvature information at this point
@@ -1582,14 +1627,12 @@ where
     candidate_residual.fill(f64::NAN);
     let mut lam = LM_LAMBDA_MIN.max(previous_lambda);
     while lam <= LM_LAMBDA_MAX {
-        for (slot, row) in damped_a.iter_mut().zip(jtj.iter()) {
-            slot.copy_from_slice(row);
-        }
-        for (j, row) in damped_a.iter_mut().enumerate() {
-            row[j] += lam * jtj[j][j].max(diagonal_floor);
+        damped_a.copy_from_slice(jtj);
+        for j in 0..n {
+            damped_a[j * n + j] += lam * jtj[j * n + j].max(diagonal_floor);
         }
         damped_b.copy_from_slice(jtr);
-        let delta: &[f64] = match gauss_solve_into(damped_a, damped_b, damped_y) {
+        let delta: &[f64] = match gauss_solve_into(damped_a, n, damped_b, damped_y) {
             Ok(()) => damped_y,
             Err(_) => {
                 lam *= 10.0; // more damping regularizes further
@@ -3177,5 +3220,39 @@ mod tests {
         .expect("a root on the bound must be accepted");
         assert!(report.converged);
         assert_eq!(x[0], 2.0);
+    }
+
+    /// Systems with N > 16 exercise the register-tiled (2-row unrolled) elimination path.
+    #[test]
+    fn dense_tiled_linear_and_nonlinear_systems_converge_for_large_n() {
+        // Test both odd (25) and even (32) dimensions to exercise the loop and remainder handling
+        for n in [25, 32] {
+            let mut a = vec![vec![0.0f64; n]; n];
+            let x_true: Vec<f64> = (1..=n).map(|i| i as f64 * 0.5).collect();
+            let mut b = vec![0.0f64; n];
+
+            for (i, row) in a.iter_mut().enumerate() {
+                let mut sum = 0.0;
+                for (j, slot) in row.iter_mut().enumerate() {
+                    let v = ((i + 1) * (j + 2)) as f64 / (n * n) as f64;
+                    *slot = v;
+                    sum += v.abs();
+                }
+                row[i] += sum + 2.0; // diagonally dominant
+                for (slot, xj) in row.iter().zip(x_true.iter()) {
+                    b[i] += slot * xj;
+                }
+            }
+
+            let y = gauss_solve(a, b).expect("tiled gauss_solve should factor and solve");
+            for j in 0..n {
+                assert!(
+                    (y[j] - x_true[j]).abs() < 1e-11,
+                    "N={n}, j={j}: expected {}, got {}",
+                    x_true[j],
+                    y[j]
+                );
+            }
+        }
     }
 }

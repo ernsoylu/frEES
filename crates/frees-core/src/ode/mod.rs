@@ -20,6 +20,9 @@ pub mod analysis;
 pub mod deadline;
 pub mod dynamic;
 pub mod events;
+#[cfg(test)]
+pub(crate) mod hermite_root;
 pub mod integrator;
 pub mod methods;
 pub mod problem;
+pub mod radau;
