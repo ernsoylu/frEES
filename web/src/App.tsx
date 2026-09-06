@@ -534,6 +534,7 @@ export default function App() {
     )
   }, [])
   const [findAll, setFindAll] = useState(false)
+  const [selectedSolutionIndex, setSelectedSolutionIndex] = useState(0)
   const [complexMode, setComplexMode] = useState(false)
   const [stopCriteria, setStopCriteria] = useState<StopCriteria>(
     () => boot?.stopCriteria ?? loadStopCriteria(),
@@ -2078,6 +2079,11 @@ export default function App() {
   })
 
   const solutions = result?.solutions ?? []
+  useEffect(() => {
+    if (selectedSolutionIndex >= solutions.length && solutions.length > 0) {
+      setSelectedSolutionIndex(0)
+    }
+  }, [solutions.length, selectedSolutionIndex])
 
   // Unit-consistency warnings from the latest Solve (preferred) or Check, shown
   // as a dismissible banner above the editor. Re-shown whenever the set changes.
@@ -2136,8 +2142,9 @@ export default function App() {
     return () => cancelAnimationFrame(raf)
   }, [mergedPlots, tables])
 
+  const activeSolution = solutions[selectedSolutionIndex] ?? solutions[0]
   const baseVariables =
-    solutions.length > 0 ? solutions[0].variables : result?.variables ?? []
+    activeSolution ? activeSolution.variables : result?.variables ?? []
 
   // Solved variables with the REPL overlay applied: REPL-defined names are
   // appended, and REPL-changed names override the solved value. Feeds the
@@ -2583,6 +2590,9 @@ export default function App() {
             pinnedNames={pinnedSliderNames}
             pinnableNames={pinnableNames}
             onPin={pinSlider}
+            solutionsCount={solutions.length}
+            selectedSolutionIndex={selectedSolutionIndex}
+            onSelectSolutionIndex={setSelectedSolutionIndex}
             sliderStrip={
               pinnedSliders.length > 0 ? (
                 <Suspense fallback={null}>
@@ -3002,6 +3012,7 @@ export default function App() {
             complexMode={complexMode}
             variableInfo={buildVariableInfo()}
             unitSystem={unitSystem}
+            functionTables={functionTableDtos()}
             onClose={() => setShowMinMax(false)}
           />
         </Suspense>

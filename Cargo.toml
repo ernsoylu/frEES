@@ -15,6 +15,7 @@ rust-version = "1.85"
 
 [workspace.dependencies]
 frees-core = { path = "crates/frees-core" }
+frees = { path = "crates/frees" }
 
 # Engine dependencies — see docs/dependency-map.md for the Java originals.
 petgraph = { version = "0.6", default-features = false, features = ["graphmap"] }

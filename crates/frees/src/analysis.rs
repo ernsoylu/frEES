@@ -216,6 +216,7 @@ fn solve_table_inner(source: &str, request_json: &str) -> Result<Value, String> 
         display_unit_system: request.display_unit_system.clone(),
         fill_missing: None,
         function_tables: None,
+        find_all_solutions: None,
         // No analysis request carries the terminal's override lines; these
         // routines build their own (`analysis::montecarlo`, `paramfit`) and
         // apply them per candidate.
@@ -483,6 +484,7 @@ fn monte_carlo_inner(source: &str, request_json: &str) -> Result<Value, String> 
         display_unit_system: request.display_unit_system.clone(),
         fill_missing: None,
         function_tables: None,
+        find_all_solutions: None,
         // No analysis request carries the terminal's override lines; these
         // routines build their own (`analysis::montecarlo`, `paramfit`) and
         // apply them per candidate.
@@ -806,6 +808,7 @@ struct OptimizeRequest {
     uppers: Vec<f64>,
     method: Option<String>,
     constraints: Vec<String>,
+    function_tables: Option<Vec<FunctionTableDto>>,
 }
 
 /// Constrained/unconstrained optimisation. Returns an `OptimizeResponse`
@@ -864,13 +867,13 @@ fn optimize_inner(source: &str, request_json: &str) -> Result<Value, String> {
         return Err(syntax_error(&failure));
     }
 
-    // No `function_tables`: the Java `OptimizeRequest` record carries none.
     let facade = SolveRequest {
         variable_info: request.variable_info,
         stop_criteria: request.stop_criteria,
         display_unit_system: request.display_unit_system.clone(),
         fill_missing: None,
-        function_tables: None,
+        function_tables: request.function_tables,
+        find_all_solutions: None,
         // No analysis request carries the terminal's override lines; these
         // routines build their own (`analysis::montecarlo`, `paramfit`) and
         // apply them per candidate.
@@ -883,6 +886,7 @@ fn optimize_inner(source: &str, request_json: &str) -> Result<Value, String> {
     );
     let settings = settings_of(&facade);
     let overrides = overrides_of(&facade);
+    let extra_tables = function_table_defs_of(&facade.function_tables);
     let system = unit_system_of(&facade);
     let explicit_units = explicit_units_of(&facade);
 
@@ -897,6 +901,7 @@ fn optimize_inner(source: &str, request_json: &str) -> Result<Value, String> {
         method: Some(request.method.unwrap_or_else(|| "brent".to_string())),
         maximize: request.maximize == Some(true),
         constraints: request.constraints.clone(),
+        extra_tables,
     };
     let result =
         frees_core::analysis::optimizer::optimize(&problem).map_err(|e| e.to_string_message())?;
@@ -952,6 +957,7 @@ struct MultiObjectiveRequest {
     population_size: Option<i64>,
     generations: Option<i64>,
     constraints: Vec<String>,
+    function_tables: Option<Vec<FunctionTableDto>>,
 }
 
 /// Multi-objective (Pareto) optimisation. Returns a `ParetoResponse` JSON
@@ -999,13 +1005,13 @@ fn optimize_multi_inner(source: &str, request_json: &str) -> Result<Value, Strin
         return Err(syntax_error(&failure));
     }
 
-    // No `function_tables`: the Java `MultiObjectiveRequest` record carries none.
     let facade = SolveRequest {
         variable_info: request.variable_info,
         stop_criteria: request.stop_criteria,
         display_unit_system: None,
         fill_missing: None,
-        function_tables: None,
+        function_tables: request.function_tables,
+        find_all_solutions: None,
         // No analysis request carries the terminal's override lines; these
         // routines build their own (`analysis::montecarlo`, `paramfit`) and
         // apply them per candidate.
@@ -1019,6 +1025,7 @@ fn optimize_multi_inner(source: &str, request_json: &str) -> Result<Value, Strin
     );
     let settings = settings_of(&facade);
     let overrides = overrides_of(&facade);
+    let extra_tables = function_table_defs_of(&facade.function_tables);
 
     let mut maximize = request.maximize.clone();
     maximize.resize(request.objectives.len(), false);
@@ -1035,6 +1042,7 @@ fn optimize_multi_inner(source: &str, request_json: &str) -> Result<Value, Strin
         generations: clamp_positive(request.generations, 40, 200),
         seed: 42,
         constraints: request.constraints.clone(),
+        extra_tables,
     };
     let result = frees_core::analysis::pareto::optimize_multi(&problem)
         .map_err(|e| e.to_string_message())?;
@@ -1162,6 +1170,7 @@ fn parameter_fit_inner(request_json: &str) -> Result<Value, String> {
         display_unit_system: None,
         fill_missing: None,
         function_tables: None,
+        find_all_solutions: None,
         // No analysis request carries the terminal's override lines; these
         // routines build their own (`analysis::montecarlo`, `paramfit`) and
         // apply them per candidate.

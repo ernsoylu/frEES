@@ -112,6 +112,7 @@ struct SolveRequest {
     /// record's field is nullable, so an explicit `"overrides": null` has to
     /// mean "none" rather than "Invalid request".
     overrides: Option<Vec<String>>,
+    find_all_solutions: Option<bool>,
 }
 
 /// `SolveDtos.FunctionTableDto` — one GUI Function Table in solver wire
@@ -560,22 +561,34 @@ pub fn solve(source: &str, request_json: &str) -> String {
     let _progress = install_progress();
 
     let started = now_ms();
-    match frees_core::solve_with_tables(source, &settings, &overrides, &extra_tables) {
-        Ok(mut solution) => {
+    let solve_outcome = if request.find_all_solutions == Some(true) {
+        frees_core::solve_all_with_tables(source, &settings, &overrides, &extra_tables)
+    } else {
+        frees_core::solve_with_tables(source, &settings, &overrides, &extra_tables).map(|s| vec![s])
+    };
+
+    match solve_outcome {
+        Ok(mut solutions) => {
             // `SolveController.resolveFillMissing`, at the Java position:
             // *before* the variable DTOs are built, so the injected state
             // properties become ordinary result rows, and before
             // `ComponentMetadata.build`, which resolves its bindings against
             // those rows.
-            let cycle_path = fill_missing(&mut solution, source, request.fill_missing);
+            let cycle_path = fill_missing(&mut solutions[0], source, request.fill_missing);
             // `SolveContextCache.put` — the REPL evaluates against the last
             // successful solve, so the workspace is refreshed here and nowhere
             // else. A failed solve leaves the previous workspace in place,
             // exactly as the Java cache does. The request's Function Tables
             // ride along, the Java's `replDefs.putAll(functionDefs)`.
-            repl::store_session(source, &solution, system, &explicit_units, &extra_tables);
+            repl::store_session(
+                source,
+                &solutions[0],
+                system,
+                &explicit_units,
+                &extra_tables,
+            );
             solve_success(
-                &solution,
+                &solutions,
                 &cycle_path,
                 now_ms() - started,
                 system,
@@ -838,12 +851,13 @@ fn display_of<'a>(display_names: &'a BTreeMap<String, String>, name: &'a String)
 }
 
 fn solve_success(
-    solution: &Solution,
+    solutions: &[Solution],
     cycle_path: &[Value],
     elapsed_ms: f64,
     system: UnitSystem,
     explicit_units: &BTreeMap<String, String>,
 ) -> String {
+    let solution = &solutions[0];
     let (rows, row_uncertainties) = variable_rows(solution, system, explicit_units);
     let variables = variable_entries(&rows, &row_uncertainties);
     let components = component_entries(solution, &rows);
@@ -884,18 +898,25 @@ fn solve_success(
         "maxResidual": solution.stats.max_residual,
     });
 
+    let solution_entries: Vec<Value> = solutions
+        .iter()
+        .map(|sol| {
+            let (sol_rows, sol_unc) = variable_rows(sol, system, explicit_units);
+            let sol_vars = variable_entries(&sol_rows, &sol_unc);
+            json!({
+                "variables": sol_vars,
+                "maxResidual": sol.stats.max_residual,
+            })
+        })
+        .collect();
+
     json!({
         "success": true,
         "variables": variables,
         "blocks": blocks,
         "residuals": residuals,
         "stats": stats,
-        // A single solve yields exactly one solution (the Java Result contract:
-        // "single-solve returns exactly one"); all-roots solving is not ported.
-        "solutions": [{
-            "variables": variables,
-            "maxResidual": solution.stats.max_residual,
-        }],
+        "solutions": solution_entries,
         "unitWarnings": solution.unit_warnings,
         "error": null,
         "errorLine": null,

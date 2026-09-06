@@ -1047,15 +1047,11 @@ export function TopBar(props: Readonly<TopBarProps>) {
               </Menu.Target>
               <Menu.Dropdown p="sm">
                 <Stack gap="xs">
-                  {/* The all-roots search is implemented in the engine
-                      (`analysis/allroots.rs`) but not yet reachable from a
-                      solve request, so the box is held disabled rather than
-                      silently returning the single root it always returned. */}
                   <Checkbox
                     size="xs"
                     label="Find all solutions"
-                    description="Not available in the browser engine yet"
-                    disabled
+                    description="Bounded multiple-solution search (max 32 solutions)"
+                    disabled={false}
                     checked={props.findAll}
                     onChange={(e) => props.onFindAllChange(e.currentTarget.checked)}
                   />

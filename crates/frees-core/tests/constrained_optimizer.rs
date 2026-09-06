@@ -20,6 +20,7 @@ fn make_problem(
         method: Some("nelder-mead".to_string()),
         maximize: false,
         constraints: constraints.iter().map(|s| (*s).to_string()).collect(),
+        extra_tables: Vec::new(),
     }
 }
 

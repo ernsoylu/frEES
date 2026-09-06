@@ -90,6 +90,8 @@ pub struct Problem {
     pub seed: i64,
     /// `expr <= value` / `expr >= value` / `expr = value`.
     pub constraints: Vec<String>,
+    /// Externally supplied Function Table definitions.
+    pub extra_tables: Vec<crate::parser::defs::FunctionTableDef>,
 }
 
 /// One Pareto point: the decision vector and the raw (user-facing) objectives.
@@ -303,7 +305,7 @@ fn solve_with_decisions(
         text.push_str(" = ");
         text.push_str(&c.lhs_expr);
     }
-    match crate::engine::solve_with(&text, &p.settings, &p.overrides) {
+    match crate::engine::solve_with_tables(&text, &p.settings, &p.overrides, &p.extra_tables) {
         Ok(solution) => solution.values,
         Err(_) => std::collections::BTreeMap::new(),
     }
@@ -946,6 +948,7 @@ mod tests {
             generations: 1,
             seed: 42,
             constraints: Vec::new(),
+            extra_tables: Vec::new(),
         };
         let mut rng = JavaRandom::new(1);
         for _ in 0..200 {
@@ -1000,6 +1003,7 @@ mod tests {
             generations,
             seed: 42,
             constraints: Vec::new(),
+            extra_tables: Vec::new(),
         }
     }
 

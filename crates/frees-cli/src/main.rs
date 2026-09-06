@@ -38,6 +38,7 @@ USAGE:
 Reads stdin when FILE is omitted or is `-`.
 
 OPTIONS (solve only):
+    --request JSON_OR_FILE    Solve with full request JSON or file path
     --max-iterations N        Newton iteration limit        (default 100)
     --rel-tolerance F         Relative residual tolerance   (default 1e-9)
     --abs-tolerance F         Absolute residual tolerance   (default 1e-10)
@@ -72,9 +73,17 @@ fn run() -> Result<ExitCode, String> {
             Ok(ExitCode::SUCCESS)
         }
         "solve" => {
-            let (path, settings) = parse_solve_args(&args[1..])?;
+            let (path, settings, request_json) = parse_solve_args(&args[1..])?;
             let source = read_source(path)?;
-            Ok(emit(solve_json(&source, &settings)))
+            if let Some(req) = request_json {
+                let response_str = frees::solve(&source, &req);
+                let val: Value = serde_json::from_str(&response_str)
+                    .unwrap_or_else(|_| json!({ "error": response_str }));
+                let ok = val.get("success").and_then(Value::as_bool).unwrap_or(false);
+                Ok(emit((val, ok)))
+            } else {
+                Ok(emit(solve_json(&source, &settings)))
+            }
         }
         "check" => {
             let path = parse_path_only(&args[1..], "check")?;
@@ -305,13 +314,29 @@ fn emit((payload, ok): Outcome) -> ExitCode {
 // Argument handling
 // ---------------------------------------------------------------------------
 
-fn parse_solve_args(args: &[String]) -> Result<(Option<&str>, SolverSettings), String> {
+fn parse_solve_args(
+    args: &[String],
+) -> Result<(Option<&str>, SolverSettings, Option<String>), String> {
     let mut settings = SolverSettings::default();
+    let mut request_json: Option<String> = None;
     let mut path: Option<&str> = None;
     let mut rest = args.iter();
 
     while let Some(arg) = rest.next() {
         match arg.as_str() {
+            "--request" | "-r" => {
+                let val = take_value(&mut rest, arg)?;
+                let content =
+                    if val.trim_start().starts_with('{') || val.trim_start().starts_with('[') {
+                        val.to_string()
+                    } else if std::path::Path::new(val).exists() {
+                        std::fs::read_to_string(val)
+                            .map_err(|e| format!("cannot read request file `{val}`: {e}"))?
+                    } else {
+                        val.to_string()
+                    };
+                request_json = Some(content);
+            }
             "--max-iterations" => {
                 settings.max_iterations = take_value(&mut rest, arg)?
                     .parse()
@@ -335,7 +360,7 @@ fn parse_solve_args(args: &[String]) -> Result<(Option<&str>, SolverSettings), S
             }
         }
     }
-    Ok((path, settings))
+    Ok((path, settings, request_json))
 }
 
 fn parse_path_only<'a>(args: &'a [String], command: &str) -> Result<Option<&'a str>, String> {
@@ -572,10 +597,25 @@ mod tests {
         .iter()
         .map(|s| s.to_string())
         .collect();
-        let (path, settings) = parse_solve_args(&args).unwrap();
+        let (path, settings, request_raw) = parse_solve_args(&args).unwrap();
         assert_eq!(path, Some("m.frees"));
         assert_eq!(settings.max_iterations, 7);
         assert_eq!(settings.rel_tolerance, 1e-6);
+        assert_eq!(request_raw, None);
+    }
+
+    #[test]
+    fn request_flag_is_parsed() {
+        let args: Vec<String> = ["--request", "{\"findAllSolutions\": true}", "m.frees"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        let (path, _settings, request_raw) = parse_solve_args(&args).unwrap();
+        assert_eq!(path, Some("m.frees"));
+        assert_eq!(
+            request_raw,
+            Some("{\"findAllSolutions\": true}".to_string())
+        );
     }
 
     #[test]

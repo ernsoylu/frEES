@@ -10,9 +10,11 @@ collapses that loop into WebAssembly. The parser, unit checker, blocker, Newton
 solver, ODE/DAE integrators, CAS, component expander and real-fluid property
 backend are all compiled to `wasm32-unknown-unknown` and run in a Web Worker.
 
-```
-x = 2
-y = x^2 + Enthalpy(Water, T = 300 [K], P = 101325 [Pa]) / 1e5
+```frees
+m_dot = 2.5 [kg/s]
+h_in = Enthalpy(Water, T = 300 [K], P = 101325 [Pa])
+h_out = Enthalpy(Water, T = 360 [K], P = 101325 [Pa])
+Q_dot = m_dot * (h_out - h_in)
 ```
 
 Equations are order-independent, names are case-insensitive, everything is
@@ -32,7 +34,7 @@ the reference implementation for everything the port set out to carry.
 | Component library | **295 components** across 13 physical domains |
 | wasm bundle | ~3085 KiB raw / ~1259 KiB gzipped (budget 4096 KiB, gated in CI) |
 | Property backend | rustprop — a pure-Rust port of CoolProp 8.0.0 |
-| Frontend tests | 33 files, 420 tests |
+| Frontend tests | 34 files, 429 tests |
 | CI | ~3.5 min end to end |
 
 Numbers move; the ones CI enforces are the bundle budget and the corpus. For a
