@@ -39,6 +39,8 @@ export interface ParamTableSpec {
   /** Sparse formula overlay (contract f) for input cells edited as a bound
    * sheet in the Tables workbook — same mechanics as FunctionTableSpec. */
   formulas?: Record<string, string>
+  /** Preserved legacy overlays with no current cell binding after structural edits. */
+  detachedFormulas?: Record<string, string>[]
   /** Per-column SI units (column name → unit), for read-only code/ODE tables
    * whose columns are not solved scalars: used for grid headers and plot axes. */
   columnUnits?: Record<string, string>
@@ -73,9 +75,16 @@ export interface FunctionTableSpec {
    * as `f`-only cells at materialization so formulas survive reloads and
    * recompute. Optional — absent on tables never edited as sheets. */
   formulas?: Record<string, string>
+  /** Preserved legacy overlays with no current cell binding after structural edits. */
+  detachedFormulas?: Record<string, string>[]
 }
 
 export type TableSpec = ParamTableSpec | FunctionTableSpec
+
+export function detachLegacyFormulas<T extends TableSpec>(table: T): T {
+  if (!table.formulas || Object.keys(table.formulas).length === 0) return table
+  return { ...table, formulas: undefined, detachedFormulas: [...(table.detachedFormulas ?? []), table.formulas] }
+}
 
 let tableCounter = 1
 
@@ -235,7 +244,7 @@ export function sortFunctionRows(table: FunctionTableSpec): FunctionTableSpec {
     return (Number.isFinite(xa) ? xa : Number.POSITIVE_INFINITY)
       - (Number.isFinite(xb) ? xb : Number.POSITIVE_INFINITY)
   })
-  return { ...table, rows }
+  return { ...detachLegacyFormulas(table), rows }
 }
 
 /** Shared 6-significant-figure formatter for table cells. Exported so the
@@ -425,6 +434,7 @@ export function mergeCodeTables(
  * from the editor text. The copy is renamed to avoid clashing with the
  * code-defined original (which still wins in the solver by its text name). */
 export function duplicateAsEditable(table: TableSpec): TableSpec {
+  table = detachLegacyFormulas(table)
   const name = `${table.name}_copy`
   if (table.kind === 'function') {
     return {

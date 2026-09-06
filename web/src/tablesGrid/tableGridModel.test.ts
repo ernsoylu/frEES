@@ -539,3 +539,10 @@ describe('atomic edits and scoped history', () => {
     expect(restored.results).toEqual([])
   })
 })
+
+it('detaches legacy formulas before structural changes so removed cells never reattach', () => {
+  const table = spec1D({ formulas: { A3: '=old_x', B3: '=old_y' } })
+  const edited = appendRow(removeLastRow(table))
+  expect(formulaAt(edited, 2, 1)).toBeUndefined()
+  expect(storedFormulaList(edited)).toEqual([{ ref: 'Detached 1: A3', formula: '=old_x' }, { ref: 'Detached 1: B3', formula: '=old_y' }])
+})

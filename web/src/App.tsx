@@ -78,6 +78,7 @@ const AlterValuesModal = lazy(() => import('./AlterValuesModal'))
 const TablesTab = lazy(() => import('./TablesTab'))
 import {
   functionTableFromDigitizer,
+  detachLegacyFormulas,
   FunctionTableSpec,
   loadTables,
   mergeCodeTables,
@@ -693,7 +694,13 @@ export default function App() {
     modelRevisionRef.current.invalidateCheck()
     setCheckResult(null)
     setResult(null)
-    writeTables(next.map((t) => t.kind === 'parametric' ? invalidateActiveParam(t) : t))
+    writeTables(next.map((t) => {
+      const before = tablesRef.current.find((b) => b.id === t.id)
+      if (before && (before.rows.length !== t.rows.length ||
+        (before.kind === 'function' && t.kind === 'function' && before.columns !== t.columns) ||
+        (before.kind === 'parametric' && t.kind === 'parametric' && before.vars !== t.vars))) t = detachLegacyFormulas(t)
+      return t.kind === 'parametric' ? invalidateActiveParam(t) : t
+    }))
   }
   function flushTableEdits() {
     flushSync(() => {

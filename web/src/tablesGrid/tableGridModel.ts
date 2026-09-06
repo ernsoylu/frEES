@@ -1,3 +1,4 @@
+import { detachLegacyFormulas } from '../tables'
 // tablesGrid/tableGridModel.ts
 //
 // Pure projections between a TableSpec and the native Tables grid (decision
@@ -132,7 +133,7 @@ export function formulaAt(spec: TableSpec, gridRow: number, col: number): string
 
 /** Every stored legacy formula, for the read-only hint line. */
 export function storedFormulaList(spec: TableSpec): { ref: string; formula: string }[] {
-  return Object.entries(spec.formulas ?? {}).map(([ref, formula]) => ({ ref, formula }))
+  return [...Object.entries(spec.formulas ?? {}).map(([ref, formula]) => ({ ref, formula })), ...(spec.detachedFormulas ?? []).flatMap((overlay, i) => Object.entries(overlay).map(([ref, formula]) => ({ ref: `Detached ${i + 1}: ${ref}`, formula })))]
 }
 
 export function cellViewAt(spec: TableSpec, gridRow: number, col: number): CellView {
@@ -542,6 +543,7 @@ export function applyPaste(
  * button). Parametric row counts are part of the run set: results invalidate. */
 export function appendRow(spec: TableSpec): TableSpec {
   if (spec.source === 'code' || spec.rows.length >= TABLE_MAX_ROWS) return spec
+  spec = detachLegacyFormulas(spec)
   if (spec.kind === 'function') {
     return { ...spec, rows: [...spec.rows, { x: '', ys: spec.columns.map(() => '') }] }
   }
@@ -552,6 +554,7 @@ export function appendRow(spec: TableSpec): TableSpec {
  * Parametric row counts are part of the run set: results invalidate. */
 export function removeLastRow(spec: TableSpec): TableSpec {
   if (spec.source === 'code' || spec.rows.length <= 1) return spec
+  spec = detachLegacyFormulas(spec)
   if (spec.kind === 'function') return { ...spec, rows: spec.rows.slice(0, -1) }
   return invalidated({ ...spec, rows: spec.rows.slice(0, -1) })
 }
