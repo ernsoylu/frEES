@@ -25,6 +25,7 @@ export function newParamRow(): ParamRow {
 export interface ParamTableSpec {
   id: string
   kind: 'parametric'
+  runStatus?: 'not-run' | 'stale' | 'running' | 'completed' | 'cancelled'
   name: string
   vars: string[]
   rows: ParamRow[]

@@ -816,6 +816,10 @@ export async function getPsychrometricChart(
 }
 
 export interface TableStats {
+  converged?: boolean
+  passes?: number
+  termination?: 'completed' | 'pass-limit' | 'deadline'
+  accessor?: boolean
   runs: number
   solved: number
   failed: number

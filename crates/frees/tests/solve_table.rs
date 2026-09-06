@@ -517,3 +517,18 @@ fn a_transient_over_its_elapsed_budget_stops_with_the_named_deadline_error() {
     let out: Value = serde_json::from_str(&frees::solve(quick, "{}")).unwrap();
     assert_eq!(out["success"], true, "{out}");
 }
+
+#[test]
+fn accessor_row_success_does_not_claim_table_convergence() {
+    let out = call(
+        "y = TableAvg('y') + 1",
+        r#"{"table":{"variables":["y"],"rows":[{}]}}"#,
+    );
+    assert_eq!(out["results"][0]["success"], true);
+    assert_eq!(out["stats"]["converged"], false);
+    assert_eq!(out["stats"]["passes"], 12);
+    assert_eq!(out["stats"]["termination"], "pass-limit");
+    let settled = call("y = 2", r#"{"table":{"variables":["y"],"rows":[{}]}}"#);
+    assert_eq!(settled["stats"]["converged"], true);
+    assert_eq!(settled["stats"]["termination"], "completed");
+}

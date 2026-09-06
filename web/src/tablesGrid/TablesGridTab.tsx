@@ -782,6 +782,15 @@ export default function TablesGridTab({
             {warnings[active.id]}
           </Text>
         )}
+        {activeParam && <Text size="xs">Run status: {activeParam.runStatus ?? 'not-run'}</Text>}
+        {activeParam?.stats && <Text size="xs" c={activeParam.stats.converged === false ? 'orange' : 'dimmed'}>
+          {activeParam.stats.solved}/{activeParam.stats.runs} completed; {activeParam.stats.failed} failed.
+          {' '}{activeParam.stats.passes ?? 1} passes — {activeParam.stats.termination ?? 'completed'}.
+          {activeParam.stats.converged === false && ' Values are provisional; the table has not converged.'}
+        </Text>}
+        {activeParam?.results.some((r) => r.error) && <Text size="xs" c="red">
+          {activeParam.results.flatMap((r, i) => r.error ? [`Run ${i + 1}: ${r.error}`] : []).join('; ')}
+        </Text>}
         {legacyFormulas.length > 0 && (
           <Text size="xs" c="orange.4">
             Stored formulas (ƒ) are shown read-only and no longer recalculate:{' '}

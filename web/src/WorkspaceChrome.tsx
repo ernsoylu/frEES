@@ -59,7 +59,7 @@ import {
 } from '@tabler/icons-react'
 import { spotlight } from '@mantine/spotlight'
 import { useState } from 'react'
-import { CheckResponse, SolveResponse, TableRowResult } from './api'
+import { CheckResponse, SolveResponse, TableRowResult, TableStats } from './api'
 import type { LayoutPerspective } from './workspace/WorkspaceDock'
 import { withStableKeys } from './format'
 import { FUNCTION_CATEGORIES } from './functionCatalog'
@@ -654,7 +654,12 @@ function tablePill(
   results: TableRowResult[],
   checkResult: CheckResponse | null,
   checkMessage: string,
+  stats?: TableStats | null,
 ): PillContent | null {
+  if (stats?.converged === false) return {
+    color: 'orange', label: 'Table not converged',
+    message: `${stats.passes} passes; ${stats.termination}. Last-pass values are provisional.`, warnings: [],
+  }
   if (results.length > 0) {
     const solved = results.filter((r) => r.success).length
     const allSolved = solved === results.length
@@ -743,6 +748,7 @@ interface TopBarProps {
   tableSolving: boolean
   tableCheckResult: CheckResponse | null
   tableCheckMessage: string
+  tableStats?: TableStats | null
   tableResults: TableRowResult[]
   onCheck: () => void
   onSolve: () => void
@@ -794,7 +800,7 @@ function solveTooltipFor(canSolve: boolean, isTable: boolean): string {
 
 function statusPillFor(props: Readonly<TopBarProps>) {
   if (props.isTable) {
-    return tablePill(props.tableResults, props.tableCheckResult, props.tableCheckMessage)
+    return tablePill(props.tableResults, props.tableCheckResult, props.tableCheckMessage, props.tableStats)
   }
   if (props.result) return solvePill(props.result)
   if (props.checkResult) return checkPill(props.checkResult)

@@ -85,6 +85,9 @@ export default function TablesTab(props: Readonly<Props>) {
           </Tooltip>
         )}
       </Group>
+      {active.stats?.converged === false && <Text c="orange" size="xs">
+        Table not converged after {active.stats.passes} passes ({active.stats.termination}); values are provisional.
+      </Text>}
       <Suspense fallback={<Text size="sm" c="dimmed">Loading grid…</Text>}>
         <DataGridReadOnly
           vars={active.vars}

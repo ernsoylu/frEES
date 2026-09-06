@@ -1741,14 +1741,14 @@ export default function App() {
         if (t.kind !== 'parametric') return t
         if (t.results.length === 0 && !t.stats && !t.checkResult && !t.checkMessage) return t
         changed = true
-        return { ...t, results: [], stats: null, checkResult: null, checkMessage: '' }
+        return { ...t, results: [], stats: null, checkResult: null, checkMessage: '', runStatus: 'stale' }
       })
       return changed ? next : all
     })
   }
 
   function invalidateActiveParam(t: ParamTableSpec): ParamTableSpec {
-    return { ...t, results: [], stats: null, checkResult: null, checkMessage: '' }
+    return { ...t, results: [], stats: null, checkResult: null, checkMessage: '', runStatus: 'stale' }
   }
 
   // Fresh hosted spec for a table run (contract b's pre-run scrape): flush
@@ -1840,6 +1840,7 @@ export default function App() {
     if (checkOverride !== undefined && !checkOverride.solvable) return false
     const solveTableRevision = modelRevisionRef.current.current
     setSolvingTableId(tableId)
+    updateParamTable(tableId, (t) => ({ ...t, runStatus: 'running', results: [], stats: null }))
     setSolveProgress(0)
     try {
       // Non-empty cells become fixed inputs for that run; blank cells are
@@ -1872,8 +1873,9 @@ export default function App() {
         ...t,
         results: response.results,
         stats: response.stats,
+        runStatus: 'completed',
       }))
-      if (response.variables && response.variables.length > 0) {
+      if (response.stats?.converged !== false && response.variables && response.variables.length > 0) {
         setResult((prev) => ({
           success: true,
           variables: response.variables,
@@ -2961,6 +2963,7 @@ export default function App() {
           tableChecking={checkingTableId === focusedParam?.id}
           tableSolving={solvingTableId === focusedParam?.id}
           tableCheckResult={tableCheckResult}
+          tableStats={focusedParam?.stats}
           tableCheckMessage={tableCheckMessage}
           tableResults={focusedParam?.results ?? []}
           onCheck={checkWithFallback}

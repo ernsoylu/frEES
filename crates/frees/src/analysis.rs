@@ -375,11 +375,14 @@ fn solve_table_inner(source: &str, request_json: &str) -> Result<Value, String> 
         Some((rows, unc)) => variable_entries(rows, unc),
         None => Vec::new(),
     };
-    let _ = &sweep; // the sweep's columns fed the accessors; results are the answer
 
     Ok(json!({
         "results": results,
         "stats": {
+            "converged": sweep.converged,
+            "passes": sweep.passes,
+            "termination": if sweep.converged { "completed" } else { "pass-limit" },
+            "accessor": frees_core::analysis::parametric::mentions_parametric_accessor(source),
             "runs": run_count,
             "solved": solved,
             "failed": run_count - solved,
