@@ -134,7 +134,9 @@ describe('functionSpecFromParamColumns (1-D)', () => {
       { x: '2', ys: ['1'] },
       { x: '10', ys: ['3'] },
     ])
-    expect(out.usedRows).toBe(3)
+    expect(out.usedRows).toBe(2)
+    expect(out.duplicateCount).toBe(1)
+    expect(out.invalidCount + out.duplicateCount + out.uniqueCount).toBe(out.sourceCount)
   })
 
   it('works on an ODE-origin table (values only, no results)', () => {
@@ -168,18 +170,31 @@ describe('functionSpecFromParamColumns (1-D)', () => {
     expect(out.spec.argName).toBe('ch_ev_hg')
   })
 
-  it('decimates past the table row cap and flags it', () => {
+  it('refuses to thin past the row cap until reduction is chosen', () => {
     const n = TABLE_MAX_ROWS + 500
     const t = paramSpec({
       vars: ['T', 'eta'],
       rows: Array.from({ length: n }, (_, i) => row({ T: String(i), eta: String(2 * i) })),
     })
-    const out = functionSpecFromParamColumns({ table: t, xVar: 'T', yVar: 'eta', name: 'f' })
+    const blocked = functionSpecFromParamColumns({ table: t, xVar: 'T', yVar: 'eta', name: 'f' })
+    expect(blocked.needsReduction).toBe(true)
+    expect(blocked.spec.rows).toHaveLength(0)
+    expect(blocked.uniqueCount).toBe(n)
+    const out = functionSpecFromParamColumns({
+      table: t,
+      xVar: 'T',
+      yVar: 'eta',
+      name: 'f',
+      reduction: 'decimate',
+    })
     expect(out.decimated).toBe(true)
+    expect(out.needsReduction).toBe(false)
     expect(out.spec.rows).toHaveLength(TABLE_MAX_ROWS)
     expect(out.spec.rows[0]).toEqual({ x: '0', ys: ['0'] })
     expect(out.spec.rows.at(-1)).toEqual({ x: String(n - 1), ys: [String(2 * (n - 1))] })
-    expect(out.usedRows).toBe(n)
+    expect(out.retainedCount).toBe(TABLE_MAX_ROWS)
+    expect(out.reducedCount).toBe(n - TABLE_MAX_ROWS)
+    expect(out.invalidCount + out.duplicateCount + out.uniqueCount).toBe(out.sourceCount)
   })
 })
 
@@ -205,8 +220,9 @@ describe('functionSpecFromParamColumns (family)', () => {
       familyVar: 'T',
       name: 'fric',
     })
-    expect(out.usedRows).toBe(4)
+    expect(out.usedRows).toBe(3)
     expect(out.skippedRows).toBe(1)
+    expect(out.uniqueCount).toBe(3)
     expect(out.spec.is1D).toBe(false)
     expect(out.spec.paramName).toBe('T')
     expect(out.spec.columns).toEqual(['100', '200'])
@@ -256,6 +272,9 @@ describe('functionSpecFromXY', () => {
     ])
     expect(out.usedRows).toBe(3)
     expect(out.decimated).toBe(false)
+    expect(out.duplicateCount).toBe(1)
+    expect(out.invalidCount).toBe(2)
+    expect(out.invalidCount + out.duplicateCount + out.uniqueCount).toBe(out.sourceCount)
     expect(out.spec.is1D).toBe(true)
     expect(out.spec.source).toBe('gui')
   })
@@ -275,11 +294,15 @@ describe('functionSpecFromXY', () => {
     const n = 12_000
     const xs = Float64Array.from({ length: n }, (_, i) => i * 0.001)
     const ys = Float64Array.from({ length: n }, (_, i) => Math.sin(i))
-    const out = functionSpecFromXY({ name: 'sig', argName: 'time', xs, ys })
+    const blocked = functionSpecFromXY({ name: 'sig', argName: 'time', xs, ys })
+    expect(blocked.needsReduction).toBe(true)
+    expect(blocked.spec.rows).toHaveLength(0)
+    const out = functionSpecFromXY({ name: 'sig', argName: 'time', xs, ys, reduction: 'decimate' })
     expect(out.decimated).toBe(true)
     expect(out.spec.rows).toHaveLength(TABLE_MAX_ROWS)
     expect(out.spec.rows[0].x).toBe('0')
     expect(out.spec.rows.at(-1)?.x).toBe(String((n - 1) * 0.001))
+    expect(out.spec.conversion?.reducedCount).toBe(n - TABLE_MAX_ROWS)
   })
 
   it('honours a custom cap and the log flags', () => {
@@ -291,11 +314,61 @@ describe('functionSpecFromXY', () => {
       xLog: true,
       yLog: true,
       maxRows: 3,
+      reduction: 'decimate',
     })
     expect(out.spec.rows.map((r) => r.x)).toEqual(['1', '3', '5'])
     expect(out.decimated).toBe(true)
     expect(out.spec.xLog).toBe(true)
     expect(out.spec.yLog).toBe(true)
+  })
+
+  it('does not drop a narrow pulse without an explicit thinning choice', () => {
+    const n = TABLE_MAX_ROWS + 1
+    const xs = Array.from({ length: n }, (_, i) => i)
+    const ys = Array.from({ length: n }, () => 0)
+    const idx = decimationIndices(n, TABLE_MAX_ROWS)
+    const kept = new Set(idx)
+    const omitted = xs.findIndex((_, i) => !kept.has(i))
+    ys[omitted] = 1
+    const blocked = functionSpecFromXY({ name: 'pulse', argName: 'x', xs, ys })
+    expect(blocked.needsReduction).toBe(true)
+    expect(blocked.droppedPeak).toEqual({ x: omitted, y: 1 })
+    const trimmed = functionSpecFromXY({
+      name: 'pulse',
+      argName: 'x',
+      xs,
+      ys,
+      reduction: 'trim',
+      xMin: 0,
+      xMax: TABLE_MAX_ROWS - 1,
+    })
+    expect(trimmed.needsReduction).toBe(false)
+    expect(trimmed.retainedCount).toBe(TABLE_MAX_ROWS)
+    expect(trimmed.spec.rows.some((r) => r.ys[0] === '1')).toBe(omitted <= TABLE_MAX_ROWS - 1)
+    const thinned = functionSpecFromXY({ name: 'pulse', argName: 'x', xs, ys, reduction: 'decimate' })
+    expect(thinned.spec.rows.some((r) => r.ys[0] === '1')).toBe(false)
+    expect(thinned.droppedPeak).toEqual({ x: omitted, y: 1 })
+  })
+})
+
+describe('paramCellEntry value source', () => {
+  const t = paramSpec({
+    vars: ['T', 'eta'],
+    rows: [row({ T: '300', eta: '' }), row({ T: '400', eta: '0.9' })],
+    results: [
+      { success: true, values: { T: 301, eta: 0.42 }, error: null },
+      { success: true, values: { T: 401, eta: 0.5 }, error: null },
+    ],
+  })
+
+  it('raw uses only typed drafts', () => {
+    expect(paramCellEntry(t, 0, 'eta', 'raw')).toBeNull()
+    expect(paramCellEntry(t, 1, 'eta', 'raw')).toEqual({ num: 0.9, text: '0.9' })
+  })
+
+  it('solved uses only successful row results', () => {
+    expect(paramCellEntry(t, 0, 'eta', 'solved')).toEqual({ num: 0.42, text: '0.42' })
+    expect(paramCellEntry(t, 1, 'eta', 'solved')).toEqual({ num: 0.5, text: '0.5' })
   })
 })
 

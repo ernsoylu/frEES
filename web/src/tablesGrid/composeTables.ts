@@ -20,8 +20,21 @@ import { requireValidTable } from '../tableValidation'
 // these conversions must say so rather than silently promise an override
 // (`checkFunctionName` flags the collision as `shadowedByCode`).
 
-import { FunctionTableSpec, identifier, newTableId, ParamTableSpec, TableSpec } from '../tables'
+import {
+  FunctionConversion,
+  FunctionTableSpec,
+  identifier,
+  newTableId,
+  ParamTableSpec,
+  TableSpec,
+} from '../tables'
 import { TABLE_MAX_ROWS } from './tableGridModel'
+
+/** How to stay inside the 5,000-row function-table cap. */
+export type ReductionChoice = 'decimate' | 'trim'
+
+/** Which parametric cells become lookup points. */
+export type ParamValueSource = 'mixed' | 'raw' | 'solved'
 
 // ---------------------------------------------------------------------------
 // Cell resolution (paramComputedValue semantics)
@@ -34,20 +47,21 @@ export interface CellEntry {
   text: string
 }
 
-/** Resolves one parametric cell the way the grid paints it (same precedence
- * as `readOnlyCellText`/`paramComputedValue`): a non-blank input draft wins;
- * otherwise the solved value of a successful run. `null` = unusable (blank,
- * non-numeric, or the row failed). */
+/** Resolves one parametric cell. `mixed` is grid paint order (typed draft,
+ * else a successful solve). `raw` uses only typed drafts; `solved` uses only
+ * successful row results. `null` = unusable for that policy. */
 export function paramCellEntry(
   t: ParamTableSpec,
   rowIndex: number,
   varName: string,
+  source: ParamValueSource = 'mixed',
 ): CellEntry | null {
   const draft = (t.rows[rowIndex]?.values[varName] ?? '').trim()
-  if (draft !== '') {
+  if (source !== 'solved' && draft !== '') {
     const n = Number(draft)
     return Number.isFinite(n) ? { num: n, text: draft } : null
   }
+  if (source === 'raw') return null
   const res = t.results[rowIndex]
   if (res?.success) {
     const v = res.values[varName]
@@ -83,61 +97,191 @@ export interface SweepFunctionInput {
   familyVar?: string | null
   /** The function name (validate with `checkFunctionName` first). */
   name: string
+  valueSource?: ParamValueSource
+  reduction?: ReductionChoice
+  xMin?: number
+  xMax?: number
+  maxRows?: number
 }
 
-export interface ComposeResult {
+export interface ComposeCounts {
+  /** Pairs or source rows examined. */
+  sourceCount: number
+  /** Non-finite / failed / incomplete pairs. */
+  invalidCount: number
+  /** Exact-duplicate X (or X+family) pairs dropped after the first. */
+  duplicateCount: number
+  /** Distinct X values after invalid/duplicate removal, before trim/thin. */
+  uniqueCount: number
+  /** Distinct X dropped by an explicit range trim. */
+  trimmedCount: number
+  /** Distinct X dropped by uniform thinning. */
+  reducedCount: number
+  /** Distinct X kept in `spec.rows`. */
+  retainedCount: number
+  /** Unique X still exceed the cap and no accepted reduction fits. */
+  needsReduction: boolean
+  /** Largest-|y| point uniform thinning would drop; null when nothing is dropped. */
+  droppedPeak: { x: number; y: number } | null
+}
+
+export interface ComposeResult extends ComposeCounts {
   spec: FunctionTableSpec
-  /** Rows that contributed a point (or a curve cell). */
+  /** Final retained points (`spec.rows.length`). */
   usedRows: number
-  /** Rows dropped: run failed, or an involved cell blank/non-numeric. */
+  /** Alias of `invalidCount` (failed or non-numeric source pairs). */
   skippedRows: number
-  /** True when the x grid exceeded TABLE_MAX_ROWS and was thinned uniformly. */
+  /** True when uniform thinning produced the retained rows. */
   decimated: boolean
 }
 
-interface BuiltRows {
-  rows: { x: string; ys: string[] }[]
-  decimated: boolean
-}
-
-/** Sorts row entries by numeric x and enforces the row cap. */
-function finishRows(entries: { xNum: number; x: string; ys: string[] }[]): BuiltRows {
-  entries.sort((a, b) => a.xNum - b.xNum)
-  const idx = decimationIndices(entries.length, TABLE_MAX_ROWS)
+function conversionOf(
+  counts: ComposeCounts,
+  extra: Pick<FunctionConversion, 'valueSource' | 'reduction' | 'xMin' | 'xMax'> = {},
+): FunctionConversion {
   return {
-    rows: idx.map((i) => ({ x: entries[i].x, ys: entries[i].ys })),
-    decimated: idx.length < entries.length,
+    ...extra,
+    sourceCount: counts.sourceCount,
+    invalidCount: counts.invalidCount,
+    duplicateCount: counts.duplicateCount,
+    uniqueCount: counts.uniqueCount,
+    trimmedCount: counts.trimmedCount,
+    reducedCount: counts.reducedCount,
+    retainedCount: counts.retainedCount,
+  }
+}
+
+function droppedPeakOf<T>(
+  rows: T[],
+  keptIdx: number[],
+  xOf: (row: T) => number,
+  yOf: (row: T) => number,
+): { x: number; y: number } | null {
+  const kept = new Set(keptIdx)
+  let peak: { x: number; y: number } | null = null
+  for (let i = 0; i < rows.length; i++) {
+    if (kept.has(i)) continue
+    const y = yOf(rows[i])
+    if (!Number.isFinite(y)) continue
+    if (peak === null || Math.abs(y) > Math.abs(peak.y)) peak = { x: xOf(rows[i]), y }
+  }
+  return peak
+}
+
+function reduceUnique<T>(
+  unique: T[],
+  opts: {
+    maxRows: number
+    reduction?: ReductionChoice
+    xMin?: number
+    xMax?: number
+    xOf: (row: T) => number
+    yOf: (row: T) => number
+  },
+): {
+  kept: T[]
+  trimmedCount: number
+  reducedCount: number
+  needsReduction: boolean
+  droppedPeak: { x: number; y: number } | null
+} {
+  const inRange = unique.filter((row) => {
+    const x = opts.xOf(row)
+    if (opts.xMin !== undefined && x < opts.xMin) return false
+    if (opts.xMax !== undefined && x > opts.xMax) return false
+    return true
+  })
+  const trimmedCount = unique.length - inRange.length
+  const decimateIdx = decimationIndices(inRange.length, opts.maxRows)
+  const droppedPeak = droppedPeakOf(inRange, decimateIdx, opts.xOf, opts.yOf)
+  if (inRange.length <= opts.maxRows) {
+    return { kept: inRange, trimmedCount, reducedCount: 0, needsReduction: false, droppedPeak: null }
+  }
+  if (opts.reduction === 'decimate') {
+    return {
+      kept: decimateIdx.map((i) => inRange[i]),
+      trimmedCount,
+      reducedCount: inRange.length - decimateIdx.length,
+      needsReduction: false,
+      droppedPeak,
+    }
+  }
+  return { kept: [], trimmedCount, reducedCount: 0, needsReduction: true, droppedPeak }
+}
+
+function composeResult(
+  spec: FunctionTableSpec,
+  counts: ComposeCounts,
+  extra: Pick<FunctionConversion, 'valueSource' | 'reduction' | 'xMin' | 'xMax'> = {},
+): ComposeResult {
+  spec.conversion = conversionOf(counts, extra)
+  return {
+    spec,
+    ...counts,
+    usedRows: counts.retainedCount,
+    skippedRows: counts.invalidCount,
+    decimated: extra.reduction === 'decimate' && counts.reducedCount > 0,
   }
 }
 
 /**
  * Builds an editable GUI FunctionTableSpec from parametric-table columns.
- * Cell precedence is `paramCellEntry` (input draft, else solved value);
- * rows missing any involved value are skipped and counted. Duplicate x
- * values keep the first-seen row (a function table needs one y per x).
+ * Cell policy is `valueSource` (default `mixed`). Duplicate x values keep the
+ * first-seen row. Crossing the row cap does not thin until `reduction` is set.
  */
 export function functionSpecFromParamColumns(input: SweepFunctionInput): ComposeResult {
   const { table, xVar, yVar, name } = input
   requireValidTable(table, false)
   const familyVar = input.familyVar ?? null
-  let used = 0
-  let skipped = 0
+  const valueSource = input.valueSource ?? 'mixed'
+  const maxRows = input.maxRows ?? TABLE_MAX_ROWS
+  const cell = (i: number, v: string) => paramCellEntry(table, i, v, valueSource)
+  const extra = {
+    valueSource,
+    reduction: input.reduction,
+    xMin: input.xMin,
+    xMax: input.xMax,
+  }
 
   if (familyVar === null) {
     const byX = new Map<number, { xNum: number; x: string; ys: string[] }>()
+    let duplicateCount = 0
+    let invalidCount = 0
     for (let i = 0; i < table.rows.length; i++) {
-      const x = paramCellEntry(table, i, xVar)
-      const y = paramCellEntry(table, i, yVar)
+      const x = cell(i, xVar)
+      const y = cell(i, yVar)
       if (x === null || y === null) {
-        skipped++
+        invalidCount++
         continue
       }
-      if (!byX.has(x.num)) byX.set(x.num, { xNum: x.num, x: x.text, ys: [y.text] })
-      used++
+      if (byX.has(x.num)) {
+        duplicateCount++
+        continue
+      }
+      byX.set(x.num, { xNum: x.num, x: x.text, ys: [y.text] })
     }
-    const { rows, decimated } = finishRows([...byX.values()])
-    return {
-      spec: {
+    const unique = [...byX.values()].sort((a, b) => a.xNum - b.xNum)
+    const reduced = reduceUnique(unique, {
+      maxRows,
+      reduction: input.reduction,
+      xMin: input.xMin,
+      xMax: input.xMax,
+      xOf: (r) => r.xNum,
+      yOf: (r) => Number(r.ys[0]),
+    })
+    const counts: ComposeCounts = {
+      sourceCount: table.rows.length,
+      invalidCount,
+      duplicateCount,
+      uniqueCount: unique.length,
+      trimmedCount: reduced.trimmedCount,
+      reducedCount: reduced.reducedCount,
+      retainedCount: reduced.kept.length,
+      needsReduction: reduced.needsReduction,
+      droppedPeak: reduced.droppedPeak,
+    }
+    return composeResult(
+      {
         id: newTableId(),
         kind: 'function',
         name,
@@ -146,25 +290,25 @@ export function functionSpecFromParamColumns(input: SweepFunctionInput): Compose
         xLog: false,
         yLog: false,
         columns: [''],
-        rows,
+        rows: reduced.kept.map((r) => ({ x: r.x, ys: r.ys })),
         is1D: true,
         source: 'gui',
       },
-      usedRows: used,
-      skippedRows: skipped,
-      decimated,
-    }
+      counts,
+      extra,
+    )
   }
 
-  // 2-D family: distinct family values (ascending) become the curve columns.
   const famTexts = new Map<number, string>()
   const byX = new Map<number, { xNum: number; x: string; ys: Map<number, string> }>()
+  let duplicateCount = 0
+  let invalidCount = 0
   for (let i = 0; i < table.rows.length; i++) {
-    const x = paramCellEntry(table, i, xVar)
-    const y = paramCellEntry(table, i, yVar)
-    const f = paramCellEntry(table, i, familyVar)
+    const x = cell(i, xVar)
+    const y = cell(i, yVar)
+    const f = cell(i, familyVar)
     if (x === null || y === null || f === null) {
-      skipped++
+      invalidCount++
       continue
     }
     if (!famTexts.has(f.num)) famTexts.set(f.num, f.text)
@@ -173,19 +317,41 @@ export function functionSpecFromParamColumns(input: SweepFunctionInput): Compose
       row = { xNum: x.num, x: x.text, ys: new Map() }
       byX.set(x.num, row)
     }
-    if (!row.ys.has(f.num)) row.ys.set(f.num, y.text)
-    used++
+    if (row.ys.has(f.num)) {
+      duplicateCount++
+      continue
+    }
+    row.ys.set(f.num, y.text)
   }
   const famNums = [...famTexts.keys()].sort((a, b) => a - b)
-  const { rows, decimated } = finishRows(
-    [...byX.values()].map((r) => ({
+  const unique = [...byX.values()]
+    .sort((a, b) => a.xNum - b.xNum)
+    .map((r) => ({
       xNum: r.xNum,
       x: r.x,
       ys: famNums.map((fn) => r.ys.get(fn) ?? ''),
-    })),
-  )
-  return {
-    spec: {
+    }))
+  const reduced = reduceUnique(unique, {
+    maxRows,
+    reduction: input.reduction,
+    xMin: input.xMin,
+    xMax: input.xMax,
+    xOf: (r) => r.xNum,
+    yOf: (r) => Number(r.ys.find((y) => y !== '') ?? Number.NaN),
+  })
+  const counts: ComposeCounts = {
+    sourceCount: table.rows.length,
+    invalidCount,
+    duplicateCount,
+    uniqueCount: unique.length,
+    trimmedCount: reduced.trimmedCount,
+    reducedCount: reduced.reducedCount,
+    retainedCount: reduced.kept.length,
+    needsReduction: reduced.needsReduction,
+    droppedPeak: reduced.droppedPeak,
+  }
+  return composeResult(
+    {
       id: newTableId(),
       kind: 'function',
       name,
@@ -194,14 +360,13 @@ export function functionSpecFromParamColumns(input: SweepFunctionInput): Compose
       xLog: false,
       yLog: false,
       columns: famNums.map((fn) => famTexts.get(fn) as string),
-      rows,
+      rows: reduced.kept.map((r) => ({ x: r.x, ys: r.ys })),
       is1D: false,
       source: 'gui',
     },
-    usedRows: used,
-    skippedRows: skipped,
-    decimated,
-  }
+    counts,
+    extra,
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -214,40 +379,63 @@ export interface SeriesFunctionInput {
   ys: ArrayLike<number>
   xLog?: boolean
   yLog?: boolean
-  /** Row cap (default TABLE_MAX_ROWS); longer series decimate uniformly. */
   maxRows?: number
+  reduction?: ReductionChoice
+  xMin?: number
+  xMax?: number
 }
 
 /**
  * Builds a 1-D GUI FunctionTableSpec from paired numeric series. Non-finite
- * pairs are skipped, points sort ascending by x, exact-duplicate x values
- * keep the first point, and series past the row cap are decimated uniformly
- * (first and last point always kept). Values are stored at full precision.
+ * pairs are skipped, points sort ascending by x, and exact-duplicate x values
+ * keep the first point. Series past the row cap are not thinned until
+ * `reduction` is `decimate` or a trim range fits. Values stay at full precision.
  */
 export function functionSpecFromXY(input: SeriesFunctionInput): ComposeResult {
   const maxRows = input.maxRows ?? TABLE_MAX_ROWS
   const n = Math.min(input.xs.length, input.ys.length)
   const pairs: { x: number; y: number }[] = []
-  let skipped = 0
+  let invalidCount = 0
   for (let i = 0; i < n; i++) {
     const x = Number(input.xs[i])
     const y = Number(input.ys[i])
     if (!Number.isFinite(x) || !Number.isFinite(y)) {
-      skipped++
+      invalidCount++
       continue
     }
     pairs.push({ x, y })
   }
   pairs.sort((a, b) => a.x - b.x)
-  const dedup: { x: number; y: number }[] = []
+  const unique: { x: number; y: number }[] = []
+  let duplicateCount = 0
   for (const p of pairs) {
-    if (dedup.length > 0 && dedup[dedup.length - 1].x === p.x) continue
-    dedup.push(p)
+    if (unique.length > 0 && unique[unique.length - 1].x === p.x) {
+      duplicateCount++
+      continue
+    }
+    unique.push(p)
   }
-  const idx = decimationIndices(dedup.length, maxRows)
-  const chosen = idx.map((i) => dedup[i])
-  return {
-    spec: {
+  const reduced = reduceUnique(unique, {
+    maxRows,
+    reduction: input.reduction,
+    xMin: input.xMin,
+    xMax: input.xMax,
+    xOf: (p) => p.x,
+    yOf: (p) => p.y,
+  })
+  const counts: ComposeCounts = {
+    sourceCount: n,
+    invalidCount,
+    duplicateCount,
+    uniqueCount: unique.length,
+    trimmedCount: reduced.trimmedCount,
+    reducedCount: reduced.reducedCount,
+    retainedCount: reduced.kept.length,
+    needsReduction: reduced.needsReduction,
+    droppedPeak: reduced.droppedPeak,
+  }
+  return composeResult(
+    {
       id: newTableId(),
       kind: 'function',
       name: input.name,
@@ -256,14 +444,26 @@ export function functionSpecFromXY(input: SeriesFunctionInput): ComposeResult {
       xLog: input.xLog ?? false,
       yLog: input.yLog ?? false,
       columns: [''],
-      rows: chosen.map((p) => ({ x: String(p.x), ys: [String(p.y)] })),
+      rows: reduced.kept.map((p) => ({ x: String(p.x), ys: [String(p.y)] })),
       is1D: true,
       source: 'gui',
     },
-    usedRows: chosen.length,
-    skippedRows: skipped,
-    decimated: chosen.length < dedup.length,
-  }
+    counts,
+    { reduction: input.reduction, xMin: input.xMin, xMax: input.xMax },
+  )
+}
+
+export function formatComposeCounts(result: ComposeCounts): string {
+  const parts = [
+    `${result.sourceCount.toLocaleString()} source`,
+    `${result.invalidCount.toLocaleString()} invalid`,
+    `${result.duplicateCount.toLocaleString()} duplicate x`,
+    `${result.uniqueCount.toLocaleString()} unique`,
+  ]
+  if (result.trimmedCount > 0) parts.push(`${result.trimmedCount.toLocaleString()} trimmed`)
+  if (result.reducedCount > 0) parts.push(`${result.reducedCount.toLocaleString()} reduced`)
+  if (!result.needsReduction) parts.push(`${result.retainedCount.toLocaleString()} retained`)
+  return parts.join(' · ')
 }
 
 // ---------------------------------------------------------------------------

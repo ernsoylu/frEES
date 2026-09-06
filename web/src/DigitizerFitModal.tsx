@@ -154,7 +154,7 @@ export default function DigitizerFitModal({
 
   function sendAsTable() {
     if (!result?.success || !onCreateFunctionTable || !nameCheck.ok) return
-    const { spec } = functionSpecFromXY({
+    const converted = functionSpecFromXY({
       name: tableName.trim(),
       argName: xVar,
       xs: xData,
@@ -162,7 +162,8 @@ export default function DigitizerFitModal({
       xLog,
       yLog,
     })
-    onCreateFunctionTable(spec)
+    if (converted.needsReduction) return
+    onCreateFunctionTable(converted.spec)
     onClose()
   }
 

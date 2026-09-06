@@ -82,6 +82,23 @@ export interface FunctionTableSpec {
   formulas?: Record<string, string>
   /** Preserved legacy overlays with no current cell binding after structural edits. */
   detachedFormulas?: Record<string, string>[]
+  /** Last conversion that produced this table, when it came from CSV/sweep/fit. */
+  conversion?: FunctionConversion
+}
+
+/** Provenance of a GUI function produced from CSV, sweep columns, or a fit. */
+export interface FunctionConversion {
+  valueSource?: 'mixed' | 'raw' | 'solved'
+  reduction?: 'decimate' | 'trim'
+  xMin?: number
+  xMax?: number
+  sourceCount: number
+  invalidCount: number
+  duplicateCount: number
+  uniqueCount: number
+  trimmedCount: number
+  reducedCount: number
+  retainedCount: number
 }
 
 export type TableSpec = ParamTableSpec | FunctionTableSpec

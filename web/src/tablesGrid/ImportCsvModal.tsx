@@ -14,10 +14,10 @@ import { useMemo, useState } from 'react'
 import { Button, Checkbox, Code, FileInput, Group, Modal, Select, Stack, Text, TextInput } from '@mantine/core'
 import { IconFileTypeCsv } from '@tabler/icons-react'
 import { FunctionTableSpec, identifier, TableSpec } from '../tables'
-import { checkFunctionName, functionSpecFromXY } from './composeTables'
+import { checkFunctionName, functionSpecFromXY, type ReductionChoice } from './composeTables'
 import { FunctionNameHints, FunctionPrecedenceNote } from './FunctionNameHints'
+import FunctionReductionControls from './FunctionReductionControls'
 import { parseCsvTable, type CsvTable, type CsvOptions } from './csv'
-import { TABLE_MAX_ROWS } from './tableGridModel'
 
 /** Whole-file read cap. A function table holds 5 000 rows, so a recording
  *  bigger than this is one to trim before importing — and reading it as a
@@ -51,6 +51,9 @@ export default function ImportCsvModal({ tables, onClose, onCreate }: Readonly<P
     decimal: '.',
     unitRow: false,
   })
+  const [reduction, setReduction] = useState<ReductionChoice | null>(null)
+  const [xMin, setXMin] = useState('')
+  const [xMax, setXMax] = useState('')
 
   const applyParsed = (
     fileName: string,
@@ -107,6 +110,9 @@ export default function ImportCsvModal({ tables, onClose, onCreate }: Readonly<P
     setLoaded(null)
     setXIndex(null)
     setYIndex(null)
+    setReduction(null)
+    setXMin('')
+    setXMax('')
     if (!file) return
     if (file.size > MAX_BYTES) {
       setError(
@@ -138,15 +144,21 @@ export default function ImportCsvModal({ tables, onClose, onCreate }: Readonly<P
 
   const preview = useMemo(() => {
     if (!xColumn || !yColumn) return null
+    const min = xMin.trim() === '' ? Number.NaN : Number(xMin)
+    const max = xMax.trim() === '' ? Number.NaN : Number(xMax)
     return functionSpecFromXY({
       name: name.trim(),
       argName,
       xs: xColumn.values,
       ys: yColumn.values,
+      reduction: reduction ?? undefined,
+      xMin: Number.isFinite(min) ? min : undefined,
+      xMax: Number.isFinite(max) ? max : undefined,
     })
-  }, [xColumn, yColumn, name, argName])
+  }, [xColumn, yColumn, name, argName, reduction, xMin, xMax])
 
-  const canCreate = !error && nameCheck.ok && preview !== null && preview.usedRows > 0
+  const canCreate =
+    !error && nameCheck.ok && preview !== null && preview.usedRows > 0 && !preview.needsReduction
 
   const create = () => {
     if (!canCreate || preview === null) return
@@ -289,23 +301,29 @@ export default function ImportCsvModal({ tables, onClose, onCreate }: Readonly<P
             />
 
             {preview && (
-              <Text size="xs" c={preview.usedRows === 0 ? 'red' : 'dimmed'}>
-                {preview.usedRows === 0
-                  ? 'No numeric pairs in the selected columns — pick different columns.'
-                  : `${preview.usedRows.toLocaleString()} point${preview.usedRows === 1 ? '' : 's'} · ` +
-                    `${preview.skippedRows.toLocaleString()} row${preview.skippedRows === 1 ? '' : 's'} skipped (blank or non-numeric)` +
-                    (preview.decimated
-                      ? ` · thinned uniformly to ${TABLE_MAX_ROWS.toLocaleString()} rows (the table row cap)`
-                      : '')}
-                {preview.usedRows > 0 && (
-                  <>
-                    {'. '}Use in equations:{' '}
+              <>
+                <Text size="xs" c={preview.uniqueCount === 0 ? 'red' : 'dimmed'}>
+                  {preview.uniqueCount === 0
+                    ? 'No numeric pairs in the selected columns — pick different columns.'
+                    : `Use in equations: `}
+                  {preview.uniqueCount > 0 && (
                     <Text span size="xs" ff="monospace">
                       U = {name.trim() || 'name'}({argName})
                     </Text>
-                  </>
-                )}
-              </Text>
+                  )}
+                </Text>
+                <FunctionReductionControls
+                  result={preview}
+                  reduction={reduction}
+                  onReduction={setReduction}
+                  xMin={xMin}
+                  xMax={xMax}
+                  onRange={(min, max) => {
+                    setXMin(min)
+                    setXMax(max)
+                  }}
+                />
+              </>
             )}
 
             <FunctionNameHints name={name} check={nameCheck} />

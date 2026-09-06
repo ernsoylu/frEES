@@ -169,6 +169,7 @@ describe('parse → function table (the Import CSV… path)', () => {
       argName: 't',
       xs: t.columns[0].values,
       ys: t.columns[1].values,
+      reduction: 'decimate',
     })
     expect(decimated).toBe(true)
     expect(spec.rows).toHaveLength(5000)
