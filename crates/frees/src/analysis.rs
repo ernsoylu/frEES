@@ -57,14 +57,40 @@ fn too_many_rows_message(rows: usize) -> String {
     )
 }
 
-/// `SolveController.deadlineExceededMessage`, verbatim.
-fn deadline_message() -> String {
+struct DeadlineGuard;
+
+impl Drop for DeadlineGuard {
+    fn drop(&mut self) {
+        frees_core::ode::deadline::clear();
+    }
+}
+
+/// `SolveController.deadlineExceededMessage`, parameterized by budget.
+fn deadline_message(budget: f64) -> String {
     format!(
         "The parametric run exceeded its {}-second budget and was stopped. Reduce \
          the number of runs, or tighten the stop criteria so each run converges \
          faster.",
-        MAX_TABLE_SECONDS as u64
+        budget as u64
     )
+}
+
+fn install_analysis_deadline(
+    stop: Option<&StopCriteriaDto>,
+    default_cap: f64,
+    message: String,
+) -> (DeadlineGuard, f64) {
+    let budget = stop
+        .and_then(|s| s.elapsed_time_seconds)
+        .filter(|s| s.is_finite() && *s > 0.0)
+        .unwrap_or(default_cap)
+        .min(default_cap);
+    let started = now_ms();
+    frees_core::ode::deadline::install(
+        Box::new(move || (now_ms() - started) / 1000.0 > budget),
+        message,
+    );
+    (DeadlineGuard, budget)
 }
 
 // ---------------------------------------------------------------------------
@@ -189,6 +215,10 @@ fn solve_table_inner(source: &str, request_json: &str) -> Result<Value, String> 
         display_unit_system: request.display_unit_system.clone(),
         fill_missing: None,
         function_tables: None,
+        // No analysis request carries the terminal's override lines; these
+        // routines build their own (`analysis::montecarlo`, `paramfit`) and
+        // apply them per candidate.
+        overrides: None,
     };
     let extra_tables = function_table_defs_of(&request.function_tables);
     let settings = settings_of(&facade);
@@ -200,6 +230,12 @@ fn solve_table_inner(source: &str, request_json: &str) -> Result<Value, String> 
     // same bar. The guard clears the sink on every exit path.
     let _progress = crate::install_progress();
 
+    let (_deadline, budget) = install_analysis_deadline(
+        facade.stop_criteria.as_ref(),
+        MAX_TABLE_SECONDS,
+        deadline_message(MAX_TABLE_SECONDS),
+    );
+
     let started = now_ms();
     let run_count = table.run_count();
     let mut sides: Vec<Option<RowSide>> = Vec::new();
@@ -209,9 +245,9 @@ fn solve_table_inner(source: &str, request_json: &str) -> Result<Value, String> 
     let sweep = run_sweep(&table, source, |job: RowJob<'_>| {
         // The cooperative deadline, at the Java's two check sites collapsed
         // into one: entry to every row solve, on every pass.
-        if deadline_hit || (now_ms() - started) / 1000.0 > MAX_TABLE_SECONDS {
+        if deadline_hit || (now_ms() - started) / 1000.0 > budget {
             deadline_hit = true;
-            return RowOutcome::failed(deadline_message());
+            return RowOutcome::failed(deadline_message(budget));
         }
         // Wave T5: a sweep's honest progress is rows done, and `RowJob` already
         // carries the pair — so the bar comes from the boundary here rather
@@ -285,7 +321,7 @@ fn solve_table_inner(source: &str, request_json: &str) -> Result<Value, String> 
     });
 
     if deadline_hit {
-        return Err(deadline_message());
+        return Err(deadline_message(budget));
     }
 
     // `SolveTableResponse`: per-row results in display units, the aggregated
@@ -434,8 +470,17 @@ fn monte_carlo_inner(source: &str, request_json: &str) -> Result<Value, String> 
         display_unit_system: request.display_unit_system.clone(),
         fill_missing: None,
         function_tables: None,
+        // No analysis request carries the terminal's override lines; these
+        // routines build their own (`analysis::montecarlo`, `paramfit`) and
+        // apply them per candidate.
+        overrides: None,
     };
     let extra_tables = function_table_defs_of(&request.function_tables);
+    let (_deadline, _budget) = install_analysis_deadline(
+        facade.stop_criteria.as_ref(),
+        MAX_TABLE_SECONDS,
+        "Monte Carlo propagation exceeded its elapsed-time budget and was stopped.".to_string(),
+    );
     let settings = settings_of(&facade);
     let overrides = overrides_of(&facade);
     let system = unit_system_of(&facade);
@@ -802,7 +847,16 @@ fn optimize_inner(source: &str, request_json: &str) -> Result<Value, String> {
         display_unit_system: request.display_unit_system.clone(),
         fill_missing: None,
         function_tables: None,
+        // No analysis request carries the terminal's override lines; these
+        // routines build their own (`analysis::montecarlo`, `paramfit`) and
+        // apply them per candidate.
+        overrides: None,
     };
+    let (_deadline, _budget) = install_analysis_deadline(
+        facade.stop_criteria.as_ref(),
+        MAX_TABLE_SECONDS,
+        "Optimization exceeded its elapsed-time budget and was stopped.".to_string(),
+    );
     let settings = settings_of(&facade);
     let overrides = overrides_of(&facade);
     let system = unit_system_of(&facade);
@@ -928,7 +982,17 @@ fn optimize_multi_inner(source: &str, request_json: &str) -> Result<Value, Strin
         display_unit_system: None,
         fill_missing: None,
         function_tables: None,
+        // No analysis request carries the terminal's override lines; these
+        // routines build their own (`analysis::montecarlo`, `paramfit`) and
+        // apply them per candidate.
+        overrides: None,
     };
+    let (_deadline, _budget) = install_analysis_deadline(
+        facade.stop_criteria.as_ref(),
+        MAX_TABLE_SECONDS,
+        "Multi-objective optimization exceeded its elapsed-time budget and was stopped."
+            .to_string(),
+    );
     let settings = settings_of(&facade);
     let overrides = overrides_of(&facade);
 
@@ -1074,8 +1138,17 @@ fn parameter_fit_inner(request_json: &str) -> Result<Value, String> {
         display_unit_system: None,
         fill_missing: None,
         function_tables: None,
+        // No analysis request carries the terminal's override lines; these
+        // routines build their own (`analysis::montecarlo`, `paramfit`) and
+        // apply them per candidate.
+        overrides: None,
     };
     let extra_tables = function_table_defs_of(&request.function_tables);
+    let (_deadline, _budget) = install_analysis_deadline(
+        facade.stop_criteria.as_ref(),
+        MAX_TABLE_SECONDS,
+        "Parameter estimation exceeded its elapsed-time budget and was stopped.".to_string(),
+    );
     let settings = settings_of(&facade);
     let overrides = overrides_of(&facade);
 

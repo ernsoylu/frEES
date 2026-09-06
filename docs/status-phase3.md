@@ -15,7 +15,7 @@ Solution against `web/dist/` served by a dumb static file server — with
 editor text ──> api.ts (same exported signatures as the REST client)
                   └─> engineClient.ts  (lazy singleton, id-correlated RPC)
                         └─> engine.worker.ts    (module Web Worker)
-                              └─> frees_wasm_bg.wasm  (Rust engine)
+                              └─> frees_bg.wasm  (Rust engine)
 ```
 
 - `solve()` and `check()` in `web/src/api.ts` keep their former signatures
@@ -28,7 +28,7 @@ editor text ──> api.ts (same exported signatures as the REST client)
   spawn so it overlaps the first request. A dead worker rejects everything
   in flight and is respawned on the next call (`engineClient.ts`).
 - `web/src/wasm/pkg/` is generated output (gitignored): rebuild with
-  `wasm-pack build crates/frees-wasm --release --target web --out-dir ../../web/src/wasm/pkg`.
+  `wasm-pack build crates/frees --release --target web --out-dir ../../web/src/wasm/pkg`.
 - The default document (`web/src/defaultExample.ts`) is a browser-solvable
   walkthrough: unit-annotated inputs, a sequential chain, and the canonical
   nonlinear pair `x^2 + y^3 = 77`, `x / y = 1.23456`.
@@ -67,7 +67,7 @@ its fetch failures surface as user-visible upload errors).
 
 | Artifact | Raw | Gzipped |
 |---|---|---|
-| `frees_wasm_bg.wasm` | 544,637 B (532 KiB) | 228,969 B (224 KiB) |
+| `frees_bg.wasm` | 544,637 B (532 KiB) | 228,969 B (224 KiB) |
 | Boot path (the 22 assets a cold load actually fetches, wasm included) | 4.17 MB | 1.15 MB |
 | `web/dist/` total (342 files) | 29.1 MB | ~8.1 MB (js+css+wasm+html) |
 
@@ -81,7 +81,7 @@ mermaid diagram chunks, and KaTeX fonts. `engine.worker.js` itself is 4 KiB.
 
 Procedure, executed locally on 2026-07-30:
 
-1. `wasm-pack build crates/frees-wasm --release --target web --out-dir ../../web/src/wasm/pkg`
+1. `wasm-pack build crates/frees --release --target web --out-dir ../../web/src/wasm/pkg`
 2. `cd web && npm run build` (exit 0)
 3. `python3 -m http.server` serving **`web/dist/` only** — a dumb static
    server with no `/api/` routes, no proxy, nothing to answer a fetch.
@@ -98,7 +98,7 @@ Procedure, executed locally on 2026-07-30:
    `GET http://127.0.0.1:<port>/...` assets; zero `/api/` requests; zero
    requests of any kind after boot** — Check and Solve produced no network
    traffic at all. The engine loads were `assets/engine.worker-*.js` and
-   `assets/frees_wasm_bg-*.wasm`, both static files.
+   `assets/frees_bg-*.wasm`, both static files.
 6. Console: two benign 404s only — `/build-info.js` (written at container
    start by the nginx entrypoint, absent from a bare `dist/`) and
    `/favicon.ico`. No app or engine errors.

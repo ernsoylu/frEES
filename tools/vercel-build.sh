@@ -8,7 +8,7 @@
 #   1. rustup (honours /rust-toolchain.toml: stable + wasm32-unknown-unknown)
 #   2. wasm-pack v0.13.1 (the CI-pinned version) from the prebuilt release
 #      tarball — `cargo install` fallback only if no prebuilt exists for the host
-#   3. wasm-pack build crates/frees-wasm --release --target web
+#   3. wasm-pack build crates/frees --release --target web
 #         --out-dir ../../web/src/wasm/pkg     (the generated engine package)
 #   4. cd web && npm run build                 (npm ci was the installCommand;
 #                                               re-run here only if it is missing)
@@ -30,7 +30,7 @@ die() { printf '\nERROR (tools/vercel-build.sh): %s\n' "$*" >&2; exit 1; }
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
-[ -f Cargo.toml ] && [ -d crates/frees-wasm ] || die "repo root not found at $REPO_ROOT (expected Cargo.toml + crates/frees-wasm)"
+[ -f Cargo.toml ] && [ -d crates/frees ] || die "repo root not found at $REPO_ROOT (expected Cargo.toml + crates/frees)"
 
 # ---------------------------------------------------------------------------
 # 0. Node — the web build needs Node 22+ (web/.nvmrc). Node 20 can compile the
@@ -113,10 +113,10 @@ fi
 #    and .vercelignored) — it must be built before the Vite build or the app
 #    ships a UI with no engine (web/WASM-PORT.md).
 # ---------------------------------------------------------------------------
-log "Building the wasm engine (crates/frees-wasm -> web/src/wasm/pkg)"
-wasm-pack build crates/frees-wasm --release --target web --out-dir ../../web/src/wasm/pkg \
+log "Building the wasm engine (crates/frees -> web/src/wasm/pkg)"
+wasm-pack build crates/frees --release --target web --out-dir ../../web/src/wasm/pkg \
   || die "wasm-pack build failed"
-[ -f web/src/wasm/pkg/frees_wasm_bg.wasm ] && [ -f web/src/wasm/pkg/frees_wasm.js ] \
+[ -f web/src/wasm/pkg/frees_bg.wasm ] && [ -f web/src/wasm/pkg/frees.js ] \
   || die "wasm-pack reported success but web/src/wasm/pkg is incomplete"
 
 # ---------------------------------------------------------------------------

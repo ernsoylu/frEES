@@ -1,4 +1,4 @@
-# frees-wasm — Complete Port Plan
+# frees — Complete Port Plan
 
 **Goal:** run the entire frees engine — parser, unit checker, solvers, property models, component system, CAS, control design, and data analyzer — as Rust compiled to WebAssembly, inside the browser tab, with no backend.
 
@@ -41,7 +41,7 @@ Measured, not estimated:
 ## 2. Target architecture
 
 ```
-frees-wasm/
+frees/
 ├── crates/
 │   ├── frees-core/          # pure Rust engine — compiles for native AND wasm32
 │   │   ├── ast/             # Expr, Equation, Statement, ComponentDef, …
@@ -54,7 +54,7 @@ frees-wasm/
 │   │   ├── measurement/     # MDF4/CSV, calculated signals
 │   │   └── components/      # expander + include_str! of the 295-component library
 │   ├── frees-props-coolprop/ # optional CoolProp bridge (native FFI / wasm JS-import)
-│   ├── frees-wasm/          # wasm-bindgen boundary + worker protocol (thin)
+│   ├── frees/          # wasm-bindgen boundary + worker protocol (thin)
 │   └── frees-cli/           # native binary: headless solve + parity harness runner
 ├── tools/
 │   └── golden-dumper/       # small Java app depending on the frEES core jar; emits
@@ -64,14 +64,14 @@ frees-wasm/
 └── xtask/                   # build orchestration (wasm-pack, table generation, size gate)
 ```
 
-**`frees-core` never depends on `wasm-bindgen`.** It compiles natively so the parity harness runs at full speed against the Java oracle, and it compiles to `wasm32` for the browser. The `frees-wasm` crate is a thin adapter. This is non-negotiable: a port you can only test in a browser is a port you cannot test.
+**`frees-core` never depends on `wasm-bindgen`.** It compiles natively so the parity harness runs at full speed against the Java oracle, and it compiles to `wasm32` for the browser. The `frees` crate is a thin adapter. This is non-negotiable: a port you can only test in a browser is a port you cannot test.
 
 ### Runtime topology in the browser
 
 ```
 main thread                      dedicated Web Worker
 ┌────────────────────┐          ┌──────────────────────────┐
-│ React 19 UI        │          │ frees_wasm.wasm          │
+│ React 19 UI        │          │ frees.wasm          │
 │ (unchanged)        │  post-   │  ├─ frees-core           │
 │                    │ Message  │  ├─ property tables      │
 │ api.ts  ───────────┼─────────►│  └─ coolprop.wasm (lazy) │
@@ -147,7 +147,7 @@ Effort is in **dev-weeks for one experienced Rust engineer**, order-of-magnitude
 | **0** | **Foundations & spikes** | — | `rustup` + `wasm32-unknown-unknown` + `wasm-pack` installed; workspace skeleton builds native **and** wasm; D1/D2/D3 decided on measured numbers and recorded in `docs/decisions/`; golden-dumper emits a first fixture; bundle-size gate wired into CI | 3–4 |
 | **1** | **Language core** | `Frees.g4` (632 lines) → Rust lexer + recursive-descent parser; `ast/Expr`, `Equation`, `Statement`, `ProcDef`; `AstBuilder` (1,587); `Evaluator` (2,053, 226 arms); `units/` (`UnitRegistry` 588, `UnitChecker` 798, `Quantity` 93); `ConstantsRegistry`; `StringVariables` | `frees-cli parse` + `eval` handle every construct in the grammar; parser/unit fixtures green; all 295 library components **parse** | 8–10 |
 | **2** | **Steady solver** | `Blocker` (384, Tarjan via `petgraph`); `NewtonSolver` (832, step-halving); `EquationSystemSolver` (2,441); `Block`, `VariableSpec`, `SolverSettings`, `SolverException`; `GuessDirective`; check-before-solve | `POST /api/check` and `/api/solve` semantics reproduced headlessly; `EquationSystemSolverTest` corpus green; diagnostics carry source positions | 6–8 |
-| **3** | **★ Browser vertical slice** | `frees-wasm` bindings; Web Worker protocol; `api.ts` → RPC shim; vendor `web/` from `../frEES/frontend` | **The app solves in the browser with the network disconnected.** Editor → Check → Solve → Solution table, end to end, no server. Bundle under budget. This is the milestone that proves the thesis. | 4–5 |
+| **3** | **★ Browser vertical slice** | `frees` bindings; Web Worker protocol; `api.ts` → RPC shim; vendor `web/` from `../frEES/frontend` | **The app solves in the browser with the network disconnected.** Editor → Check → Solve → Solution table, end to end, no server. Bundle under budget. This is the milestone that proves the thesis. | 4–5 |
 
 ### Stage II — The engine's breadth (Phases 4–7)
 

@@ -3,10 +3,10 @@
 // `components` (the datasheet) and `cyclePath` (the property-plot overlay).
 //
 // Both fixtures below are the **verbatim** output of the Rust boundary
-// (`frees_wasm::solve`), not hand-written JSON, so a change on either side of
+// (`frees::solve`), not hand-written JSON, so a change on either side of
 // the seam fails here rather than silently rendering nothing. They were
 // captured by running the sources in the comments through
-// `crates/frees-wasm` and pasting the result.
+// `crates/frees` and pasting the result.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('./wasm/engineClient', () => ({

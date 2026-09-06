@@ -232,7 +232,7 @@ rejects `-exec`/`-not` and its `grep` chokes on `{` and on `$`.
 | Clippy (host) | `cargo clippy --workspace --all-targets -- -D warnings` | exit **0**, no output |
 | Clippy (wasm32) | same, `--target wasm32-unknown-unknown` | exit **0**, no output |
 | Format | `cargo fmt --all --check` | exit **0**, no output |
-| wasm bundle | `wasm-pack build crates/frees-wasm --release --target web --out-dir ../../web/src/wasm/pkg` | **2,236,887 B = 2184.5 KiB raw**, **1,112,260 B = 1086.2 KiB gzipped** |
+| wasm bundle | `wasm-pack build crates/frees --release --target web --out-dir ../../web/src/wasm/pkg` | **2,236,887 B = 2184.5 KiB raw**, **1,112,260 B = 1086.2 KiB gzipped** |
 | Web tests | `cd web && nvm use 22 && ./node_modules/.bin/vitest run` | **341 passed / 36 files**, 0 failed |
 | Web build | `npm run build` | exit **0** (only the pre-existing rollup `/*#__PURE__*/` and chunk-size warnings from vendored deps) |
 
@@ -322,7 +322,7 @@ lists all seven instances of document 1 with their type, and expands to:
 **`/api/` requests: zero**, across the workspace, both solves, the Schematic tab
 and the Help page. The full unfiltered list is the static bundle plus exactly
 two engine artefacts — `assets/engine.worker-*.js` and
-`assets/frees_wasm_bg-*.wasm`. The only non-200 in the whole session was
+`assets/frees_bg-*.wasm`. The only non-200 in the whole session was
 `/build-info.js` (injected by nginx in the Docker deploy, absent from a bare
 `dist`) — the same one Phase 5 recorded.
 
@@ -451,7 +451,7 @@ Ranked by how likely each is to bite the next session.
    `OrderedMap` insertion order chosen specifically so the schematic payload is
    stable), and stops at the boundary. `CheckReport` has no field for it at all.
    Closing this is three edits — a field on `CheckReport`, serialisation in
-   `frees-wasm`, and deleting the hardcoded `[]` — plus an oracle check of
+   `frees`, and deleting the hardcoded `[]` — plus an oracle check of
    `SolveDtos.connectionsOf`'s field order, domain spelling and null connector.
    **It is the single most visible gap in the phase**, because the Schematic is
    the component layer's flagship UI and it is inert.

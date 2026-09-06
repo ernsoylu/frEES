@@ -169,9 +169,7 @@ export default defineConfig({
     },
   },
   // No /api dev proxy: nothing in src/ issues an /api request — the engine is
-  // in-bundle wasm (the former proxy served the retired Spring backend). The
-  // optional remote-fallback adapter is opt-in via VITE_API_BASE, which names
-  // an absolute origin and needs no proxy.
+  // in-bundle wasm (the former proxy served the retired Spring backend).
   server: {
     port: 5173,
   },

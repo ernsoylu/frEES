@@ -38,7 +38,7 @@
 //! tables at all — and the `linked-tables` Cargo feature takes the ~678 KiB of
 //! packed artifacts out of that bundle. `linked-tables` is on by default, so a
 //! native build, `frees-cli` and every `--no-default-features`-free test still
-//! link them exactly as before; `frees-wasm` is the one crate that switches
+//! link them exactly as before; `frees` is the one crate that switches
 //! them off. Only the *bytes* are conditional: [`unpack`], the two decoders and
 //! [`install_from_bytes`] compile either way, because a fetched table is what
 //! is left of D1 once the linked floor is gone.

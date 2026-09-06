@@ -60,8 +60,8 @@ test('wasm solve benchmark over the five phase-12 documents', async ({ page }) =
           __frees?: { solve: (s: string, r: string) => string }
         }
         if (!w.__frees) {
-          const mod = await import('/web/src/wasm/pkg/frees_wasm.js')
-          await mod.default('/web/src/wasm/pkg/frees_wasm_bg.wasm')
+          const mod = await import('/web/src/wasm/pkg/frees.js')
+          await mod.default('/web/src/wasm/pkg/frees_bg.wasm')
           w.__frees = mod
         }
         const solve = w.__frees.solve

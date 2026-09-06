@@ -60,7 +60,7 @@ jobs:
           persist-credentials: false
 
       # Resolves the Pages URL for this repository and, with it, the path the
-      # site is served under. For a project site that is `/frees-wasm`; for a
+      # site is served under. For a project site that is `/frees`; for a
       # user site or a custom domain it is empty. Deriving `--base` from this
       # rather than hardcoding it means the workflow survives a move to a
       # custom domain with no edit. Requires Pages to be enabled with
@@ -94,7 +94,7 @@ jobs:
       - name: Build wasm package into the web tree
         # web/src/wasm/pkg is generated output (gitignored) that the engine
         # worker imports, so it must exist before Vite resolves anything.
-        run: wasm-pack build crates/frees-wasm --release --target web --out-dir ../../web/src/wasm/pkg
+        run: wasm-pack build crates/frees --release --target web --out-dir ../../web/src/wasm/pkg
 
       - name: Install frontend dependencies
         working-directory: web
@@ -162,7 +162,7 @@ jobs:
         # prefix, the manifest inherits `scope`, and the precache fills and
         # serves fully offline with no request escaping the prefix.
         #
-        # base_path is `/frees-wasm` for a project site and empty for a user
+        # base_path is `/frees` for a project site and empty for a user
         # site or custom domain; Vite wants a trailing slash, hence the `/`
         # inside the quotes.
         # The `--` forwards the flag past `npm run` to the `vite build` at the

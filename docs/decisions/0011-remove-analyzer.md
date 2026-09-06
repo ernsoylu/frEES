@@ -10,7 +10,7 @@ is a steady retreat:
 * **Phase 10** shipped it against `.mf4` recordings, with an engine-side
   measurement stack (`crates/frees-core/src/measurement/`, 3 251 lines:
   sampled series, envelope decimation, raster construction, calculated
-  signals) and its wasm boundary (`crates/frees-wasm/src/measurement.rs`,
+  signals) and its wasm boundary (`crates/frees/src/measurement.rs`,
   1 184 lines, the `measurement_calc` export).
 * **[D6](0006-remove-mdf4.md)** removed MDF4 outright, leaving the Analyzer
   **CSV-only** and `measurement_calc` alive but stateless.
@@ -36,7 +36,7 @@ directly by a function table.
    equations — the capability the Analyzer's own CSV path only half
    provided.
 3. **Remove the engine measurement stack too**: `measurement_calc`,
-   `crates/frees-wasm/src/measurement.rs`, `crates/frees-core/src/
+   `crates/frees/src/measurement.rs`, `crates/frees-core/src/
    measurement/`, and their `measurement_parity` / `measurement_robustness`
    suites. The Analyzer is their only consumer; with it gone they are
    unreachable code carrying wasm bytes. This completes what D6 began.
@@ -98,4 +98,4 @@ was always its ~6 000 lines of maintained UI surface and the engine-side
 measurement stack behind it, not its bytes. No dist file contains `uplot`
 or `papaparse` after the purge.
 
-**wasm module** (measured 2026-08-24 on `j-engine`, `wasm-pack build crates/frees-wasm --release --target web`, gzip -9): **3114.7 KiB raw / 1269.8 KiB gzipped → 3053.6 / 1245.9**, i.e. **−61.1 KiB raw (−1.96 %) and −23.9 KiB gzipped (−1.88 %)**; headroom against the 4096 KiB budget is 1042.4 KiB.
+**wasm module** (measured 2026-08-24 on `j-engine`, `wasm-pack build crates/frees --release --target web`, gzip -9): **3114.7 KiB raw / 1269.8 KiB gzipped → 3053.6 / 1245.9**, i.e. **−61.1 KiB raw (−1.96 %) and −23.9 KiB gzipped (−1.88 %)**; headroom against the 4096 KiB budget is 1042.4 KiB.

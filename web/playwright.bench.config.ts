@@ -6,12 +6,12 @@
 // (docs/status-phase12.md §"did not deliver", item 5).
 //
 // Run:
-//   wasm-pack build crates/frees-wasm --release --target web \
+//   wasm-pack build crates/frees --release --target web \
 //     --out-dir ../../web/src/wasm/pkg
 //   cd web && npx playwright test -c playwright.bench.config.ts
 //
 // Serves the REPO ROOT (not dist): the page imports the wasm-pack output at
-// /web/src/wasm/pkg/frees_wasm.js directly and reads the bench documents
+// /web/src/wasm/pkg/frees.js directly and reads the bench documents
 // from /fixtures/corpus/, so what is timed is the engine the app ships, with
 // no worker round-trip and no app chrome — comparable to the native
 // criterion bench, which also times the public `solve` alone.

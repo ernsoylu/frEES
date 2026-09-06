@@ -42,7 +42,7 @@ const fluidsMock = vi.mocked(wasmFluids)
 const diagramMock = vi.mocked(wasmPropertyDiagram)
 const chartMock = vi.mocked(wasmPsychrometricChart)
 
-// ── Fixtures: verbatim boundary output (crates/frees-wasm) ────────────────
+// ── Fixtures: verbatim boundary output (crates/frees) ────────────────
 
 /** `fluids()` with a real-fluid backend installed — the Java plotFluids() list. */
 const FLUIDS_AVAILABLE = {

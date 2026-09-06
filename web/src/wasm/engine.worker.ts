@@ -17,23 +17,17 @@
 //                     'curveFit' | 'parameterFit' | 'pidTune' |
 //                     'extractPlant',
 //             args: string[]}
-//   response {id, ok: true, result: string} | {id, ok: false, error: string}
+//   response {id, ok: true, result: string} | {id, ok: false, fatal?: boolean, error: string}
 //
 // `result` is the raw JSON string the wasm boundary emits (a REST-shaped
 // SolveResponse/CheckResponse/LanguageReference; a bare semver string for
 // 'version') — parsing happens on the client side, so the worker only ever
 // posts strings.
 //
-// The measured-data line is gone from this protocol entirely. D6 removed
-// MDF4 reading — which is why the protocol is strings-only rather than
-// carrying transferable byte buffers — and D11 removed the Data Analyzer and
-// the engine's measurement stack behind it, taking `measurementCalc` with
-// them. Measured data now reaches a document as a CSV-imported function
-// table, which travels inside an ordinary `solve` request.
-//
-// Failure discipline: nothing may kill the worker. The wasm boundary already
-// returns every *document* problem as data; this dispatch wraps the rest
-// (init failure, unknown method, an unexpected trap) in {ok: false}.
+// Failure discipline:
+// Document problems return {ok: true} with error data payloads from the wasm boundary.
+// Fatal failures (wasm traps, memory corruption, init failures) are marked {fatal: true}
+// so engineClient retires the worker; ordinary non-fatal dispatch problems leave it usable.
 
 import init, {
   check,
@@ -53,7 +47,7 @@ import init, {
   solve,
   solve_table,
   version,
-} from './pkg/frees_wasm.js'
+} from './pkg/frees.js'
 
 export interface EngineRequest {
   id: number
@@ -80,7 +74,7 @@ export interface EngineRequest {
 
 export type EngineResponse =
   | { id: number; ok: true; result: string }
-  | { id: number; ok: false; error: string }
+  | { id: number; ok: false; fatal?: boolean; error: string }
   /** An in-flight solve's overall completion, 0…1. Never terminal: the
    *  request still settles with an `ok` message afterwards. */
   | { id: number; progress: number }
@@ -93,23 +87,12 @@ const ctx = self as unknown as {
   postMessage(message: EngineResponse): void
 }
 
-// The request the engine is inside right now, so the progress hook — which the
-// engine calls with a bare fraction — can address its message. The worker
-// handles exactly one request at a time (the wasm calls are synchronous), so a
-// single slot is the whole correlation story. `null` between requests, which is
-// what makes a stray late call from a torn-down solve harmless.
 let inFlightId: number | null = null
 
-// The engine's progress sink. Declared on `globalThis` because the wasm
-// boundary imports it as a plain global rather than taking a callback
-// argument — that keeps the exported `solve(source, request)` signature the one
-// api.ts already sends.
 ;(
   globalThis as unknown as { __freesOnProgress?: (fraction: number) => void }
 ).__freesOnProgress = (fraction: number) => {
   if (inFlightId === null) return
-  // Anything the engine sends that is not a usable fraction is dropped here
-  // rather than becoming a NaN width on a DOM node.
   if (typeof fraction !== 'number' || !Number.isFinite(fraction)) return
   ctx.postMessage({
     id: inFlightId,
@@ -117,16 +100,14 @@ let inFlightId: number | null = null
   })
 }
 
-// Kick off wasm instantiation immediately so it overlaps the first request.
-// `new URL(..., import.meta.url)` lets Vite emit the .wasm as a hashed asset
-// and rewrite the URL in both dev and build.
+let readyFailed = false
 const ready = init({
-  module_or_path: new URL('./pkg/frees_wasm_bg.wasm', import.meta.url),
+  module_or_path: new URL('./pkg/frees_bg.wasm', import.meta.url),
+}).catch((err: unknown) => {
+  readyFailed = true
+  throw err
 })
 
-// `onmessage` is typed as returning void, so the async body is wrapped and
-// its promise explicitly discarded: every failure is already turned into an
-// error response inside `handle`, so there is nothing left to await on.
 ctx.onmessage = (event: MessageEvent<EngineRequest>) => {
   void handle(event)
 }
@@ -135,8 +116,6 @@ const handle = async (event: MessageEvent<EngineRequest>) => {
   const { id, method, args } = event.data
   try {
     await ready
-    // Only the two solving methods report; everything else here is fast enough
-    // that a bar would flicker rather than inform.
     inFlightId = method === 'solve' || method === 'solveTable' ? id : null
     let result: string
     switch (method) {
@@ -185,9 +164,6 @@ const handle = async (event: MessageEvent<EngineRequest>) => {
       case 'psychrometricChart':
         result = psychrometric_chart(args[0] ?? '')
         break
-      // The REPL evaluates against the workspace the last successful `solve`
-      // left in this module, so both calls must reach the *same* worker
-      // instance as the solve did. They do: engineClient keeps one.
       case 'replEvaluate':
         result = repl_evaluate(args[0] ?? '')
         break
@@ -200,13 +176,20 @@ const handle = async (event: MessageEvent<EngineRequest>) => {
     }
     ctx.postMessage({ id, ok: true, result })
   } catch (e) {
+    const isFatal =
+      readyFailed ||
+      e instanceof WebAssembly.RuntimeError ||
+      e instanceof WebAssembly.LinkError ||
+      e instanceof WebAssembly.CompileError ||
+      (e instanceof Error &&
+        /unreachable|out of bounds|memory|panic|trap|corrupt/i.test(e.message))
     ctx.postMessage({
       id,
       ok: false,
+      fatal: isFatal,
       error: e instanceof Error ? e.message : String(e),
     })
   } finally {
-    // Whatever happened, this request is no longer the one to report against.
     inFlightId = null
   }
 }

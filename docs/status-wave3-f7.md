@@ -76,7 +76,7 @@ Every command exit 0, on the final tree.
 | release `rustprop_warm_calibration` | 1 passed, 1 ignored (the `--ignored` table) | 5 s | 13.2 |
 | release `humidair_grading` | 1 passed — 912 points, median 0, worst 4.211e-3 at the known freezing-wet-bulb point | 1 s | 13.1 |
 | `wasm-pack build … --release --target web` + the ci.yml budget step | **2715 KiB raw / 1115 KiB gzipped**, 88 % of the 3072 KiB budget, 357 KiB headroom | 112 s | — |
-| frees-core links no wasm-bindgen | `cargo tree -p frees-core --features rustprop-backend -e normal`, native **and** `--target wasm32-unknown-unknown`: **0** occurrences (`frees-wasm` has 9, as it must) | — | — |
+| frees-core links no wasm-bindgen | `cargo tree -p frees-core --features rustprop-backend -e normal`, native **and** `--target wasm32-unknown-unknown`: **0** occurrences (`frees` has 9, as it must) | — | — |
 
 The `rustprop_warm` cost line on that green run, for the record:
 
@@ -93,7 +93,7 @@ that the stack-overflow defect it once found only reproduces unoptimised:
 46.8 s at load 8.6.
 
 One thing worth writing down because it is not obvious: **`cargo test
---workspace` already exercises the rustprop backend.** `frees-wasm` depends on
+--workspace` already exercises the rustprop backend.** `frees` depends on
 `frees-core` with `rustprop-backend`, and resolver-2 unifies features across
 selected workspace members, so the `frees-core` test binaries in a `--workspace`
 build have the feature on — which is why `humidair_grading` reports `1 passed`

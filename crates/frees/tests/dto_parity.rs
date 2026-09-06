@@ -12,7 +12,7 @@
 //! `SolveController.SolveResponse` / `CheckController.CheckResponse` over
 //! `SolveDtos` (`../frEES/backend`), which `api.ts` was written against.
 
-use frees_wasm::{check, solve};
+use frees::{check, solve};
 use serde_json::Value;
 
 fn parsed(payload: &str) -> Value {

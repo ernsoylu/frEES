@@ -3,8 +3,8 @@
 // Lazily spawns engine.worker.ts on first use, correlates request/response
 // pairs by id, and exposes typed async calls that JSON.parse the worker's
 // result strings into the REST wire shapes api.ts already declares. A worker
-// that dies (script load failure, OOM trap) rejects everything in flight and
-// is dropped, so the next call spawns a fresh one instead of hanging forever.
+// that dies (script load failure, fatal WASM trap, OOM) rejects everything in flight
+// and is retired so the next call spawns a fresh one. Non-fatal errors leave the worker usable.
 
 import type {
   CheckResponse,
@@ -38,6 +38,11 @@ function fail(reason: Error): void {
   for (const entry of inFlight) entry.reject(reason)
 }
 
+/** Terminates the active worker, rejecting any in-flight requests and resetting worker state. */
+export function wasmStop(): void {
+  fail(new Error('Operation stopped'))
+}
+
 function spawn(): Worker {
   const w = new Worker(new URL('./engine.worker.ts', import.meta.url), {
     type: 'module',
@@ -46,9 +51,6 @@ function spawn(): Worker {
     const response = event.data
     const entry = pending.get(response.id)
     if (!entry) return
-    // Progress is not terminal: the entry stays pending and the request still
-    // settles on a later ok/error message. A listener that throws must not take
-    // the worker's message pump down with it.
     if ('progress' in response) {
       try {
         entry.onProgress?.(response.progress)
@@ -61,11 +63,12 @@ function spawn(): Worker {
     if (response.ok) {
       entry.resolve(response.result)
     } else {
+      if ('fatal' in response && response.fatal) {
+        fail(new Error(response.error))
+      }
       entry.reject(new Error(response.error))
     }
   }
-  // A fired error event means the worker script itself failed (load/compile);
-  // per-request problems arrive as {ok: false} messages instead.
   w.onerror = (event: ErrorEvent) => {
     fail(new Error(event.message || 'The engine worker failed'))
   }
@@ -75,9 +78,7 @@ function spawn(): Worker {
   return w
 }
 
-/** Posts one request and resolves with the worker's raw JSON-string reply.
- *  `onProgress`, where the method reports it, is called with 0…1 as the engine
- *  advances — many times before the promise settles, never after. */
+/** Posts one request and resolves with the worker's raw JSON-string reply. */
 function call(
   method: EngineRequest['method'],
   args: string[],
@@ -102,9 +103,7 @@ export async function wasmSolve(
   ) as SolveResponse
 }
 
-/** Runs a Tables-workbook sweep in the engine worker; resolves to the raw
- *  JSON string the `solve_table` boundary emits (parsing and the error-to-rows
- *  mapping happen in api.ts, which owns the response shape). */
+/** Runs a Tables-workbook sweep in the engine worker; resolves to the raw JSON string. */
 export async function wasmSolveTable(
   source: string,
   requestJson: string,
@@ -113,9 +112,7 @@ export async function wasmSolveTable(
   return call('solveTable', [source, requestJson], onProgress)
 }
 
-/** Runs a Monte Carlo propagation in the engine worker; resolves to the raw
- *  JSON string the `monte_carlo` boundary emits (api.ts owns parsing and the
- *  error-to-rejection mapping the modal's catch expects). */
+/** Runs a Monte Carlo propagation in the engine worker; resolves to the raw JSON string. */
 export async function wasmMonteCarlo(
   source: string,
   requestJson: string,
@@ -123,8 +120,7 @@ export async function wasmMonteCarlo(
   return call('monteCarlo', [source, requestJson])
 }
 
-/** The four OptimizeController surfaces (Wave B3); raw JSON strings out,
- *  api.ts owns parsing and each caller's error discipline. */
+/** The four OptimizeController surfaces; raw JSON strings out. */
 export async function wasmOptimize(source: string, requestJson: string): Promise<string> {
   return call('optimize', [source, requestJson])
 }
@@ -138,7 +134,7 @@ export async function wasmParameterFit(requestJson: string): Promise<string> {
   return call('parameterFit', [requestJson])
 }
 
-/** The two ControlController surfaces (Wave B4); raw JSON strings out. */
+/** The two ControlController surfaces; raw JSON strings out. */
 export async function wasmPidTune(requestJson: string): Promise<string> {
   return call('pidTune', [requestJson])
 }
@@ -154,9 +150,7 @@ export async function wasmCheck(
   return JSON.parse(await call('check', [source, requestJson])) as CheckResponse
 }
 
-/** `POST /api/repl/evaluate`. The workspace lives inside the engine module —
- *  the last successful `wasmSolve` stored it — so this must go through the
- *  same worker, which it does (engineClient keeps exactly one). */
+/** POST /api/repl/evaluate. */
 export async function wasmReplEvaluate(
   expression: string,
   unitSystem: string,
@@ -166,27 +160,22 @@ export async function wasmReplEvaluate(
   ) as ReplResponse
 }
 
-/** `POST /api/repl/clear`. `undefined` clears every REPL overlay; a name
- *  clears just that one. Resolves once the worker has done it. */
+/** POST /api/repl/clear. */
 export async function wasmReplClear(name?: string): Promise<void> {
   await call('replClear', [JSON.stringify(name ?? null)])
 }
 
-/** The engine's language reference (units, built-in constants, intrinsics),
- *  read straight off the registries the solver itself uses. Argument-free, so
- *  the worker call carries no args. */
+/** The engine's language reference. */
 export async function wasmReference(): Promise<LanguageReference> {
   return JSON.parse(await call('reference', [])) as LanguageReference
 }
 
-/** The engine crate's semver, for the About dialog / worker handshake. */
+/** The engine crate's semver. */
 export function wasmVersion(): Promise<string> {
   return call('version', [])
 }
 
-/** `GET /api/plot/fluids`. `available` is false and the list empty when the
- *  engine has no real-fluid property backend — the Java controller's own
- *  `CoolProp.isAvailable() ? plotFluids() : List.of()` branch. */
+/** GET /api/plot/fluids. */
 export async function wasmFluids(): Promise<{
   available: boolean
   fluids: string[]
@@ -199,16 +188,13 @@ export async function wasmFluids(): Promise<{
   }
 }
 
-/** The wasm plot endpoints return `{error}` for a failure rather than throwing
- *  (the boundary's rule: document problems are data). The plot call sites want
- *  a rejected promise, so the error body becomes one here. */
 function unwrapPlot<T>(payload: string): T {
   const parsed = JSON.parse(payload) as T & { error?: string }
   if (typeof parsed.error === 'string') throw new Error(parsed.error)
   return parsed
 }
 
-/** `POST /api/plot/propplot` — saturation dome, isolines and markers. */
+/** POST /api/plot/propplot — saturation dome, isolines and markers. */
 export async function wasmPropertyDiagram(
   fluid: string,
   kind: string,
@@ -218,7 +204,7 @@ export async function wasmPropertyDiagram(
   )
 }
 
-/** `POST /api/plot/psychart` — the psychrometric chart. */
+/** POST /api/plot/psychart — the psychrometric chart. */
 export async function wasmPsychrometricChart(
   pressure: number,
   tMin: number,
@@ -228,9 +214,3 @@ export async function wasmPsychrometricChart(
     await call('psychrometricChart', [JSON.stringify({ pressure, tMin, tMax })]),
   )
 }
-
-// The measurement boundary is gone. D6 removed MDF4 reading; D11 removed the
-// Data Analyzer and the engine's measurement stack behind it, so
-// `measurementCalc` — the last call here that was not about solving a
-// document — left with its only caller. Measured data now reaches a document
-// as a CSV-imported function table, which rides inside an ordinary solve.

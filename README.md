@@ -1,4 +1,4 @@
-# frees-wasm
+# frees
 
 A Rust/WebAssembly port of the **frees** engine — a declarative equation solver
 and acausal system-modeling environment — that runs **entirely in the browser
@@ -60,7 +60,7 @@ For the browser app (**Node 22 is required** — under Node 20 the whole vitest
 suite dies in `jsdom`→`undici` before running a test; `web/.nvmrc` pins it):
 
 ```bash
-wasm-pack build crates/frees-wasm --release --target web \
+wasm-pack build crates/frees --release --target web \
   --out-dir ../../web/src/wasm/pkg
 cd web && npm ci && npm run dev
 ```
@@ -70,7 +70,7 @@ cd web && npm ci && npm run dev
 | Path | What it is |
 |---|---|
 | `crates/frees-core` | The engine. Target-agnostic, and **must never depend on wasm-bindgen** |
-| `crates/frees-wasm` | The wasm-bindgen boundary — JSON string in, JSON string out |
+| `crates/frees` | The wasm-bindgen boundary — JSON string in, JSON string out |
 | `crates/frees-cli` | Headless `solve`/`check`, used by the parity harness |
 | `fixtures/` | The parity corpus, its goldens, and the tolerance files |
 | `tools/` | Oracle generators that run against the reference Java + native CoolProp |

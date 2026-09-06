@@ -3,7 +3,7 @@
 //! `Definitions::merge_extra_tables`): the SAME table data injected through
 //! the request channel and written as an in-document `TABLE` block must
 //! produce **bit-identical** solve results — values, display names, block
-//! count. The wasm-level tests (`crates/frees-wasm/tests/function_tables.rs`)
+//! count. The wasm-level tests (`crates/frees/tests/function_tables.rs`)
 //! grade the DTO conversion on top of this; here the defs are built directly,
 //! already lowercase, as the boundary hands them in.
 //!
@@ -12,7 +12,7 @@
 //! `merged = new HashMap<>(extraDefs); merged.putAll(parsed.defs())`, and its
 //! own doc comment says "source definitions win on name collision". (The REPL
 //! cache is the one place the Java merges the other way round;
-//! `frees-wasm/src/repl.rs` mirrors that separately.)
+//! `frees/src/repl.rs` mirrors that separately.)
 
 use frees_core::parser::defs::{Curve, FunctionTableDef};
 use frees_core::{solve_with, solve_with_tables, SolverSettings};

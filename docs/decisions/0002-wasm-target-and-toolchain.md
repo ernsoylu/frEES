@@ -36,7 +36,7 @@ targets: wasm32-unknown-unknown, x86_64-unknown-linux-gnu
 wasm-pack 0.13.1
 ```
 
-`cargo build -p frees-wasm --target wasm32-unknown-unknown` succeeds on the
+`cargo build -p frees --target wasm32-unknown-unknown` succeeds on the
 workspace skeleton. `rust-toolchain.toml` pins the channel and target so a fresh
 clone provisions itself.
 
@@ -49,7 +49,7 @@ system package.
 * `frees-core` carries no `wasm-bindgen` dependency and compiles for both native
   and `wasm32`. The native build runs the parity harness at full speed; a port
   testable only in a browser is a port you cannot trust.
-* `crates/frees-wasm` is the only crate that knows about JS, and stays thin.
+* `crates/frees` is the only crate that knows about JS, and stays thin.
 * CoolProp, when it arrives, is reached through a JS import with a Rust-side LRU
   cache in front of it (mirroring the 20k-entry caches already in
   `props/CoolProp.java`).

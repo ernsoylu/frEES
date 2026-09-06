@@ -5,7 +5,7 @@
 > reader; [D11](decisions/0011-remove-analyzer.md) removed the Data Analyzer
 > and with it the whole engine measurement stack —
 > `crates/frees-core/src/measurement/` (3,251 lines),
-> `crates/frees-wasm/src/measurement.rs` (1,184 lines), the `measurement_calc`
+> `crates/frees/src/measurement.rs` (1,184 lines), the `measurement_calc`
 > export, and the `measurement_parity` / `measurement_robustness` suites.
 > Measured data now enters a document as a CSV-imported **function table**
 > (Wave H), callable in equations. Nothing below describes the current engine.
@@ -69,7 +69,7 @@ of Rust: nom v1.2.4`, which is [accepted debt](#the-nom-124-debt-recorded-not-hi
 Test totals by suite, since the workspace number is now large enough to hide
 things: `frees-core` lib **2444** (of which `measurement::` is **121** —
 `mdf4` 36, `raster` 25, `decimate` 21, `calc` 19, `series` 18, `window` 2),
-`frees-wasm` lib **113** (of which `measurement::` is **56**),
+`frees` lib **113** (of which `measurement::` is **56**),
 `measurement_parity` 16, `measurement_robustness` 31.
 
 **The delta reconciles exactly**, which is worth showing rather than asserting:
@@ -198,7 +198,7 @@ because one sample divided by zero. Inside a function-call argument the document
 semantics apply again, because the whole subtree goes to `eval::eval`; the Java
 splits the same way for the same reason.
 
-### 6. `crates/frees-wasm/src/measurement.rs` (2735) — the boundary
+### 6. `crates/frees/src/measurement.rs` (2735) — the boundary
 
 Four exports, replacing four REST routes:
 
@@ -224,7 +224,7 @@ existed to move a slow evaluation onto the compute tier; we are already *on* the
 worker thread).
 
 `bytes: Vec<u8>` rather than `&[u8]` was verified rather than assumed: both were
-built and the emitted `frees_wasm.js` is byte-for-byte identical
+built and the emitted `frees.js` is byte-for-byte identical
 (`passArray8ToWasm0`, no `__wbindgen_free` of the buffer — ownership transfers),
 and the `&[u8]` module is **133 bytes larger**, which is the `.to_vec()`. The
 move survives down to `mf4-rs`'s wasm32 arm, which stores the `Vec` as its
@@ -496,7 +496,7 @@ Rebuilt `web/src/wasm/pkg`, built `web/dist`, served it with
 | **Calculated signal** `c1 = movavg(x, 0.5) + integral(x)`, `x → speed`, merged raster | **computed**, `1,000 samples · 1 channels`, added to the signal browser and the strip |
 | Open a `##DZ`-marked file (`a_small_uncompressed.mf4` with its `##DT` id overwritten) | refusal renders verbatim: *"Channel group 0 stores its samples in compressed (##DZ) data blocks. This reader has no decompressor — re-export the recording uncompressed."* |
 | …and the worker survived it | yes — `torque` was added to the strip afterwards and the first file's signals were untouched |
-| **`/api/` requests** | **ZERO.** 36 requests total, all static assets plus `frees_wasm_bg-BvITCa3t.wasm`. The single URL matching `/api/` is `/assets/api-Cj-Mc6sj.js`, the bundled fetch→RPC shim served as a file. **No POST of any kind**, so the 26 KB recording provably never went anywhere. Two console errors, both pre-existing benign 404s (`build-info.js`, `favicon.ico`) |
+| **`/api/` requests** | **ZERO.** 36 requests total, all static assets plus `frees_bg-BvITCa3t.wasm`. The single URL matching `/api/` is `/assets/api-Cj-Mc6sj.js`, the bundled fetch→RPC shim served as a file. **No POST of any kind**, so the 26 KB recording provably never went anywhere. Two console errors, both pre-existing benign 404s (`build-info.js`, `favicon.ico`) |
 
 Screenshots in the session scratchpad as `/tmp/p10-proof/p10-analyzer.png` and
 `/tmp/p10-proof/p10-browser-proof.png`.
@@ -529,7 +529,7 @@ the bundle zero.
 ## Bundle: the gate is green, and the Phase 9 doc is stale
 
 ```
-wasm-pack build crates/frees-wasm --release --target web
+wasm-pack build crates/frees --release --target web
   →  3,014,829 bytes  =  2944 KiB raw  /  1390 KiB gzipped
      budget            =  3072 KiB raw
      95.8 % of budget, 128 KiB of headroom
@@ -609,7 +609,7 @@ nom v1.2.4
     └── mf4-rs v3.6.0
         └── frees-core v0.1.0
             ├── frees-cli v0.1.0
-            └── frees-wasm v0.1.0
+            └── frees v0.1.0
 ```
 
 `cargo` flags `nom v1.2.4` as *"contains code that will be rejected by a future
@@ -707,7 +707,7 @@ be a deliberate decision rather than a discovery.
    *neither* side runs that check in CI — but only one side needs it.
 
 4. **There is no end-to-end test that reads a real `.mf4` through the wasm
-   boundary.** `frees-wasm`'s 56 measurement tests drive a `FakeSource`;
+   boundary.** `frees`'s 56 measurement tests drive a `FakeSource`;
    `Mdf4Source` is proven against genuine asammdf bytes in `frees-core`'s own
    tests. The two halves are each tested and never together — except in the
    browser proof above, which is a manual Playwright session, not a gate.
@@ -738,7 +738,7 @@ be a deliberate decision rather than a discovery.
    the Java (which had no boolean case at all), and a test now pins it — but the
    Events tab's boolean affordances will rarely light up from an MDF4 file.
 
-8. **A stale claim survives in `crates/frees-wasm/src/measurement.rs`'s header**:
+8. **A stale claim survives in `crates/frees/src/measurement.rs`'s header**:
    it says *"`measurementApi.ts::calcSignal` still has the polling branch"*. That
    branch was deleted in this same phase. The file belongs to another agent and
    the line is documentation, not behaviour, but it should be corrected.

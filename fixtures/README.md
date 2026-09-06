@@ -65,7 +65,7 @@ Four things about the shape are load-bearing, and each one is a decision:
   `SolverApiSupport.StopCriteriaDto` (`StopCriteria` in `api.ts`) and
   `variableInfo` is `VariableInfoDto` (`VariableInfo`). The fixture format
   invents nothing: the browser already speaks both, and
-  `crates/frees-wasm/src/lib.rs::settings_of`/`overrides_of` are the same
+  `crates/frees/src/lib.rs::settings_of`/`overrides_of` are the same
   conversion the replay does.
 * **`variableInfo` carries no `units` key.** A `VariableSpec` is the Java
   *engine*'s record, not its HTTP DTO, so everything the harvester reads off
@@ -367,7 +367,7 @@ cargo test --workspace --test parity                              # what CI runs
 cargo test -p frees-core --features rustprop-backend --test parity
 ```
 
-The first needs nothing turned on because `frees-wasm` requires the feature and
+The first needs nothing turned on because `frees` requires the feature and
 resolver-v2 unifies it onto `frees-core`; the run prints *"&lt;count&gt; fixtures
 match the Java oracle through rustprop (CoolProp 8.0.0)"* with the live corpus
 count.
@@ -2043,7 +2043,7 @@ it — F3 added it, and the D6 amendment to
 [D9](../docs/decisions/0009-rustprop-backend.md) explicitly kept it there while
 retiring the warm adapter's pseudo-pure path. The property-diagram picker is
 `plot_fluids_available`, which is *derived* from that list rather than being a
-second list, so it followed automatically; `crates/frees-wasm/src/lib.rs`
+second list, so it followed automatically; `crates/frees/src/lib.rs`
 asserts the published picker is exactly `["Air", "R1234yf", "R134a", "Water"]`.
 The one place that still narrows `Air` out is `TableBackend::served_fluids`
 (`props/propfun.rs`), and that is **correct and must stay**: the `(P,h)` table

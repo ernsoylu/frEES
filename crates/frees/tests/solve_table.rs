@@ -6,7 +6,7 @@
 use serde_json::Value;
 
 fn call(source: &str, request: &str) -> Value {
-    serde_json::from_str(&frees_wasm::solve_table(source, request)).expect("valid JSON out")
+    serde_json::from_str(&frees::solve_table(source, request)).expect("valid JSON out")
 }
 
 #[test]
@@ -123,7 +123,7 @@ fn a_blank_document_and_a_missing_table_are_data_not_exceptions() {
 // ── monte_carlo (Wave B2) ──────────────────────────────────────────────────
 
 fn mc(source: &str, request: &str) -> Value {
-    serde_json::from_str(&frees_wasm::monte_carlo(source, request)).expect("valid JSON out")
+    serde_json::from_str(&frees::monte_carlo(source, request)).expect("valid JSON out")
 }
 
 #[test]
@@ -223,7 +223,7 @@ fn curve_fit_reproduces_the_library_oracle_through_the_boundary() {
         "xData": xs,
         "yData": ys,
     });
-    let out: Value = serde_json::from_str(&frees_wasm::curve_fit(&request.to_string())).unwrap();
+    let out: Value = serde_json::from_str(&frees::curve_fit(&request.to_string())).unwrap();
     assert_eq!(out["success"], true, "{out}");
     assert_eq!(out["parameterNames"], json_arr(&["a", "b", "c"]));
     let fitted = out["fittedParameters"].as_array().unwrap();
@@ -236,9 +236,9 @@ fn curve_fit_reproduces_the_library_oracle_through_the_boundary() {
 
 #[test]
 fn curve_fit_validation_speaks_the_java_messages() {
-    let out: Value = serde_json::from_str(&frees_wasm::curve_fit(r#"{"model": ""}"#)).unwrap();
+    let out: Value = serde_json::from_str(&frees::curve_fit(r#"{"model": ""}"#)).unwrap();
     assert_eq!(out["error"], "Model equation is required.");
-    let out: Value = serde_json::from_str(&frees_wasm::curve_fit(
+    let out: Value = serde_json::from_str(&frees::curve_fit(
         r#"{"model": "y = a*x", "xVariable": "x", "yVariable": "y",
             "parameters": ["a"], "xData": [1, 2], "yData": [1]}"#,
     ))
@@ -252,7 +252,7 @@ fn curve_fit_validation_speaks_the_java_messages() {
 #[test]
 fn optimize_finds_a_univariate_minimum_in_display_shape() {
     // f = (x - 3)^2 + 1: minimum at x = 3, f = 1.
-    let out: Value = serde_json::from_str(&frees_wasm::optimize(
+    let out: Value = serde_json::from_str(&frees::optimize(
         "f = (x - 3)^2 + 1\n",
         r#"{"objective": "f", "decisions": ["x"], "lowers": [0], "uppers": [10]}"#,
     ))
@@ -269,17 +269,17 @@ fn optimize_finds_a_univariate_minimum_in_display_shape() {
 
 #[test]
 fn optimize_validation_speaks_the_java_messages() {
-    let out: Value = serde_json::from_str(&frees_wasm::optimize("", "{}")).unwrap();
+    let out: Value = serde_json::from_str(&frees::optimize("", "{}")).unwrap();
     assert_eq!(out["error"], "No equations entered.");
     let out: Value =
-        serde_json::from_str(&frees_wasm::optimize("f = x\n", r#"{"objective": "f"}"#)).unwrap();
+        serde_json::from_str(&frees::optimize("f = x\n", r#"{"objective": "f"}"#)).unwrap();
     assert_eq!(out["error"], "Independent variable name is required.");
 }
 
 #[test]
 fn optimize_multi_returns_a_sorted_front_with_echoed_names() {
     // Two competing objectives over one decision: f1 = x^2, f2 = (x - 2)^2.
-    let out: Value = serde_json::from_str(&frees_wasm::optimize_multi(
+    let out: Value = serde_json::from_str(&frees::optimize_multi(
         "f1 = x^2\nf2 = (x - 2)^2\n",
         r#"{"objectives": ["f1", "f2"], "decisions": ["x"],
             "lowers": [0], "uppers": [2],
@@ -301,7 +301,7 @@ fn optimize_multi_returns_a_sorted_front_with_echoed_names() {
 
 #[test]
 fn optimize_multi_needs_two_objectives() {
-    let out: Value = serde_json::from_str(&frees_wasm::optimize_multi(
+    let out: Value = serde_json::from_str(&frees::optimize_multi(
         "f1 = x^2\n",
         r#"{"objectives": ["f1"], "decisions": ["x"], "lowers": [0], "uppers": [2]}"#,
     ))
@@ -322,7 +322,7 @@ fn parameter_fit_calibrates_a_decay_rate_against_its_own_trajectory() {
             "k = {k}\nTinf = 20\nDYNAMIC cooling (method = ode45, time = 0 .. 60, points = 31)\n  der(Temp) = -k*(Temp - Tinf)\n  Temp(0) = 95\nEND\n"
         )
     };
-    let truth: Value = serde_json::from_str(&frees_wasm::solve(&doc(0.05), "{}")).unwrap();
+    let truth: Value = serde_json::from_str(&frees::solve(&doc(0.05), "{}")).unwrap();
     let rows = truth["odeTables"][0]["rows"].as_array().unwrap();
     let ts: Vec<f64> = rows.iter().map(|r| r[0].as_f64().unwrap()).collect();
     let vs: Vec<f64> = rows.iter().map(|r| r[1].as_f64().unwrap()).collect();
@@ -338,8 +338,7 @@ fn parameter_fit_calibrates_a_decay_rate_against_its_own_trajectory() {
         "measuredT": ts,
         "measuredV": vs,
     });
-    let out: Value =
-        serde_json::from_str(&frees_wasm::parameter_fit(&request.to_string())).unwrap();
+    let out: Value = serde_json::from_str(&frees::parameter_fit(&request.to_string())).unwrap();
     assert_eq!(out["success"], true, "{out}");
     assert_eq!(out["parameterNames"], json_arr(&["k"]));
     let k = out["fittedValues"][0].as_f64().unwrap();
@@ -354,7 +353,7 @@ fn parameter_fit_calibrates_a_decay_rate_against_its_own_trajectory() {
 
 #[test]
 fn parameter_fit_caps_speak_the_java_messages() {
-    let out: Value = serde_json::from_str(&frees_wasm::parameter_fit(r#"{"text": ""}"#)).unwrap();
+    let out: Value = serde_json::from_str(&frees::parameter_fit(r#"{"text": ""}"#)).unwrap();
     assert_eq!(out["error"], "The model document is required.");
     let big: Vec<f64> = vec![0.0; 200_001];
     let request = serde_json::json!({
@@ -363,8 +362,7 @@ fn parameter_fit_caps_speak_the_java_messages() {
         "odeBlock": "d", "column": "c",
         "measuredT": big, "measuredV": big,
     });
-    let out: Value =
-        serde_json::from_str(&frees_wasm::parameter_fit(&request.to_string())).unwrap();
+    let out: Value = serde_json::from_str(&frees::parameter_fit(&request.to_string())).unwrap();
     assert_eq!(
         out["error"],
         "The measured series has too many samples (200001; limit 200000). Decimate it first."
@@ -377,7 +375,7 @@ fn parameter_fit_caps_speak_the_java_messages() {
 fn pid_tune_echoes_the_suggested_crossover_and_tunes_a_first_order_plant() {
     // The Java controller test's plant 1/(5s+1): suggestWc == 0.2 when wc is
     // omitted, and the tuned loop must report finite gains and a step trace.
-    let out: Value = serde_json::from_str(&frees_wasm::pid_tune(
+    let out: Value = serde_json::from_str(&frees::pid_tune(
         r#"{"num": [1], "den": [5, 1], "type": "pi"}"#,
     ))
     .unwrap();
@@ -395,13 +393,12 @@ fn pid_tune_echoes_the_suggested_crossover_and_tunes_a_first_order_plant() {
 
 #[test]
 fn pid_tune_validation_speaks_the_java_messages() {
-    let out: Value =
-        serde_json::from_str(&frees_wasm::pid_tune(r#"{"num": [], "den": []}"#)).unwrap();
+    let out: Value = serde_json::from_str(&frees::pid_tune(r#"{"num": [], "den": []}"#)).unwrap();
     assert_eq!(
         out["error"],
         "A plant transfer function (num and den coefficients) is required."
     );
-    let out: Value = serde_json::from_str(&frees_wasm::pid_tune(
+    let out: Value = serde_json::from_str(&frees::pid_tune(
         r#"{"num": [1], "den": [5, 1], "type": "ZN"}"#,
     ))
     .unwrap();
@@ -428,8 +425,7 @@ fn extract_plant_recovers_the_first_order_plant_from_a_closed_loop() {
         "ki": 1.0,
         "kd": 0.0,
     });
-    let out: Value =
-        serde_json::from_str(&frees_wasm::extract_plant(&request.to_string())).unwrap();
+    let out: Value = serde_json::from_str(&frees::extract_plant(&request.to_string())).unwrap();
     assert!(out.get("error").is_none(), "{out}");
     let num: Vec<f64> = out["num"]
         .as_array()
@@ -477,7 +473,7 @@ fn extract_plant_recovers_the_first_order_plant_from_a_closed_loop() {
 
 #[test]
 fn extract_plant_names_a_missing_reference_constant() {
-    let out: Value = serde_json::from_str(&frees_wasm::extract_plant(
+    let out: Value = serde_json::from_str(&frees::extract_plant(
         r#"{"text": "x = 1\n", "dynamic": "loop", "reference": "SP",
             "output": "plant.out.sig", "referenceOnSp": true,
             "type": "pi", "kp": 1, "ki": 0, "kd": 0}"#,
@@ -501,7 +497,7 @@ fn a_transient_over_its_elapsed_budget_stops_with_the_named_deadline_error() {
     let doc = "k = 0.05\nTinf = 20\nDYNAMIC cooling (method = ode45, time = 0 .. 60, \
                points = 5, maxstep = 0.00001)\n  der(Temp) = -k*(Temp - Tinf)\n  \
                Temp(0) = 95\nEND\n";
-    let out: Value = serde_json::from_str(&frees_wasm::solve(
+    let out: Value = serde_json::from_str(&frees::solve(
         doc,
         r#"{"stopCriteria": {"elapsedTimeSeconds": 1e-9}}"#,
     ))
@@ -518,6 +514,6 @@ fn a_transient_over_its_elapsed_budget_stops_with_the_named_deadline_error() {
     // guard cleared the thread-local, so this call cannot inherit a strike.
     let quick = "k = 0.05\nTinf = 20\nDYNAMIC cooling (method = ode45, time = 0 .. 60, \
                  points = 5)\n  der(Temp) = -k*(Temp - Tinf)\n  Temp(0) = 95\nEND\n";
-    let out: Value = serde_json::from_str(&frees_wasm::solve(quick, "{}")).unwrap();
+    let out: Value = serde_json::from_str(&frees::solve(quick, "{}")).unwrap();
     assert_eq!(out["success"], true, "{out}");
 }

@@ -9,11 +9,11 @@
 use serde_json::{json, Value};
 
 fn solve(source: &str, request: &Value) -> Value {
-    serde_json::from_str(&frees_wasm::solve(source, &request.to_string())).expect("valid JSON out")
+    serde_json::from_str(&frees::solve(source, &request.to_string())).expect("valid JSON out")
 }
 
 fn check(source: &str, request: &Value) -> Value {
-    serde_json::from_str(&frees_wasm::check(source, &request.to_string())).expect("valid JSON out")
+    serde_json::from_str(&frees::check(source, &request.to_string())).expect("valid JSON out")
 }
 
 /// The `fcurve` fixture as the GUI sends it: one lone curve, three points.
@@ -273,17 +273,15 @@ fn a_parametric_sweep_calls_an_injected_table_in_every_row() {
         "table": {"variables": ["x", "y"], "rows": [{"x": 1}, {"x": 2}, {"x": 4}]},
         "functionTables": [fcurve_dto()],
     });
-    let via_request: Value = serde_json::from_str(&frees_wasm::solve_table(
-        "y = fcurve(x)\n",
-        &request.to_string(),
-    ))
-    .expect("valid JSON out");
+    let via_request: Value =
+        serde_json::from_str(&frees::solve_table("y = fcurve(x)\n", &request.to_string()))
+            .expect("valid JSON out");
     assert!(via_request.get("error").is_none(), "{via_request}");
 
     let document_request = json!({
         "table": {"variables": ["x", "y"], "rows": [{"x": 1}, {"x": 2}, {"x": 4}]},
     });
-    let via_document: Value = serde_json::from_str(&frees_wasm::solve_table(
+    let via_document: Value = serde_json::from_str(&frees::solve_table(
         &format!("{FCURVE_BLOCK}y = fcurve(x)\n"),
         &document_request.to_string(),
     ))
@@ -315,7 +313,7 @@ fn a_sweep_with_accessors_still_carries_the_injected_table() {
         "table": {"variables": ["x", "y"], "rows": [{"x": 1}, {"x": 2}, {"x": 4}]},
         "functionTables": [fcurve_dto()],
     });
-    let out: Value = serde_json::from_str(&frees_wasm::solve_table(
+    let out: Value = serde_json::from_str(&frees::solve_table(
         "avg = TableAvg('y')\ny = fcurve(x)\n",
         &request.to_string(),
     ))
@@ -342,7 +340,7 @@ fn monte_carlo_samples_through_an_injected_table() {
         "variableInfo": [{"name": "x", "guess": 2.0, "uncertainty": 0.1}],
         "functionTables": [fcurve_dto()],
     });
-    let out: Value = serde_json::from_str(&frees_wasm::monte_carlo(
+    let out: Value = serde_json::from_str(&frees::monte_carlo(
         "x = 2\ny = fcurve(x)\n",
         &request.to_string(),
     ))
@@ -362,7 +360,7 @@ fn monte_carlo_samples_through_an_injected_table() {
     // Without the injection the same document cannot even base-solve —
     // proof the tables reached the engine rather than the run accidentally
     // succeeding.
-    let without: Value = serde_json::from_str(&frees_wasm::monte_carlo(
+    let without: Value = serde_json::from_str(&frees::monte_carlo(
         "x = 2\ny = fcurve(x)\n",
         &json!({
             "samples": 8,
@@ -410,8 +408,8 @@ fn parameter_fit_evaluates_through_an_injected_table() {
             "curves": [{"param": null, "points": [[0, 1], [2, 1]]}],
         }],
     });
-    let out: Value = serde_json::from_str(&frees_wasm::parameter_fit(&request.to_string()))
-        .expect("valid JSON out");
+    let out: Value =
+        serde_json::from_str(&frees::parameter_fit(&request.to_string())).expect("valid JSON out");
     assert_eq!(out["success"], true, "{out}");
     let fitted = out["fittedValues"].as_array().unwrap()[0].as_f64().unwrap();
     assert!((fitted - 2.0).abs() < 1e-2, "fitted k = {fitted}, want ≈ 2");
@@ -444,7 +442,7 @@ fn the_repl_calls_the_injected_table_and_the_request_wins_there() {
         .unwrap();
     assert_eq!(y["value"].as_f64().unwrap(), 1500.0, "solve: document wins");
 
-    let repl: Value = serde_json::from_str(&frees_wasm::repl_evaluate(
+    let repl: Value = serde_json::from_str(&frees::repl_evaluate(
         &json!({"expression": "fcurve(1.5)"}).to_string(),
     ))
     .expect("valid JSON out");

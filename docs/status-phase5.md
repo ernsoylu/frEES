@@ -224,7 +224,7 @@ file. `rtk`'s `find` also rejects `-exec`/`-not` and its `grep` chokes on `{`.
 | Clippy (host) | `cargo clippy --workspace --all-targets -- -D warnings` | exit **0**, no output |
 | Clippy (wasm32) | same, `--target wasm32-unknown-unknown` | exit **0**, no output |
 | Format | `cargo fmt --all --check` | exit **0**, no output |
-| wasm bundle | `wasm-pack build crates/frees-wasm --release --target web --out-dir ../../web/src/wasm/pkg` | **1,911,445 B = 1866.6 KiB raw**, **996,926 B = 973.6 KiB gzipped**. Budget 2048 KiB raw → **91.1 % used, 181.4 KiB headroom** |
+| wasm bundle | `wasm-pack build crates/frees --release --target web --out-dir ../../web/src/wasm/pkg` | **1,911,445 B = 1866.6 KiB raw**, **996,926 B = 973.6 KiB gzipped**. Budget 2048 KiB raw → **91.1 % used, 181.4 KiB headroom** |
 | Web tests | `cd web && nvm use 22 && ./node_modules/.bin/vitest run` | **336 passed / 35 files**, 0 failed |
 | Web build | `npm run build` | exit **0** (only the pre-existing rollup `/*#__PURE__*/` and chunk-size warnings from vendored deps) |
 
@@ -258,7 +258,7 @@ Java golden (`fixtures/golden/rankine-cycle.json`, CoolProp 8.0.0):
 `browser_network_requests` filtered by `/api/`: **empty**, across the workspace,
 the plot dialog and the Help page. The full unfiltered list is the static bundle
 plus exactly two engine artefacts — `assets/engine.worker-*.js` and
-`assets/frees_wasm_bg-*.wasm`. The only non-200 in the whole session was
+`assets/frees_bg-*.wasm`. The only non-200 in the whole session was
 `/build-info.js` (injected by nginx in the Docker deploy, absent from a bare
 `dist`).
 

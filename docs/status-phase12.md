@@ -313,7 +313,7 @@ The tree finally has a **named, per-module breakdown** — something no
 previous phase produced (`status-phase10.md` measured by differential build
 because the shipped artifact strips its name section). Method: `twiggy` over
 the **pre-bindgen** release artifact
-(`target/wasm32-unknown-unknown/release/frees_wasm.wasm`, 4,458,455 B — the
+(`target/wasm32-unknown-unknown/release/frees.wasm`, 4,458,455 B — the
 one build that still carries names; the shipped 2944 KiB is this minus the
 name section, wasm-bindgen processing and `wasm-opt -Oz`, so treat the
 proportions as ranking, not shipping bytes):
@@ -327,7 +327,7 @@ proportions as ranking, not shipping bytes):
 | `frees_core::control` | 231 626 | 5.2 % |
 | `frees_core::eval` | 176 543 | 4.0 % |
 | `core` (Rust language runtime) | 150 862 | 3.4 % |
-| `frees_wasm` (the boundary itself) | 146 351 | 3.3 % |
+| `frees` (the boundary itself) | 146 351 | 3.3 % |
 | `frees_core::props` (code; tables are in `.rodata`) | 122 652 | 2.8 % |
 | `alloc` | 115 840 | 2.6 % |
 | `frees_core::components` (code; library text in `.rodata`) | 110 358 | 2.5 % |

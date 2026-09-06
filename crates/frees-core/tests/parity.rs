@@ -480,7 +480,7 @@ Run the gate with the backend the corpus was promoted against:
     cargo test --workspace --test parity
     cargo test -p frees-core --features rustprop-backend --test parity
 
-The first is what CI runs: frees-wasm requires the feature, and resolver-v2 \
+The first is what CI runs: frees requires the feature, and resolver-v2 \
 unifies it onto frees-core. See docs/decisions/0009-rustprop-backend.md and \
 fixtures/README.md.";
 

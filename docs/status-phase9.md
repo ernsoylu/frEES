@@ -132,7 +132,7 @@ needs no restated lengths, and the generated equations go through the **same**
 
 ### 6. The REPL, `PLOT` and `SYMBOLIC` reach the browser
 
-`crates/frees-wasm/src/repl.rs` (new, 973 lines) ports `ReplEvaluator`'s
+`crates/frees/src/repl.rs` (new, 973 lines) ports `ReplEvaluator`'s
 seven-way dispatch: the 13 CAS ops, assignment, bare-variable echo and general
 expressions are **ported**; `CALL` lines, matrix/vector literals, range vectors
 and single-unknown equation solves are **refused by name** so a user never gets
@@ -292,7 +292,7 @@ The CodeMirror handle is `.cm-content`'s `cmTile.view`.
 | Solve a **`SYMBOLIC`** document — `tf([1,3],[1,3,2]) = A/(s+1) + B/(s+2)` | **Solved.** `A = 2`, `B = -1`, `y_initial = 1` — the residues the fixture documents, computed by `CasIdentity` in the browser |
 | REPL `expand(v0 + … + v199)` | 103 ms (Defect 1's regression, in the shipped wasm) |
 | REPL `factor(1 + 2x + … + 201x²⁰⁰)` | 303 ms |
-| **`/api/` requests** | **ZERO.** 24 requests total, all static assets plus `frees_wasm_bg-*.wasm`. The only non-200s are `/build-info.js` and `/favicon.ico`, both 404 and both pre-existing |
+| **`/api/` requests** | **ZERO.** 24 requests total, all static assets plus `frees_bg-*.wasm`. The only non-200s are `/build-info.js` and `/favicon.ico`, both 404 and both pre-existing |
 
 ---
 
@@ -353,7 +353,7 @@ golden with the gate's own rules — is in
 > The section is kept for its section-breakdown analysis, which still holds.
 
 ```
-wasm-pack build crates/frees-wasm --release --target web
+wasm-pack build crates/frees --release --target web
   →  3,416,518 bytes  =  3336 KiB raw  /  1497 KiB gzipped
      budget            =  3072 KiB raw
      OVER BY              264 KiB  (108.6 % of budget)
@@ -494,7 +494,7 @@ cleanup.
 9. **`ReplDimensions.dimensionOf` is not ported**, so a computed REPL expression
    reports its **SI** value with no unit where the Java reports the display
    value and unit. A bare variable echo is exact; `2*T_1` with `T_1` in `[C]` is
-   not. Recorded in `crates/frees-wasm/src/repl.rs`'s header.
+   not. Recorded in `crates/frees/src/repl.rs`'s header.
 
 10. **No CAS operation is covered by a golden-dumper fixture at the REPL level.**
     Everything in `cas/` is verified by unit tests written against the Java's

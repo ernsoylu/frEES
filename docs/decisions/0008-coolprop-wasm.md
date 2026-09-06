@@ -148,7 +148,7 @@ the dead entries in the same change, not afterwards.
 
   > **Honoured.** Nothing was deleted. The artifacts, both generators, the
   > decoders and the `install_from_bytes` fetch seam are all still here; what
-  > moved is one Cargo feature (`linked-tables`, off only for `frees-wasm`).
+  > moved is one Cargo feature (`linked-tables`, off only for `frees`).
   > The measurement the bullet asked for is the four-corner table in D9.
 
 * **`fixtures/humidair/reference.json` stays useful.** It grades a humid-air

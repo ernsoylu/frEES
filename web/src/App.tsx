@@ -51,6 +51,7 @@ import {
   DEFAULT_STOP_CRITERIA,
   getFluids,
   solve,
+  stopSolve,
   replClear,
   solveTable,
   runMonteCarlo,
@@ -61,6 +62,7 @@ import {
   VariableInfo,
   VariableResult,
 } from './api'
+import { ModelRevisionTracker } from './modelRevision'
 import { findPin, pinnableParameters, sliderOverrideEquation, sliderRange, type PinnedSlider } from './sliders'
 const PreferencesModal = lazy(() => import('./PreferencesModal'))
 const AboutModal = lazy(() => import('./AboutModal'))
@@ -366,6 +368,7 @@ export default function App() {
   // transition, keeping the full App re-render off the typing critical path.
   // Event-time readers (solve/check/save) must use this ref, not `text`.
   const textRef = useRef(text)
+  const modelRevisionRef = useRef(new ModelRevisionTracker())
   // Live-lint plumbing: debounce timer + a ref to the latest idle checker
   // (assigned each render, next to onCheck) so the timer never runs stale.
   const idleCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -638,6 +641,7 @@ export default function App() {
   // equations): updates the ref + state and pushes the doc into the uncontrolled
   // editor. setDoc does not echo back through onTextChange.
   const applyText = useCallback((next: string) => {
+    modelRevisionRef.current.bump()
     textRef.current = next
     setText(next)
     editorRef.current?.setDoc(next)
@@ -1432,6 +1436,8 @@ export default function App() {
   }
 
   function onTextChange(value: string) {
+    modelRevisionRef.current.bump()
+    modelRevisionRef.current.invalidateCheck()
     // Keystrokes land in the ref synchronously; the state update that re-renders
     // the rest of the app rides a low-priority (interruptible) transition.
     textRef.current = value
@@ -1527,6 +1533,7 @@ export default function App() {
 
   async function onCheck(): Promise<CheckResponse | null> {
     if (checking) return null
+    const requestRevision = modelRevisionRef.current.startCheck()
     setChecking(true)
     setResult(null)
     setLastSolvedWithFillMissing(false)
@@ -1538,6 +1545,16 @@ export default function App() {
         functionTableDtos(),
         solveOverrides(),
       )
+      const { isCurrent, needsRecheck } = modelRevisionRef.current.finishCheck(
+        requestRevision,
+        response.solvable,
+      )
+      if (!isCurrent) {
+        if (needsRecheck && idleCheckRef.current) {
+          setTimeout(() => idleCheckRef.current(), 50)
+        }
+        return null
+      }
       setCheckResult(response)
       setTables((all) => mergeCodeTables(all, response.codeTables, response.parametricTables))
       // Sync the Variable Information table: keep edited rows for variables
@@ -1558,6 +1575,9 @@ export default function App() {
       })
       return response
     } catch (e) {
+      if (!modelRevisionRef.current.isCurrent(requestRevision)) {
+        return null
+      }
       const errorResponse: CheckResponse = {
         solvable: false,
         equations: 0,
@@ -1629,6 +1649,7 @@ export default function App() {
   }
 
   function setSliderValue(name: string, value: number, commit: boolean) {
+    modelRevisionRef.current.bump()
     setPinnedSliders((prev) => prev.map((p) => (p.name === name ? { ...p, value } : p)))
     // Dragging re-solves on a short debounce so the solution tracks the handle;
     // the release commits promptly. Both go through the timer, so a fast drag
@@ -1746,6 +1767,7 @@ export default function App() {
     // independent-block equations (e.g. two separate circuits) still solve correctly
     // even when the global underdetermination check fails.
     if (checkOverride !== undefined && !checkOverride.solvable) return false
+    const solveTableRevision = modelRevisionRef.current.current
     setSolvingTableId(tableId)
     setSolveProgress(0)
     try {
@@ -1772,6 +1794,9 @@ export default function App() {
         functionTableDtos(),
         reportSolveProgress,
       )
+      if (!modelRevisionRef.current.isCurrent(solveTableRevision)) {
+        return false
+      }
       updateParamTable(tableId, (t) => ({
         ...t,
         results: response.results,
@@ -1791,6 +1816,12 @@ export default function App() {
       }
       return true
     } catch (e) {
+      if (!modelRevisionRef.current.isCurrent(solveTableRevision)) {
+        return false
+      }
+      if (e instanceof Error && e.message === 'Operation stopped') {
+        return false
+      }
       updateParamTable(tableId, (t) => ({
         ...t,
         stats: null,
@@ -1812,8 +1843,10 @@ export default function App() {
     overridePlots?: PlotSpec[],
     checkOverride?: CheckResponse,
   ): Promise<boolean> {
-    const canRun = checkOverride ? checkOverride.solvable === true : solvable
+    const isCurrentSolvable = modelRevisionRef.current.isCheckValidAndSolvable()
+    const canRun = checkOverride ? checkOverride.solvable === true : (isCurrentSolvable && solvable)
     if (solving || !canRun) return false
+    const solveRevision = modelRevisionRef.current.current
     setSolving(true)
     setSolveProgress(0)
     try {
@@ -1838,6 +1871,9 @@ export default function App() {
         solveOverrides(),
         reportSolveProgress,
       )
+      if (!modelRevisionRef.current.isCurrent(solveRevision)) {
+        return false
+      }
       setResult(response)
       // REPL overrides persist across solves (the terminal keeps priority over the
       // editor); they're dropped only by the `clear` command, not by solving.
@@ -1888,6 +1924,12 @@ export default function App() {
       }
       return response.success
     } catch (e) {
+      if (!modelRevisionRef.current.isCurrent(solveRevision)) {
+        return false
+      }
+      if (e instanceof Error && e.message === 'Operation stopped') {
+        return false
+      }
       setResult({
         success: false,
         variables: [],
@@ -1906,12 +1948,23 @@ export default function App() {
     }
   }
 
+  function onStop() {
+    stopSolve()
+    setSolving(false)
+    setSolvingTableId(null)
+    setSolveProgress(null)
+    setChecking(false)
+    setCheckingTableId(null)
+    setReplVars({})
+  }
+
   // "Just solve it": if the system is already checked, solve; otherwise run
   // Check first and chain into Solve when it passes. The fresh CheckResponse is
   // passed through so the solve guard doesn't read stale `solvable` state.
   async function checkThenSolve(): Promise<'workspace' | 'table' | void> {
     if (solving || checking) return
-    if (solvable) {
+    const isCurrentSolvable = modelRevisionRef.current.isCheckValidAndSolvable()
+    if (isCurrentSolvable && solvable) {
       const ok = await onSolve()
       if (ok) return 'workspace'
       return
@@ -1992,6 +2045,10 @@ export default function App() {
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       // Shortcuts act on the active section: equations vs parametric table.
+      if (e.key === 'Escape' && (solving || solvingTableId !== null)) {
+        e.preventDefault()
+        onStop()
+      }
       if (e.key === 'F2') {
         e.preventDefault()
         void (activeTab === 'table' ? checkThenSolveTable() : checkThenSolve())
@@ -2824,6 +2881,7 @@ export default function App() {
           tableResults={focusedParam?.results ?? []}
           onCheck={checkWithFallback}
           onSolve={checkThenSolve}
+          onStop={onStop}
           onCheckTable={() => { if (focusedParam) void onCheckTable(focusedParam.id) }}
           onSolveTable={() => { if (focusedParam) void onSolveTable(focusedParam.id) }}
           onFindAllChange={(checked) => {
