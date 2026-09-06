@@ -64,3 +64,16 @@ panic = "abort"
 # NOTE: there is deliberately no [profile.release-wasm]. One existed from
 # Phase 0 and was dead config for nine phases — `wasm-pack --release` uses
 # [profile.release], which is why the size settings above live there.
+
+# Dedicated speed-oriented profiles (Phase 5).
+# Native benchmarking and compute-heavy native runs use opt-level = 3
+# without compromising the WASM bundle size constraint (< 4 MiB), which builds
+# with [profile.release] (opt-level = "s").
+[profile.bench]
+opt-level = 3
+lto = true
+codegen-units = 1
+
+[profile.release-speed]
+inherits = "release"
+opt-level = 3

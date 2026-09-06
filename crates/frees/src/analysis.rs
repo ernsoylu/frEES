@@ -22,6 +22,7 @@ use wasm_bindgen::prelude::*;
 
 use frees_core::analysis::parametric::{run_sweep, RowJob, RowOutcome};
 use frees_core::components::cyclepath;
+use frees_core::components::metadata::VariableRow;
 use frees_core::parser::blocks::ParametricTable;
 
 use crate::{
@@ -130,7 +131,7 @@ struct RowSide {
     success: bool,
     values: BTreeMap<String, f64>,
     error: Option<String>,
-    variables: Vec<Value>,
+    var_rows: Option<(Vec<VariableRow>, Vec<Option<f64>>)>,
     iterations: usize,
     max_residual: f64,
     equations: usize,
@@ -303,7 +304,7 @@ fn solve_table_inner(source: &str, request_json: &str) -> Result<Value, String> 
                     success: true,
                     values,
                     error: None,
-                    variables: variable_entries(&rows, &uncertainties),
+                    var_rows: Some((rows, uncertainties)),
                     iterations: solution.stats.iterations,
                     max_residual: solution.stats.max_residual,
                     equations: solution.residuals.len(),
@@ -317,7 +318,7 @@ fn solve_table_inner(source: &str, request_json: &str) -> Result<Value, String> 
                     success: false,
                     values: BTreeMap::new(),
                     error: Some(message.clone()),
-                    variables: Vec::new(),
+                    var_rows: None,
                     iterations: 0,
                     max_residual: 0.0,
                     equations: 0,
@@ -341,7 +342,7 @@ fn solve_table_inner(source: &str, request_json: &str) -> Result<Value, String> 
     let mut equations = 0usize;
     let mut unknowns = 0usize;
     let mut solved = 0usize;
-    let mut last_variables: Vec<Value> = Vec::new();
+    let mut last_var_rows: Option<&(Vec<VariableRow>, Vec<Option<f64>>)> = None;
     let results: Vec<Value> = sides
         .iter()
         .map(|side| match side {
@@ -352,8 +353,8 @@ fn solve_table_inner(source: &str, request_json: &str) -> Result<Value, String> 
                     max_residual = max_residual.max(side.max_residual);
                     equations = side.equations;
                     unknowns = side.unknowns;
-                    if !side.variables.is_empty() {
-                        last_variables = side.variables.clone();
+                    if side.var_rows.is_some() {
+                        last_var_rows = side.var_rows.as_ref();
                     }
                 }
                 json!({
@@ -369,6 +370,10 @@ fn solve_table_inner(source: &str, request_json: &str) -> Result<Value, String> 
             }),
         })
         .collect();
+    let last_variables = match last_var_rows {
+        Some((rows, unc)) => variable_entries(rows, unc),
+        None => Vec::new(),
+    };
     let _ = &sweep; // the sweep's columns fed the accessors; results are the answer
 
     Ok(json!({
@@ -599,6 +604,17 @@ fn monte_carlo_inner(source: &str, request_json: &str) -> Result<Value, String> 
         })
         .collect();
 
+    let name_mapping: std::collections::HashMap<&str, (&String, String)> = base
+        .values
+        .keys()
+        .filter(|name| !frees_core::parser::expand::is_internal_temp(name))
+        .map(|name| {
+            let display = crate::display_of(&base.display_names, name);
+            let key = display.to_ascii_lowercase();
+            (name.as_str(), (display, key))
+        })
+        .collect();
+
     let samples_json: Vec<Value> = outcome
         .samples
         .iter()
@@ -606,11 +622,10 @@ fn monte_carlo_inner(source: &str, request_json: &str) -> Result<Value, String> 
             let values: BTreeMap<String, f64> = sample
                 .values
                 .iter()
-                .filter(|(name, _)| !frees_core::parser::expand::is_internal_temp(name))
-                .map(|(name, si)| {
-                    let display = crate::display_of(&base.display_names, name).clone();
-                    let key = display.to_ascii_lowercase();
-                    (display, display_value(&key, *si))
+                .filter_map(|(name, si)| {
+                    name_mapping
+                        .get(name.as_str())
+                        .map(|(display, key)| ((*display).clone(), display_value(key, *si)))
                 })
                 .collect();
             json!({
