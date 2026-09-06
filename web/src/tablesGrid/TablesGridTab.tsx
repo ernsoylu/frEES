@@ -411,8 +411,13 @@ export default function TablesGridTab({
   const transformActive = (update: (t: TableSpec) => TableSpec, pushUndo = true) => {
     const spec = liveSpec(active?.id)
     if (!spec) return
-    const next = update(spec)
-    if (next !== spec) commitSpec(spec, next, pushUndo)
+    try {
+      const next = update(spec)
+      if (next !== spec) commitSpec(spec, next, pushUndo)
+      setWarning(spec.id, null)
+    } catch (error) {
+      setWarning(spec.id, error instanceof Error ? error.message : String(error))
+    }
   }
 
   const addTable = (kind: 'function-1d' | 'function-2d' | 'parametric') => {

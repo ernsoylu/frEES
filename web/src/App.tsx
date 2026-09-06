@@ -1385,7 +1385,13 @@ export default function App() {
   }
 
   function sendDigitizedToFunctionTable(data: DigitizedExport) {
-    const table = functionTableFromDigitizer({ existing: tables, ...data })
+    let table
+    try {
+      table = functionTableFromDigitizer({ existing: tables, ...data })
+    } catch (error) {
+      setLoadNotice(error instanceof Error ? error.message : String(error))
+      return
+    }
     setTables((all) => [...all, table])
     setActiveTableId(table.id)
     setActiveTab('table')

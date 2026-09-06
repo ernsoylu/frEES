@@ -15,3 +15,14 @@ it('retains close knots, first exact duplicates and full precision through adapt
   const filled = fillMissingCells({ ...digitized, rows: [{ x: '0', ys: ['0'] }, { x: '1', ys: [''] }, { x: '3', ys: ['1'] }] })
   expect(filled.rows[1].ys[0]).toBe(String(1 / 3))
 })
+
+it('rejects invalid log domains atomically and records valid interpolation without extrapolation', () => {
+  const table = functionTableFromDigitizer({ existing: [], xName: 'x', yName: 'y', xLog: true, yLog: true, curves: [{ param: '', points: [{ x: 1, y: 1 }, { x: 100, y: 10000 }] }] })
+  const rows = [{ x: '1', ys: ['1'] }, { x: '10', ys: [''] }, { x: '100', ys: ['10000'] }, { x: '1000', ys: [''] }]
+  const filled = fillMissingCells({ ...table, rows })
+  expect(Number(filled.rows[1].ys[0])).toBeCloseTo(100, 12)
+  expect(filled.rows[3].ys[0]).toBe('')
+  expect(filled.interpolatedCells).toEqual([{ row: 1, column: 0 }])
+  expect(() => fillMissingCells({ ...table, rows: [{ x: '1', ys: ['-1'] }, ...rows.slice(1)] })).toThrow('row 1, curve 1')
+  expect(rows[1].ys[0]).toBe('')
+})
