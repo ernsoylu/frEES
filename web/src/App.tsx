@@ -677,6 +677,7 @@ export default function App() {
     if (raw) return loadTables()
     return []
   })
+  const [deletedTables, setDeletedTables] = useState<TableSpec[]>([])
   const tablesRef = useRef(tables)
   function writeTables(update: React.SetStateAction<TableSpec[]>) {
     const next = typeof update === 'function' ? update(tablesRef.current) : update
@@ -686,6 +687,8 @@ export default function App() {
   function setTables(update: React.SetStateAction<TableSpec[]>) {
     const next = typeof update === 'function' ? update(tablesRef.current) : update
     if (next === tablesRef.current) return
+    const removed = tablesRef.current.filter((t) => !next.some((n) => n.id === t.id))
+    if (removed.length) setDeletedTables(removed)
     modelRevisionRef.current.bump()
     modelRevisionRef.current.invalidateCheck()
     setCheckResult(null)
@@ -3253,6 +3256,14 @@ export default function App() {
 
       {/* Self-dismissing project-load summary (the D10/D11 inert-slice
           notices: data preserved in the file, feature no longer shown). */}
+      {deletedTables.length > 0 && (
+        <Alert title="Table deleted" withCloseButton onClose={() => setDeletedTables([])}>
+          <Button size="xs" onClick={() => {
+            setTables((all) => [...all, ...deletedTables.filter((t) => !all.some((a) => a.id === t.id))])
+            setDeletedTables([])
+          }}>Restore deleted tables</Button>
+        </Alert>
+      )}
       {loadNotice !== null && (
         <Alert
           icon={<IconInfoCircle size={16} />}

@@ -228,6 +228,8 @@ export function applyCellEdit(
   gridRow: number,
   col: number,
   rawIn: string,
+  snapshot: TableSpec = spec,
+  invalidate = true,
 ): EditResult {
   if (spec.source === 'code') return unchanged(spec)
   const view = cellViewAt(spec, gridRow, col)
@@ -271,7 +273,7 @@ export function applyCellEdit(
   if (i < 0 || i >= spec.rows.length) return unchanged(spec)
   const name = spec.vars[col - 1]
   if (name === undefined) return unchanged(spec)
-  const computed = paramComputedValue(spec, i, name)
+  const computed = snapshot.kind === 'parametric' ? paramComputedValue(snapshot, i, name) : undefined
   // A cell still showing the solver's value is not an input (committing the
   // displayed computed text unchanged must not become an override).
   const isUntouchedComputed =
@@ -284,10 +286,32 @@ export function applyCellEdit(
     idx === i ? { ...r, values: { ...r.values, [name]: draft } } : r,
   )
   return {
-    spec: invalidated({ ...spec, rows, formulas: withoutFormula(spec.formulas, ref) }),
+    spec: { ...spec, rows, formulas: withoutFormula(spec.formulas, ref), ...(invalidate ? { results: [], stats: null, checkResult: null, checkMessage: '' } : {}) },
     changed: true,
     errorCells,
   }
+}
+
+/** Fill gestures preserve untouched computed cells; explicit paste freezes supplied values. */
+export function applyCellEdits(spec: TableSpec, edits: { gridRow: number; col: number; text: string }[]): EditResult {
+  let next = spec
+  const errorCells: string[] = []
+  for (const edit of edits) {
+    const result = applyCellEdit(next, edit.gridRow, edit.col, edit.text, spec, false)
+    next = result.spec
+    errorCells.push(...result.errorCells)
+  }
+  return { spec: next !== spec && next.kind === 'parametric' ? invalidated(next) : next, changed: next !== spec, errorCells }
+}
+
+/** Restore only fields changed by the gesture; never restore solver output. */
+export function restoreUserEdit(current: TableSpec, from: TableSpec, to: TableSpec): TableSpec {
+  const restored = { ...current }
+  for (const key of Object.keys(to) as (keyof TableSpec)[]) {
+    if (['results', 'stats', 'checkResult', 'checkMessage'].includes(key)) continue
+    if (from[key] !== to[key]) Object.assign(restored, { [key]: to[key] })
+  }
+  return restored.kind === 'parametric' ? invalidated(restored) : restored
 }
 
 /** Blanks a set of data cells (Delete over a selection). Trailing parametric

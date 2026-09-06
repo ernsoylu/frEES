@@ -14,6 +14,8 @@ import { FunctionTableSpec, ParamTableSpec, toFunctionTableDtos } from '../table
 import {
   appendRow,
   applyCellEdit,
+  applyCellEdits,
+  restoreUserEdit,
   applyColumnFill,
   applyPaste,
   boundColumnCount,
@@ -521,5 +523,19 @@ describe('csvValuesFor', () => {
       ['1', '80', '160'],
     ])
     expect(csvValuesFor(spec1D())[0]).toEqual(['Re', 'y'])
+  })
+})
+
+describe('atomic edits and scoped history', () => {
+  it('classifies computed echoes against the original snapshot regardless of batch order', () => {
+    const before = solvedParam()
+    const edits = [{ gridRow: 0, col: 1, text: '301' }, { gridRow: 0, col: 2, text: '101.3' }]
+    const result = applyCellEdits(before, edits).spec as ParamTableSpec
+    expect(result).toEqual(applyCellEdits(before, [...edits].reverse()).spec)
+    expect(result.rows[0].values).toEqual({ T: '301', P: '' })
+    const restored = restoreUserEdit({ ...result, name: 'Renamed' }, result, before) as ParamTableSpec
+    expect(restored.name).toBe('Renamed')
+    expect(restored.rows).toEqual(before.rows)
+    expect(restored.results).toEqual([])
   })
 })
