@@ -90,7 +90,7 @@ ${statsLine ? `<div class="meta">${esc(statsLine)}</div>` : ''}
 ${rows}
 </tbody>
 </table>
-${warnings ? `\n<h2>Unit warnings</h2>\n<ul class="warnings">\n${warnings}\n</ul>` : ''}
+${warnings ? `\n<h2>${(response.unitWarnings ?? []).some((w) => /unknown unit/i.test(w)) ? 'Warnings (not verified SI)' : 'Warnings'}</h2>\n<p class="meta">Unknown units are left unconverted and must not be read as verified SI values.</p>\n<ul class="warnings">\n${warnings}\n</ul>` : ''}
 
 <footer>Produced by frees${commit ? ` (build ${esc(commit)})` : ''} — values solved in SI, displayed per the session's unit system.</footer>
 </body>

@@ -19,7 +19,7 @@ export interface EquationEditorHandle {
   insertSnippet: (snippet: string) => void
   /** Append `text` as its own line at the end of the document, guaranteeing a
    *  line break before and after so repeated calls each land on a fresh line. */
-  insertStatement: (text: string) => void
+  insertStatement: (text: string, opts?: { focus?: boolean }) => void
   /** Replace the whole document (project load, examples, generated equations).
    *  Does NOT fire onChange — the caller already holds the new text. */
   setDoc: (text: string) => void
@@ -504,7 +504,7 @@ function EquationEditorInner(
         })
         view.focus()
       },
-      insertStatement(text: string) {
+      insertStatement(text: string, opts?: { focus?: boolean }) {
         const view = viewRef.current
         if (!view) return
         const doc = view.state.doc
@@ -519,7 +519,9 @@ function EquationEditorInner(
           changes: { from: end, to: end, insert },
           selection: { anchor: caret },
         })
-        view.focus()
+        if (opts?.focus !== false) {
+          view.focus()
+        }
       },
       setDoc(text: string) {
         const view = viewRef.current

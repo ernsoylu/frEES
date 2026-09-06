@@ -377,6 +377,9 @@ pub struct CheckReport {
     /// frontend's `result?.definedPlots ?? checkResult?.definedPlots` fallback
     /// is for.
     pub plots: Vec<crate::parser::blocks::PlotDef>,
+    /// Connection topology for the schematic — the same payload Solve reports,
+    /// so Check can draw and validate wiring without a solve.
+    pub connections: Vec<crate::components::expander::Connection>,
 }
 
 /// Externally supplied per-variable solver information — one row of the
@@ -1719,6 +1722,7 @@ pub fn check_with_tables_complex(
     let mut parsed_names = doc.display_names.clone();
     let mut check_diagnostics = doc.diagnostics.clone();
     let mut member_units: BTreeMap<String, String> = BTreeMap::new();
+    let mut layer_connections: Vec<crate::components::expander::Connection> = Vec::new();
     let expanded = (|| {
         let mut doc = doc.clone();
         // Stage 1b — the component layer, at the Java position (see
@@ -1727,6 +1731,7 @@ pub fn check_with_tables_complex(
         // would be reported "solvable" with nothing in it.
         let components = expand_component_layer(&mut doc, &mut check_diagnostics)?;
         member_units = components.member_units;
+        layer_connections = components.connections.clone();
         parsed_names = doc.display_names.clone();
         let statements = std::mem::take(&mut doc.statements);
         let (flattened, module_count) =
@@ -1786,6 +1791,7 @@ pub fn check_with_tables_complex(
                 unit_warnings: Vec::new(),
                 diagnostics: check_diagnostics,
                 plots: doc.blocks.plots.clone(),
+                connections: layer_connections,
             });
         }
     };
@@ -1815,6 +1821,7 @@ pub fn check_with_tables_complex(
             unit_warnings: Vec::new(),
             diagnostics: check_diagnostics,
             plots: doc.blocks.plots.clone(),
+            connections: layer_connections.clone(),
         });
     }
 
@@ -1869,6 +1876,7 @@ pub fn check_with_tables_complex(
         unit_warnings: merge_advisory_warnings(unit_report.warnings, &diagnostics),
         diagnostics,
         plots: doc.blocks.plots.clone(),
+        connections: layer_connections,
     };
 
     match block_system(&equations, &knowns) {
@@ -2465,6 +2473,7 @@ fn syntax_failure_report(source: &str, err: &FreesError) -> CheckReport {
         diagnostics: vec![diagnostic],
         // A document that did not parse declares nothing.
         plots: Vec::new(),
+        connections: Vec::new(),
     }
 }
 
@@ -4858,6 +4867,29 @@ mod tests {
         assert_close(value(&solution, "a"), 2.0);
         assert_eq!(solution.blocks.len(), 1);
         assert!(solution.blocks[0].is_scalar());
+    }
+
+    #[test]
+    fn check_reports_connection_topology() {
+        let report = check(
+            "\
+Source SUP(fluid$=Water, mdot=1, P=2e5, T=300)
+Pipe LINE(fluid$=Water, L=10, D=0.05, rough=1e-4)
+Sink RET()
+connect(SUP.out, LINE.in)
+connect(LINE.out, RET.in)
+",
+        )
+        .expect("check");
+        assert!(
+            report
+                .connections
+                .iter()
+                .any(|c| c.endpoints.iter().any(|e| e.contains("sup"))
+                    && c.endpoints.iter().any(|e| e.contains("line"))),
+            "expected a SUP–LINE connection, got {:?}",
+            report.connections
+        );
     }
 
     #[test]

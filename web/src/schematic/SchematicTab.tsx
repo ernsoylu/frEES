@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ActionIcon, Badge, Group, Paper, Stack, Text, Tooltip } from '@mantine/core'
+import { ActionIcon, Badge, Button, Group, Paper, Select, Stack, Text, Tooltip } from '@mantine/core'
 import {
   IconArrowsMaximize,
   IconDownload,
@@ -20,6 +20,13 @@ import {
 import { glyphFilled, glyphPath, SHAPE_LABELS } from './symbols'
 import { badgeFor, formatCompact, indexVariables, readoutFor, type NodeReadout } from './readouts'
 import { COMPONENT_CATALOG } from '../componentCatalog'
+import {
+  alreadyConnected,
+  connectStatement,
+  endpointRef,
+  previewWire,
+  type WireEndpoint,
+} from './wiring'
 
 const MIN_ZOOM = 0.25
 const MAX_ZOOM = 3
@@ -45,6 +52,8 @@ interface Props {
    *  check, so these offsets are the only part of it worth saving. */
   offsets?: SchematicOffsets
   onOffsetsChange?: (next: SchematicOffsets) => void
+  /** Instance ids to emphasize from a Check diagnosis (free quantities). */
+  highlightIds?: readonly string[]
 }
 
 type Offsets = SchematicOffsets
@@ -65,6 +74,7 @@ export default function SchematicTab({
   onEmitStatement,
   offsets: savedOffsets,
   onOffsetsChange,
+  highlightIds = [],
 }: Readonly<Props>) {
   const svgRef = useRef<SVGSVGElement>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
@@ -86,6 +96,9 @@ export default function SchematicTab({
   const [pinned, setPinned] = useState<string | null>(null)
   const [pendingPort, setPendingPort] = useState<{ instance: string; port: string } | null>(null)
   const [wireNote, setWireNote] = useState<string | null>(null)
+  const [selectFrom, setSelectFrom] = useState<string | null>(null)
+  const [selectTo, setSelectTo] = useState<string | null>(null)
+  const lastEmitted = useRef<{ a: string; b: string } | null>(null)
 
   const connections = useMemo(() => checkResult?.connections ?? [], [checkResult])
 
@@ -267,7 +280,47 @@ export default function SchematicTab({
     }
   }
 
-  const clickPort = (instance: string, port: string, label: string) => {
+  const portChoices = useMemo(() => {
+    const out: { value: string; label: string }[] = []
+    for (const n of layout.nodes) {
+      if (n.kind !== 'instance') continue
+      for (const p of n.ports) {
+        out.push({ value: `${n.id}::${p.port}`, label: `${n.label}.${p.port}` })
+      }
+    }
+    return out
+  }, [layout.nodes])
+
+  const endpointOf = (instance: string, port: string): WireEndpoint => {
+    const node = layout.nodes.find((n) => n.id === instance)
+    return {
+      instance,
+      port,
+      label: node?.label ?? instance,
+      type: node?.type,
+    }
+  }
+
+  const tryConnect = (from: WireEndpoint, to: WireEndpoint) => {
+    if (!onEmitStatement) {
+      return
+    }
+    const preview = previewWire(from, to, connections)
+    if (!preview.ok) {
+      setWireNote(preview.reason)
+      setPendingPort(null)
+      return
+    }
+    const statement = connectStatement(from, to)
+    lastEmitted.current = { a: endpointRef(from), b: endpointRef(to) }
+    onEmitStatement(statement)
+    setPendingPort(null)
+    setSelectFrom(null)
+    setSelectTo(null)
+    setWireNote(`Connection added; checking…  Undo (Ctrl+Z) removes the statement.`)
+  }
+
+  const clickPort = (instance: string, port: string) => {
     if (!onEmitStatement) {
       return
     }
@@ -276,18 +329,58 @@ export default function SchematicTab({
       setPendingPort({ instance, port })
       return
     }
-    if (pendingPort.instance === instance) {
-      // A component wired to itself is never what the user meant, and the
-      // expander would reject it anyway.
-      setWireNote('Pick a port on a different component.')
-      setPendingPort(null)
+    tryConnect(endpointOf(pendingPort.instance, pendingPort.port), endpointOf(instance, port))
+  }
+
+  useEffect(() => {
+    const pending = lastEmitted.current
+    if (!pending || !checkResult) {
       return
     }
-    const fromLabel = layout.nodes.find((n) => n.id === pendingPort.instance)?.label ?? pendingPort.instance
-    onEmitStatement(`connect(${fromLabel}.${pendingPort.port}, ${label}.${port})`)
-    setPendingPort(null)
-    setWireNote(`Wired ${fromLabel}.${pendingPort.port} → ${label}.${port}`)
-  }
+    if (alreadyConnected(connections, pending.a, pending.b)) {
+      setWireNote(`Connected ${pending.a} — ${pending.b}`)
+      lastEmitted.current = null
+      return
+    }
+    const msg = checkResult.message ?? ''
+    if (/domain|fluid family|connect\(/i.test(msg) && !checkResult.solvable) {
+      setWireNote(msg)
+      lastEmitted.current = null
+    }
+  }, [checkResult, connections])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setPendingPort(null)
+        setWireNote(null)
+        return
+      }
+      if (!pinned) {
+        return
+      }
+      const focusInSchematic = viewportRef.current?.contains(document.activeElement)
+      if (!focusInSchematic) {
+        return
+      }
+      const step = e.shiftKey ? 20 : 8
+      let dx = 0
+      let dy = 0
+      if (e.key === 'ArrowLeft') dx = -step
+      else if (e.key === 'ArrowRight') dx = step
+      else if (e.key === 'ArrowUp') dy = -step
+      else if (e.key === 'ArrowDown') dy = step
+      else return
+      e.preventDefault()
+      takeControl()
+      const cur = offsetsRef.current[pinned] ?? { dx: 0, dy: 0 }
+      const next = { ...offsetsRef.current, [pinned]: { dx: cur.dx + dx, dy: cur.dy + dy } }
+      applyOffsets(next)
+      onOffsetsChange?.(next)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [pinned, applyOffsets, onOffsetsChange, takeControl])
 
   const exportSvg = () => {
     const svg = svgRef.current
@@ -369,11 +462,11 @@ export default function SchematicTab({
         </Badge>
         {onEmitStatement && pendingPort && (
           <Badge size="xs" variant="filled" color="teal">
-            wiring from {pendingPort.instance}.{pendingPort.port} — pick a second port
+            wiring from {pendingPort.instance}.{pendingPort.port} — pick a second port (Esc cancels)
           </Badge>
         )}
         {onEmitStatement && !pendingPort && wireNote && (
-          <Text size="xs" c="dimmed">
+          <Text size="xs" c="dimmed" maw={520}>
             {wireNote}
           </Text>
         )}
@@ -381,6 +474,41 @@ export default function SchematicTab({
           <Text size="xs" c="orange">
             connections not shown — the document has errors; fix them and Check
           </Text>
+        )}
+        {onEmitStatement && (
+          <Group gap={6} wrap="nowrap">
+            <Select
+              size="xs"
+              placeholder="From port"
+              data={portChoices}
+              value={selectFrom}
+              onChange={setSelectFrom}
+              searchable
+              w={160}
+              aria-label="Connect from port"
+            />
+            <Select
+              size="xs"
+              placeholder="To port"
+              data={portChoices}
+              value={selectTo}
+              onChange={setSelectTo}
+              searchable
+              w={160}
+              aria-label="Connect to port"
+            />
+            <Button
+              size="compact-xs"
+              disabled={!selectFrom || !selectTo}
+              onClick={() => {
+                const a = parseChoice(selectFrom)
+                const b = parseChoice(selectTo)
+                if (a && b) tryConnect(endpointOf(a.instance, a.port), endpointOf(b.instance, b.port))
+              }}
+            >
+              Connect
+            </Button>
+          </Group>
         )}
         <Group gap={2} ml="auto">
           <Tooltip label="Zoom out">
@@ -449,8 +577,8 @@ export default function SchematicTab({
           height="100%"
           viewBox={`${-pan.x / zoom} ${-pan.y / zoom} ${(viewport.w || layout.width) / zoom} ${(viewport.h || layout.height) / zoom}`}
           xmlns="http://www.w3.org/2000/svg"
-          role="img"
-          aria-label="Component network schematic"
+          role="application"
+          aria-label="Component network schematic. Tab to nodes and ports. Enter connects or inspects. Escape cancels wiring. Arrow keys nudge a focused node."
         >
           {/* Circuit bands: one frame per fluid loop / coupling network, so two
               circuits that share a bond-graph domain still read apart. */}
@@ -526,6 +654,7 @@ export default function SchematicTab({
                   styleOf={styleOf}
                   wiring={Boolean(onEmitStatement)}
                   pendingPort={pendingPort}
+                  highlighted={highlightIds.includes(n.id)}
                   onPointerDown={(e) => {
                     takeControl()
                     drag.startNode(e, n.id)
@@ -539,7 +668,7 @@ export default function SchematicTab({
                   }}
                   onEnter={() => setHovered(n.id)}
                   onLeave={() => setHovered(null)}
-                  onPort={(port) => clickPort(n.id, port, n.label)}
+                  onPort={(port) => clickPort(n.id, port)}
                 />
               )
             })}
@@ -548,7 +677,26 @@ export default function SchematicTab({
       </div>
 
       {activeNode && activeReadout && (
-        <ReadoutCard node={activeNode} readout={activeReadout} pinned={pinned === activeNode.id} />
+        <ReadoutCard
+          node={activeNode}
+          readout={activeReadout}
+          pinned={pinned === activeNode.id}
+          onReveal={() => revealInstance(activeNode)}
+          onNudge={
+            pinned === activeNode.id
+              ? (dx, dy) => {
+                  takeControl()
+                  const cur = offsetsRef.current[activeNode.id] ?? { dx: 0, dy: 0 }
+                  const next = {
+                    ...offsetsRef.current,
+                    [activeNode.id]: { dx: cur.dx + dx, dy: cur.dy + dy },
+                  }
+                  applyOffsets(next)
+                  onOffsetsChange?.(next)
+                }
+              : undefined
+          }
+        />
       )}
     </Stack>
   )
@@ -565,6 +713,13 @@ function documentInstances(text: string): Map<string, { label: string; type: str
   return declaredInstances(text, known)
 }
 
+function parseChoice(value: string | null): { instance: string; port: string } | null {
+  if (!value) return null
+  const sep = value.indexOf('::')
+  if (sep < 0) return null
+  return { instance: value.slice(0, sep), port: value.slice(sep + 2) }
+}
+
 interface BlockProps {
   node: SchematicNode
   badge: { label: string; value: number; units: string } | null
@@ -573,6 +728,7 @@ interface BlockProps {
   styleOf: (id: string) => LineStyle
   wiring: boolean
   pendingPort: { instance: string; port: string } | null
+  highlighted?: boolean
   onPointerDown: (e: React.PointerEvent) => void
   onClick: () => void
   onEnter: () => void
@@ -590,6 +746,7 @@ function NodeBlock({
   styleOf,
   wiring,
   pendingPort,
+  highlighted = false,
   onPointerDown,
   onClick,
   onEnter,
@@ -598,14 +755,24 @@ function NodeBlock({
 }: Readonly<BlockProps>) {
   const glyph = glyphPath(node.shape)
   const GLYPH = 20
+  const activate = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      onClick()
+    }
+  }
   return (
     <g
       transform={`translate(${node.x}, ${node.y})`}
-      opacity={dimmed ? 0.45 : 1}
+      opacity={dimmed && !highlighted ? 0.45 : 1}
       onPointerDown={onPointerDown}
       onClick={onClick}
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}
+      onKeyDown={activate}
+      tabIndex={0}
+      role="button"
+      aria-label={`${node.type ?? 'component'} ${node.label}`}
       style={{ cursor: 'move' }}
     >
       <title>{`${node.type ?? ''} ${node.label} — ${SHAPE_LABELS[node.shape]}`}</title>
@@ -614,8 +781,8 @@ function NodeBlock({
         height={node.h}
         rx={node.terminal ? 3 : 7}
         fill={active ? '#2b3138' : '#25292e'}
-        stroke={active ? '#12b886' : borderOf(node)}
-        strokeWidth={active ? 2 : 1.2}
+        stroke={highlighted ? '#fab005' : active ? '#12b886' : borderOf(node)}
+        strokeWidth={highlighted || active ? 2.2 : 1.2}
         strokeDasharray={node.terminal ? '4 2' : undefined}
       />
       {glyph && (
@@ -646,8 +813,19 @@ function NodeBlock({
         return (
           <g
             key={p.port}
+            tabIndex={wiring ? 0 : undefined}
+            role={wiring ? 'button' : undefined}
+            aria-label={`${node.label}.${p.port} port`}
             onClick={(e) => {
               if (wiring) {
+                e.stopPropagation()
+                onPort(p.port)
+              }
+            }}
+            onKeyDown={(e) => {
+              if (!wiring) return
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
                 e.stopPropagation()
                 onPort(p.port)
               }
@@ -655,6 +833,9 @@ function NodeBlock({
             style={{ cursor: wiring ? 'crosshair' : 'move' }}
           >
             <title>{`${node.label}.${p.port}`}</title>
+            {wiring && (
+              <circle cx={p.dx} cy={p.dy} r={10} fill="transparent" />
+            )}
             <circle
               cx={p.dx}
               cy={p.dy}
@@ -676,7 +857,15 @@ function ReadoutCard({
   node,
   readout,
   pinned,
-}: Readonly<{ node: SchematicNode; readout: NodeReadout; pinned: boolean }>) {
+  onNudge,
+  onReveal,
+}: Readonly<{
+  node: SchematicNode
+  readout: NodeReadout
+  pinned: boolean
+  onNudge?: (dx: number, dy: number) => void
+  onReveal?: () => void
+}>) {
   const empty = readout.ports.length === 0 && readout.outputs.length === 0 && readout.params.length === 0
   return (
     <Paper
@@ -691,7 +880,7 @@ function ReadoutCard({
         maxWidth: 320,
         maxHeight: '70%',
         overflow: 'auto',
-        pointerEvents: 'none',
+        pointerEvents: pinned ? 'auto' : 'none',
         zIndex: 5,
       }}
     >
@@ -707,7 +896,31 @@ function ReadoutCard({
             pinned
           </Badge>
         )}
+        {onReveal && (
+          <Button size="compact-xs" variant="subtle" onClick={onReveal}>
+            Source
+          </Button>
+        )}
       </Group>
+      {onNudge && (
+        <Group gap={4} mb={4}>
+          <Button size="compact-xs" variant="default" aria-label="Nudge up" onClick={() => onNudge(0, -8)}>
+            ↑
+          </Button>
+          <Button size="compact-xs" variant="default" aria-label="Nudge down" onClick={() => onNudge(0, 8)}>
+            ↓
+          </Button>
+          <Button size="compact-xs" variant="default" aria-label="Nudge left" onClick={() => onNudge(-8, 0)}>
+            ←
+          </Button>
+          <Button size="compact-xs" variant="default" aria-label="Nudge right" onClick={() => onNudge(8, 0)}>
+            →
+          </Button>
+          <Text size="xs" c="dimmed">
+            or arrow keys
+          </Text>
+        </Group>
+      )}
 
       {empty && (
         <Text size="xs" c="dimmed">

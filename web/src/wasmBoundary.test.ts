@@ -299,6 +299,17 @@ describe('WASM Real Boundary: Wizard generated source', () => {
     expect(res.message ?? '').not.toMatch(/Syntax error/i)
   })
 
+  it('rejects mixed-domain connect as a document error, not a silent wire', () => {
+    const source = `
+Resistor R1(R=10)
+Pipe LINE(fluid$=Water, L=1, D=0.01, rough=1e-4)
+connect(R1.a, LINE.in)
+`
+    const res = JSON.parse(check(source, ''))
+    expect(res.solvable).toBe(false)
+    expect(String(res.message)).toMatch(/domain|connect/i)
+  })
+
   it('treats an unwired generated component as structurally free, not a syntax error', async () => {
     const { generateComponentText } = await import('./componentText')
     const line = generateComponentText(hx, 'HX', { fluid$: 'Water', UA: '10' })

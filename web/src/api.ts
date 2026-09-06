@@ -289,7 +289,7 @@ export async function check(
       codeTables: [],
       parametricTables: [],
       stateTableDefs: [],
-      connections: [],
+      connections: data.connections ?? [],
     }
   } catch (e) {
     // Only infrastructure can land here (worker died, wasm failed to load) —
@@ -301,7 +301,7 @@ export async function check(
       variables: [],
       unitWarnings: [],
       inferredUnits: {},
-      message: `Browser engine error: ${e instanceof Error ? e.message : String(e)}`,
+      message: `The in-browser solver failed (${e instanceof Error ? e.message : String(e)}). Use Stop to reset the worker, then Check again.`,
     }
   }
 }

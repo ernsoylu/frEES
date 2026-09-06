@@ -105,6 +105,7 @@ import { applyColumnFill } from './tablesGrid/tableGridModel'
 // is first shown (wrapped in <Suspense> at their render sites below).
 const SchematicTab = lazy(() => import('./schematic/SchematicTab'))
 import { declaredInstances } from './schematic/declaration'
+import { instancesInDiagnosis, LOCAL_ENGINE_FAILURE } from './schematic/wiring'
 import type { SchematicOffsets } from './schematic/layout'
 const DigitizerTab = lazy(() =>
   import('./DigitizerTab').then((m) => ({ default: m.DigitizerTab })),
@@ -632,7 +633,7 @@ export default function App() {
   // the wizard's insertion this must NOT pull focus to the editor. The live
   // lint re-checks shortly after, which is what redraws the canvas.
   const emitFromSchematic = useCallback((statement: string) => {
-    editorRef.current?.insertStatement(statement)
+    editorRef.current?.insertStatement(statement, { focus: false })
   }, [])
 
   const insertComponentBlock = useCallback((block: string) => {
@@ -1591,7 +1592,7 @@ export default function App() {
         variables: [],
         unitWarnings: [],
         inferredUnits: {},
-        message: `Could not reach the solver backend: ${String(e)}`,
+        message: LOCAL_ENGINE_FAILURE,
       }
       setCheckResult(errorResponse)
       return errorResponse
@@ -1755,7 +1756,7 @@ export default function App() {
       updateParamTable(tableId, (t) => ({
         ...t,
         checkResult: null,
-        checkMessage: `Could not reach the solver backend: ${String(e)}`,
+        checkMessage: LOCAL_ENGINE_FAILURE,
       }))
       return null
     } finally {
@@ -1834,7 +1835,7 @@ export default function App() {
         results: t.rows.map(() => ({
           success: false,
           values: {},
-          error: `Could not reach the solver backend: ${String(e)}`,
+          error: LOCAL_ENGINE_FAILURE,
         })),
       }))
       return false
@@ -1944,7 +1945,7 @@ export default function App() {
         stats: null,
         solutions: [],
         unitWarnings: [],
-        error: `Could not reach the solver backend: ${String(e)}`,
+        error: LOCAL_ENGINE_FAILURE,
       })
       setLastSolvedWithFillMissing(false)
       return false
@@ -2479,6 +2480,7 @@ export default function App() {
             onEmitStatement={emitFromSchematic}
             offsets={schematicOffsets}
             onOffsetsChange={setSchematicOffsets}
+            highlightIds={instancesInDiagnosis(checkResult?.message ?? '')}
           />
         </Suspense>
       </div>
