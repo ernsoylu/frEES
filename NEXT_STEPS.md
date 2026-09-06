@@ -33,7 +33,7 @@ Performance improvements below are candidates, not measured speedup promises. Re
 | 5 | Reduce sparse-solver memory and remaining measured overhead | Phase 4 profile | Medium |
 | 6 | Complete existing capabilities and align documentation | Phases 0–1; performance phases precede broader feature work | Medium |
 | 7 | Add further throughput or modeling capabilities when justified | Measured need after earlier phases | Conditional |
-| 8 | Scaled linear algebra performance for large dense blocks and stiff sparse networks | Phase 0 baseline | Medium |
+| 8 | Scaled numerical performance: linear algebra, stiff DAE time-stepping, and ODE event handling | Phase 0 baseline | Medium |
 
 Effort describes relative implementation complexity, not a delivery-date commitment. Each phase should land in small, independently reviewable changes. Fix incorrect executable documentation early even though the broader documentation work belongs to Phase 6.
 
@@ -192,7 +192,7 @@ Primary files: [DAE Jacobian](crates/frees-core/src/dae/jacobian.rs), [DAE solve
 
 Primary files: [all-roots solver](crates/frees-core/src/analysis/allroots.rs), [WASM analysis boundary](crates/frees/src/analysis.rs), [editor](web/src/EquationEditor.tsx), [documentation sources](web/src/docs), [manifest generator](web/scripts/build-doc-manifest.mjs), [documentation checker](web/scripts/check-doc-coverage.mjs), [CLI](crates/frees-cli/src/main.rs).
 
-## Phase 8 — Scaled linear algebra performance for large dense blocks and stiff sparse networks
+## Phase 8 — Scaled numerical performance: linear algebra, stiff DAE time-stepping, and ODE event handling
 
 ### Work
 
@@ -200,16 +200,20 @@ Primary files: [all-roots solver](crates/frees-core/src/analysis/allroots.rs), [
 - [ ] Implement register-tiled elimination for dense blocks ($N > 16$), unrolling row updates in $2 \times 2$ or $4 \times 4$ blocks to increase arithmetic intensity and close the gap with dense BLAS without adding external dependencies.
 - [ ] Add a reusable, zero-allocation `SparseLuWorkspace` to the sparse DAE solver (`crates/frees-core/src/dae/solver.rs`), hoisting scratch vectors (`x`, `pinv`, `mark`, `stack`, `pstack`, `order`) out of `SparseLu::factor` so transient solves avoid heap allocation churn across ODE steps.
 - [ ] Precompute a Column Approximate Minimum Degree (COLAMD) fill-reducing permutation during `PreparedDocument` compilation for fixed-topology DAE networks, eliminating factorization fill-in across transient time steps.
+- [ ] Implement early Newton divergence detection in the DAE nonlinear corrector loop (`crates/frees-core/src/dae/solver.rs`, derived from `diffsol`'s $\theta$-rate estimator), aborting diverging steps at iteration 2 rather than burning maximum iterations before reducing step size.
+- [ ] Implement dense output Hermite polynomial root-finding for zero-crossing event detection (`crates/frees-core/src/ode/events.rs`, derived from `diffsol` continuous extensions), finding event times analytically from dense output with zero extra physics model evaluations.
+- [ ] Add an optional 5th-order Radau IIA implicit Runge-Kutta solver for stiff index-1 DAE transients, enabling larger time steps and higher accuracy during rapid transients and near fluid saturation envelopes.
 
 ### Acceptance criteria
 
 - [ ] Small block solves ($N \le 10$) maintain sub-microsecond latency with zero regressions.
 - [ ] Dense solves for $N = 30\text{–}100$ demonstrate a measured 30–50% throughput improvement.
-- [ ] Stiff transient simulation (`stiff_thermofluid_transient`) demonstrates measurable runtime reduction and zero per-step heap allocations during factorization.
+- [ ] Stiff transient simulation (`stiff_thermofluid_transient`) demonstrates measurable runtime reduction (targeting < 1.5 s from current 2.5 s) and zero per-step heap allocations during factorization.
+- [ ] Zero-crossing event detection in ODE simulations eliminates redundant physics evaluations via continuous dense output interpolation.
 - [ ] All 1,308 golden corpus fixtures maintain 100% bit/oracle parity across all shards.
 - [ ] Raw WASM bundle size remains strictly < 4,096 KiB.
 
-Primary files: [Newton solver](crates/frees-core/src/solver/newton.rs), [DAE sparse solver](crates/frees-core/src/dae/solver.rs), [prepared document](crates/frees-core/src/engine/prepared.rs), [native benchmarks](crates/frees-core/benches/solve_bench.rs), [browser benchmarks](web/bench/wasm-bench.spec.ts).
+Primary files: [Newton solver](crates/frees-core/src/solver/newton.rs), [DAE sparse solver](crates/frees-core/src/dae/solver.rs), [ODE events](crates/frees-core/src/ode/events.rs), [ODE methods](crates/frees-core/src/ode/methods.rs), [prepared document](crates/frees-core/src/engine/prepared.rs), [native benchmarks](crates/frees-core/benches/solve_bench.rs), [browser benchmarks](web/bench/wasm-bench.spec.ts).
 
 ## Phase 7 — Conditional extensions
 
