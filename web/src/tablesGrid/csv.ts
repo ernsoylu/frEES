@@ -11,9 +11,10 @@
 // function table is a header row plus numeric columns, so that is all this
 // parses. Quoted fields (with embedded delimiters, quotes and newlines), CRLF,
 // a UTF-8 BOM and `;`/tab/`|` delimiters are handled because real exports have
-// them. Everything else degrades instead of failing: a blank, a stray unit row
-// or any other non-numeric cell becomes NaN and is skipped downstream by
-// `functionSpecFromXY`, which counts what it dropped so the dialog can show it.
+// them. Unterminated quotes fail the parse. Blank and non-numeric cells become
+// NaN and are skipped downstream by `functionSpecFromXY`; ragged records and
+// numeric-looking failures are listed on `rejectedRows` so the dialog can show
+// them. Delimiter/header/decimal/unit-row overrides come from the import dialog.
 
 /** CSV download for the Tables workbook: quote-double `"` and wrap any cell
  *  containing a comma, quote, or newline. */
@@ -58,6 +59,7 @@ export interface CsvColumn {
   values: Float64Array
   /** How many of `values` are finite — 0 marks a text column. */
   numericCount: number
+  unit?: string
 }
 
 export interface CsvTable {
@@ -68,18 +70,37 @@ export interface CsvTable {
   headerless: boolean
   /** The delimiter actually used. */
   delimiter: string
+  rejectedRows?: { record: number; reason: string }[]
+}
+
+/** Decimal-comma cells (`1,5` or `1.234,56`) become JavaScript numbers. */
+export function applyDecimalConvention(cell: string, decimal: '.' | ',' = '.'): string {
+  if (decimal !== ',') return cell
+  const trimmed = cell.trim()
+  const comma = trimmed.lastIndexOf(',')
+  if (comma < 0) return cell
+  return trimmed.slice(0, comma).replaceAll('.', '') + '.' + trimmed.slice(comma + 1)
 }
 
 /** A cell's numeric value; blank, text and `NaN` all read as NaN. */
-export function cellToNumber(cell: string): number {
-  const trimmed = cell.trim()
+export function cellToNumber(cell: string, decimal: '.' | ',' = '.'): number {
+  const trimmed = applyDecimalConvention(cell, decimal).trim()
   if (trimmed === '') return Number.NaN
   return Number(trimmed)
 }
 
-function isNumericCell(cell: string): boolean {
-  const trimmed = cell.trim()
+function isNumericCell(cell: string, decimal: '.' | ',' = '.'): boolean {
+  const trimmed = applyDecimalConvention(cell, decimal).trim()
   return trimmed !== '' && !Number.isNaN(Number(trimmed))
+}
+
+/** True when a non-numeric cell looks like a failed number, not a label. */
+function looksLikeNumber(cell: string): boolean {
+  const trimmed = cell.trim()
+  if (trimmed === '') return false
+  if (/^(nan|[+-]?inf(?:inity)?)$/i.test(trimmed)) return true
+  if (/\s/.test(trimmed)) return false
+  return /[0-9]/.test(trimmed) && /^[+-]?[0-9.,eE+]+$/.test(trimmed)
 }
 
 /**
@@ -93,12 +114,14 @@ export function splitCsvRows(text: string, delimiter: string): string[][] {
   let row: string[] = []
   let field = ''
   let quoted = false
+  let closedQuote = false
   let started = false // this row has content (guards the trailing newline)
   let i = text.charCodeAt(0) === 0xfeff ? 1 : 0
 
   const endField = () => {
     row.push(field)
     field = ''
+    closedQuote = false
     started = true
   }
   const endRow = () => {
@@ -118,12 +141,17 @@ export function splitCsvRows(text: string, delimiter: string): string[][] {
           continue
         }
         quoted = false
+        closedQuote = true
         i++
         continue
       }
       field += ch
       i++
       continue
+    }
+    if (closedQuote && ch !== delimiter && ch !== '\r' && ch !== '\n') {
+      if (!ch.trim()) { i++; continue }
+      throw new Error(`Unexpected text after closing quote in record ${rows.length + 1}`)
     }
     if (ch === '"' && field.trim() === '') {
       // A quote only opens a field at its start; anywhere else it is literal.
@@ -146,6 +174,7 @@ export function splitCsvRows(text: string, delimiter: string): string[][] {
     field += ch
     i++
   }
+  if (quoted) throw new Error(`Unclosed quoted field in record ${rows.length + 1}`)
   // A file ending in a newline must not produce a phantom last row.
   if (field !== '' || started) endRow()
   return rows
@@ -194,38 +223,55 @@ export function detectDelimiter(text: string): string {
 /** Makes every name non-blank and unique (case-insensitively), preserving the
  *  first occurrence and suffixing the rest `name (2)`, `name (3)`, … */
 function uniqueNames(raw: string[]): string[] {
-  const seen = new Map<string, number>()
-  return raw.map((name, i) => {
-    const base = name.trim() === '' ? `col${i + 1}` : name.trim()
-    const key = base.toLowerCase()
-    const count = seen.get(key) ?? 0
-    seen.set(key, count + 1)
-    return count === 0 ? base : `${base} (${count + 1})`
+  const bases = raw.map((name, i) => name.trim() || `col${i + 1}`)
+  const occupied = new Set(bases.map((name) => name.toLowerCase()))
+  const seen = new Set<string>()
+  return bases.map((base) => {
+    let name = base
+    for (let suffix = 2; seen.has(name.toLowerCase()); suffix++) {
+      name = `${base} (${suffix})`
+      while (occupied.has(name.toLowerCase())) name = `${base} (${++suffix})`
+    }
+    seen.add(name.toLowerCase())
+    return name
   })
 }
 
 /**
  * Parses CSV/TSV text into named numeric columns.
  *
- * The first content row is the header unless any of its cells is a number, in
- * which case the file is treated as headerless and the columns are named
- * `col1…colN` (the same rule the analyzer's ingest used — a real data row
- * always carries numbers). Ragged rows are squared up: the column count is the
- * widest row, short rows pad with NaN, and columns past the header are named
- * positionally. Blank lines are dropped.
+ * The first content row is the header unless every cell is a number, in which
+ * case the file is treated as headerless and the columns are named `col1…colN`.
+ * A mixed row such as the curve-family header `x,1000,2000` therefore stays a
+ * header. Ragged rows are squared up: the column count is the widest row, short
+ * rows pad with NaN, and columns past the header are named positionally. Blank
+ * lines are dropped.
  *
- * `delimiter` overrides the sniffer (tests, and a future "wrong delimiter"
- * escape hatch in the dialog).
+ * `delimiter` overrides the sniffer. `options` is the dialog's header /
+ * decimal / unit-row interpretation.
  */
-export function parseCsvTable(text: string, delimiter?: string): CsvTable {
+export interface CsvOptions {
+  header?: 'auto' | 'yes' | 'no'
+  decimal?: '.' | ','
+  unitRow?: boolean
+}
+
+export function parseCsvTable(text: string, delimiter?: string, options: CsvOptions = {}): CsvTable {
   const delim = delimiter ?? detectDelimiter(text)
   const rows = splitCsvRows(text, delim).filter((r) => r.some((c) => c.trim() !== ''))
   if (rows.length === 0) {
     return { columns: [], rowCount: 0, headerless: false, delimiter: delim }
   }
 
-  const headerless = rows[0].some((c) => isNumericCell(c))
-  const dataRows = headerless ? rows : rows.slice(1)
+  const decimal = options.decimal ?? '.'
+  // Auto: a first row of only numbers is data (`0,10`). A mixed row such as
+  // the curve-family header `x,1000,2000` stays a header.
+  const headerless =
+    options.header === 'no' ||
+    (options.header !== 'yes' && rows[0].every((c) => isNumericCell(c, decimal)))
+  const offset = (headerless ? 0 : 1) + (options.unitRow ? 1 : 0)
+  const unitCells = options.unitRow ? rows[headerless ? 0 : 1] : undefined
+  const dataRows = rows.slice(offset)
   const columnCount = rows.reduce((max, r) => Math.max(max, r.length), 0)
   const headerCells = headerless ? [] : rows[0]
   const names = uniqueNames(
@@ -237,15 +283,30 @@ export function parseCsvTable(text: string, delimiter?: string): CsvTable {
     index,
     values: new Float64Array(dataRows.length),
     numericCount: 0,
+    unit: unitCells?.[index]?.trim() || undefined,
   }))
+  const rejectedRows: { record: number; reason: string }[] = []
   for (let r = 0; r < dataRows.length; r++) {
     const row = dataRows[r]
+    if (row.length !== columnCount) {
+      rejectedRows.push({
+        record: r + offset + 1,
+        reason: 'Ragged record; missing cells remain blank',
+      })
+    }
     for (let c = 0; c < columnCount; c++) {
-      const value = cellToNumber(row[c] ?? '')
+      const cell = row[c] ?? ''
+      const value = cellToNumber(cell, decimal)
+      if (looksLikeNumber(cell) && !Number.isFinite(value)) {
+        rejectedRows.push({
+          record: r + offset + 1,
+          reason: `Column ${c + 1}: invalid number`,
+        })
+      }
       columns[c].values[r] = value
       if (Number.isFinite(value)) columns[c].numericCount++
     }
   }
 
-  return { columns, rowCount: dataRows.length, headerless, delimiter: delim }
+  return { columns, rowCount: dataRows.length, headerless, delimiter: delim, rejectedRows }
 }

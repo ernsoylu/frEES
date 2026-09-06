@@ -176,3 +176,55 @@ describe('parse → function table (the Import CSV… path)', () => {
     expect(Number(spec.rows[4999].x)).toBeCloseTo(119.99, 6)
   })
 })
+
+describe('CSV interpretation escape hatches (T8)', () => {
+  it('reserves already-suffixed headers against the occupied namespace', () => {
+    expect(parseCsvTable('a,a,a (2)\n1,2,3').columns.map((c) => c.name)).toEqual([
+      'a',
+      'a (3)',
+      'a (2)',
+    ])
+  })
+
+  it('keeps a mixed numeric family header as a header, not data', () => {
+    const t = parseCsvTable('x,1000,2000\n1,2,3')
+    expect(t.headerless).toBe(false)
+    expect(t.columns.map((c) => c.name)).toEqual(['x', '1000', '2000'])
+    expect(t.rowCount).toBe(1)
+  })
+
+  it('reports malformed quoting instead of silently concatenating fields', () => {
+    expect(() => splitCsvRows('x,"open', ',')).toThrow('Unclosed')
+    expect(() => splitCsvRows('"x"oops,y', ',')).toThrow('closing quote')
+  })
+
+  it('keeps newlines inside quoted fields as one record', () => {
+    const t = parseCsvTable('x,y,note\n1,2,"line 1\nline 2"\n3,4,ok\n')
+    expect(t.rowCount).toBe(2)
+    expect(numbers(t.columns[0])).toEqual([1, 3])
+    expect(numbers(t.columns[1])).toEqual([2, 4])
+    expect(t.columns[2].values).toHaveLength(2)
+    expect(t.rejectedRows ?? []).toEqual([])
+  })
+
+  it('reports ragged records and numeric-looking failures, not label columns', () => {
+    const t = parseCsvTable('x,y,note\n1,2,ok\n3,4\n5,n/a,bad\n6,1.2.3,x\n')
+    expect(t.rejectedRows).toEqual([
+      { record: 3, reason: 'Ragged record; missing cells remain blank' },
+      { record: 5, reason: 'Column 2: invalid number' },
+    ])
+  })
+
+  it('honours explicit delimiter, header, decimal-comma and unit-row choices', () => {
+    const csv = parseCsvTable('p;t\nkPa;C\n1,5;20,25\n1.234,56;7,5', ';', {
+      header: 'yes',
+      decimal: ',',
+      unitRow: true,
+    })
+    expect(numbers(csv.columns[0])).toEqual([1.5, 1234.56])
+    expect(numbers(csv.columns[1])).toEqual([20.25, 7.5])
+    expect(csv.columns[0].unit).toBe('kPa')
+    expect(csv.columns[1].unit).toBe('C')
+    expect(csv.rowCount).toBe(2)
+  })
+})
