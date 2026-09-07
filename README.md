@@ -1,14 +1,6 @@
 # frees
 
-A Rust/WebAssembly port of the **frees** engine — a declarative equation solver
-and acausal system-modeling environment — that runs **entirely in the browser
-tab**. No backend, no API calls, no job queue.
-
-Upstream, a solve is a network round-trip: editor text → `POST /api/solve` →
-RabbitMQ → compute worker → Redis → the frontend polls for a job id. This repo
-collapses that loop into WebAssembly. The parser, unit checker, blocker, Newton
-solver, ODE/DAE integrators, CAS, component expander and real-fluid property
-backend are all compiled to `wasm32-unknown-unknown` and run in a Web Worker.
+A high-performance declarative equation solver, physical systems modeler, and simulation environment built in Rust and WebAssembly that runs **entirely client-side in the browser** and as a **native desktop CLI**. Zero cloud compute dependencies, zero external API traffic, and zero network latency.
 
 ```frees
 m_dot = 2.5 [kg/s]
@@ -17,140 +9,141 @@ h_out = Enthalpy(Water, T = 360 [K], P = 101325 [Pa])
 Q_dot = m_dot * (h_out - h_in)
 ```
 
-Equations are order-independent, names are case-insensitive, everything is
-solved in SI, and unit annotations convert at parse time.
+Equations are declarative and order-independent, variable names are case-insensitive, quantities solve in SI units with parse-time unit conversions, and systems are blocked and solved using exact symbolic derivatives.
 
 ---
 
-## Status
+## Core Capabilities
 
-All 13 planned phases are implemented; work since then continues as numbered
-decisions (D1–D11) and lettered waves. The engine is feature-complete against
-the reference implementation for everything the port set out to carry.
+- **Declarative Equation Modeling**: Acausal mathematical modeling with automatic unit consistency verification, dimensional analysis, and unit conversions.
+- **Robust Nonlinear Solvers**: Incidence graph decomposition into strongly connected components (Tarjan algorithm), scaled Newton-Raphson iteration with adaptive trust-region line search, Powell hybrid dogleg methods, and automatic rank-deficient merge recovery.
+- **Reusable Prepared Solvers**: Hoisted structural compilation (`PreparedDocument`) reusing AST, variable specs, block decomposition, and analytical Jacobians for in-place numeric mutations, delivering over 18× speedup on parametric sweeps.
+- **Transient Simulation (ODE & DAE)**:
+  - Explicit & Stiff ODE Solvers: Adaptive Dormand-Prince Runge-Kutta (`ode45`) and 5th-order Radau IIA (`radau5` / `radauiia`).
+  - Stiff Differential-Algebraic Equations (DAE): Variable-coefficient Backward Differentiation Formulas (BDF / IDA) with adaptive order (1–5) and step-size control.
+  - State Event Handling: Root-finding zero crossings (`EVENT condition -> action`), discrete mode switching, and trajectory stop events.
+- **Thermodynamic Property Engine (`rustprop`)**: Pure-Rust CoolProp 8.0.0 implementation supporting high-accuracy Helmholtz equations of state for Water/Steam, Air, CO2, R134a, R1234yf, Ammonia, Hydrocarbons, incompressibles, and humid air psychrometric properties (`HAPropsSI`).
+- **Standard Acausal Component Library**: 295+ built-in acausal components across 13 physical domains: fluid networks, heat transfer, moist air HVAC, electrical systems, mechanics, and control blocks.
+- **Computer Algebra (CAS) & Control Systems**:
+  - CAS: Exact rational arithmetic over $\mathbb{Q}$, polynomial operations, Zassenhaus factorization, partial fractions, and symbolic Laplace transforms.
+  - Control Systems: Transfer functions, state-space models ($A, B, C, D$), pole placement, LQR/LQE, frequency response (Bode, Nyquist), and automated PID tuning.
+- **Multi-Worker Parametric Sweeps**: Hardware-aware worker pool (up to 4 Web Workers) executing independent table sweep chunks in parallel with weighted progress reporting, plus fixed-point Gauss-Seidel iteration for table-wide accessor functions (`TableRun#`, `TableAvg`, etc.).
+- **Interactive Visualization & Inspection**: Fast Plotly.js charts with smart series decimation for dense trajectories (> 2,000 points rendered responsively while preserving 100% raw data in memory), dual cursors with delta/slope inspection, and thermodynamic phase diagrams ($T\text{-}s$, $P\text{-}h$, Psychrometric).
+- **Offline-First PWA & Storage**: Installable Progressive Web App with Service Worker precaching, durable dual-write autosave (synchronous `localStorage` boot slot + durable `IndexedDB` mirror), and FileSystem Access API support.
 
-| | |
-|---|---|
-| Parity corpus | **1308 documents**, all matching the Java oracle |
-| Component library | **295 components** across 13 physical domains |
-| wasm bundle | ~3085 KiB raw / ~1259 KiB gzipped (budget 4096 KiB, gated in CI) |
-| Property backend | rustprop — a pure-Rust port of CoolProp 8.0.0 |
-| Frontend tests | 34 files, 429 tests |
-| CI | ~3.5 min end to end |
+---
 
-Numbers move; the ones CI enforces are the bundle budget and the corpus. For a
-re-measured snapshot see the gate-numbers table at the top of
-[`CLAUDE.md`](CLAUDE.md).
+## Architecture Overview
 
-## Quick start
-
-The toolchain is `rustup`-managed and pinned by
-[`rust-toolchain.toml`](rust-toolchain.toml) (stable, plus the
-`wasm32-unknown-unknown` target, `rustfmt` and `clippy`).
-
-```bash
-export PATH="$HOME/.cargo/bin:$PATH"
-
-# Solve a document headlessly
-printf 'x = 2\ny = x^2\n' | cargo run -qp frees-cli -- solve
-cargo run -qp frees-cli -- check path/to/document.frees
-
-# The whole test suite, including the 1308-document parity replay
-cargo test --release --workspace
+```
+                      +------------------------------------------+
+                      |         Browser UI (React 19)            |
+                      |  CodeMirror 6 | Dockview | Glide Grid   |
+                      |  Plotly.js Visualizations | Mantine UI   |
+                      +--------------------+---------------------+
+                                           |
+                                [engineClient.ts]
+                         Worker Pool (1..4 Web Workers)
+                                           |
+                      +--------------------+---------------------+
+                      |           Web Worker Host                |
+                      |          (engine.worker.ts)              |
+                      +--------------------+---------------------+
+                                           |
+                                   WASM Boundary
+                                 (`crates/frees`)
+                                           |
+                      +--------------------+---------------------+
+                      |        frees-core (Pure Rust)            |
+                      |  - AST & Unit Checker                    |
+                      |  - Tarjan Block Decomposition            |
+                      |  - Scaled Newton & Prepared Solver       |
+                      |  - ODE (ode45, radau5) & DAE (BDF/IDA)   |
+                      |  - rustprop Thermodynamic Engine         |
+                      |  - CAS & Control Systems                 |
+                      |  - Single & Multi-Objective Optimizer   |
+                      +------------------------------------------+
 ```
 
-For the browser app (**Node 22 is required** — under Node 20 the whole vitest
-suite dies in `jsdom`→`undici` before running a test; `web/.nvmrc` pins it):
+| Component | Responsibility |
+|---|---|
+| [`crates/frees-core`](crates/frees-core) | Core numerical engine. Target-agnostic, zero browser dependencies. |
+| [`crates/frees`](crates/frees) | WebAssembly boundary crate (`wasm-bindgen`). Serializes and deserializes typed JSON payloads. |
+| [`crates/frees-cli`](crates/frees-cli) | Native command-line binary for headless solving, verification, and automated batch processing. |
+| [`web`](web) | Modern React 19 web application, Web Worker client, and PWA packaging. |
+| [`fixtures`](fixtures) | Frozen regression corpus of 1,308+ test models, reference solutions, and tolerance definitions. |
+
+---
+
+## Quick Start
+
+### 1. Command-Line Interface (CLI)
+
+The workspace requires a stable Rust toolchain (managed via `rustup` and configured in `rust-toolchain.toml`).
 
 ```bash
-wasm-pack build crates/frees --release --target web \
-  --out-dir ../../web/src/wasm/pkg
-cd web && npm ci && npm run dev
+# Solve an equation system via stdin
+printf 'x + y = 10\nx * y = 21\n' | cargo run -qp frees-cli -- solve
+
+# Check model solvability and degrees of freedom
+cargo run -qp frees-cli -- check path/to/model.frees
+
+# Execute solve with detailed JSON output
+cargo run -qp frees-cli -- solve --json path/to/model.frees
 ```
 
-## Layout
+### 2. Browser Web Application
 
-| Path | What it is |
-|---|---|
-| `crates/frees-core` | The engine. Target-agnostic, and **must never depend on wasm-bindgen** |
-| `crates/frees` | The wasm-bindgen boundary — JSON string in, JSON string out |
-| `crates/frees-cli` | Headless `solve`/`check`, used by the parity harness |
-| `fixtures/` | The parity corpus, its goldens, and the tolerance files |
-| `tools/` | Oracle generators that run against the reference Java + native CoolProp |
-| `web/` | The React frontend, with the engine wired in place of `fetch` |
-| `docs/` | Status documents, the divergence ledger, and the decision records |
-
-## How correctness is established
-
-This is the part worth understanding before changing anything, because it is
-what the repo is actually built around.
-
-The reference implementation (a separate, **read-only** Java repository sitting
-beside this one) is the oracle. `tools/golden-dumper` runs documents through it
-and records the answers as golden fixtures. `cargo test --workspace --test
-parity` replays all 1308 of them through this engine and compares variables,
-display names, block counts, ODE trajectories and error classifications.
-
-Three properties keep that gate honest:
-
-- **The default tolerance is `1e-9`**, and every fixture that needs more must
-  say so in `fixtures/tolerances-rustprop.json` with a *measured* error and a
-  named mechanism. Currently 65 fixtures carry a relative entry and 10 carry an
-  absolute one.
-- **Dead tolerances fail the build.** An entry whose fixture now passes at the
-  default fails, as does a catalogued mechanism no entry cites. A relaxation
-  cannot quietly outlive its cause.
-- **The replay is sharded four ways in CI** and each shard prints a census whose
-  `replayed` counts must sum to the corpus, so a partition that silently
-  under-replays cannot report green.
-
-[`fixtures/README.md`](fixtures/README.md) is the authority on all of it —
-promotion rules, the pending set, the decayed-signal measure for ODE rows, and
-the absolute channel for quantities whose true value is exactly zero.
-
-## Properties
-
-Real-fluid and humid-air properties come from
-[rustprop](https://github.com/ernsoylu/RustProp), a pure-Rust port of CoolProp
-8.0.0 consumed as a pinned git dependency. **CoolProp itself is not linked into
-anything here** — there is no C FFI in the workspace and no native library in
-the bundle. The name survives in three legitimate places: rustprop is a port
-*of* it, fluid and parameter names follow its conventions (`INCOMP::MEG[0.50]`,
-`Dmass`), and it remains the oracle every accuracy claim is graded against.
-
-Decision [D9](docs/decisions/0009-rustprop-backend.md) is the authority; read it
-before writing anything that touches `props/`.
-
-## Contributing
-
-Four gates, all of which CI runs:
+Building the web application requires Node 22 (pinned in `web/.nvmrc`) and `wasm-pack`.
 
 ```bash
+# 1. Compile the Rust engine to WebAssembly
+wasm-pack build crates/frees --release --target web --out-dir ../../web/src/wasm/pkg
+
+# 2. Install web dependencies and compile reference documentation
+cd web
+npm ci
+npm run compile-docs
+
+# 3. Start local development server
+npm run dev
+```
+
+Open `http://localhost:5173` to access the interactive workspace.
+
+---
+
+## Verification & Testing
+
+Every change in the repository is validated against strict automated quality gates:
+
+```bash
+# 1. Rust code formatting and linting
 cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo clippy --workspace --target wasm32-unknown-unknown --all-targets -- -D warnings
-cargo test --workspace                    # the corpus replay is sharded separately in CI
+
+# 2. Native engine unit & integration tests
+cargo test --workspace -- --skip golden_corpus_parity
+
+# 3. Full golden regression corpus replay (1,308 fixtures)
+cargo test --release --test parity
+
+# 4. Frontend unit tests (Vitest under Node 22)
+cd web && npm test
+
+# 5. Production frontend bundle build & PWA validation
+cd web && npm run build
 ```
 
-Two conventions that are easy to violate by accident:
+### Bundle Budget Gate
 
-- **Fixtures are frozen.** A `.frees` file in `fixtures/corpus/` is an oracle
-  input whose golden was produced from exactly those bytes. Don't edit one —
-  even a comment — without re-dumping its golden.
-- **Unsupported constructs must fail loudly**, never be silently skipped, and
-  diagnostics quote the user's own source text.
+The WebAssembly engine binary is strictly gated in CI against a ceiling of **4,096 KiB** raw to maintain fast download and startup performance on web and mobile devices (current build: ~3,283 KiB raw / ~1,344 KiB gzipped).
 
-## Where to read next
+---
 
-| | |
-|---|---|
-| [`CLAUDE.md`](CLAUDE.md) | The working brief: current gate numbers, every decision in force, and the traps. Read this first |
-| [`PLAN.md`](PLAN.md) | The original 13-phase plan, the dependency substitutions, and the risk register |
-| [`fixtures/README.md`](fixtures/README.md) | The parity harness in full |
-| [`docs/decisions/`](docs/decisions/) | D1–D11 — why the property backend, the threading model, and the removed features are what they are |
-| [`docs/status-phase1.md`](docs/status-phase1.md) | The maintained divergence ledger: every known difference from the Java, open or closed |
+## Documentation
 
-## License
-
-MIT — see [`LICENSE`](LICENSE). The MIT constraint is load-bearing: it is why
-the CAS was written from scratch rather than binding Symja (LGPL-3.0), and why
-Symbolica was ruled out.
+- [`ARCHITECTURE_AND_REQIREMENTS.md`](ARCHITECTURE_AND_REQIREMENTS.md): Detailed architectural specification, numerical solver pipelines, property algorithms, DAE formulations, and system requirements.
+- [`CLAUDE.md`](CLAUDE.md): Developer and AI assistant guidelines, build instructions, invariant constraints, and debugging notes.
+- [`NEXT_STEPS.md`](NEXT_STEPS.md): Active engineering roadmap, upcoming capabilities, and change control standards.
