@@ -115,11 +115,36 @@ function looksLikeNumber(cell: string): boolean {
  * exactly as the file is — squaring them up is `parseCsvTable`'s job.
  * Optional `maxRows` stops parsing after accumulating that many data rows.
  */
+function consumeQuoted(
+  text: string,
+  start: number,
+  len: number,
+  recordNum: number,
+): { nextIndex: number; content: string } {
+  let i = start
+  let chunkStart = start
+  let content = ''
+  while (i < len) {
+    if (text[i] === '"') {
+      if (text[i + 1] === '"') {
+        content += text.slice(chunkStart, i) + '"'
+        i += 2
+        chunkStart = i
+      } else {
+        content += text.slice(chunkStart, i)
+        return { nextIndex: i + 1, content }
+      }
+    } else {
+      i++
+    }
+  }
+  throw new Error(`Unclosed quoted field in record ${recordNum}`)
+}
+
 export function splitCsvRows(text: string, delimiter: string, maxRows?: number): string[][] {
   const rows: string[][] = []
   let row: string[] = []
   let field = ''
-  let quoted = false
   let closedQuote = false
   let started = false // this row has content (guards the trailing newline)
   let i = text.charCodeAt(0) === 0xfeff ? 1 : 0
@@ -142,24 +167,6 @@ export function splitCsvRows(text: string, delimiter: string, maxRows?: number):
 
   while (i < len) {
     const ch = text[i]
-    if (quoted) {
-      if (ch === '"') {
-        if (text[i + 1] === '"') {
-          field += text.slice(chunkStart, i) + '"'
-          i += 2
-          chunkStart = i
-          continue
-        }
-        field += text.slice(chunkStart, i)
-        quoted = false
-        closedQuote = true
-        i++
-        chunkStart = i
-        continue
-      }
-      i++
-      continue
-    }
 
     if (closedQuote && ch !== delimiter && ch !== '\r' && ch !== '\n') {
       if (!ch.trim()) {
@@ -171,11 +178,11 @@ export function splitCsvRows(text: string, delimiter: string, maxRows?: number):
     }
 
     if (ch === '"' && field === '' && text.slice(chunkStart, i).trim() === '') {
-      // A quote only opens a field at its start; anywhere else it is literal.
-      quoted = true
-      field = ''
-      i++
+      const quoted = consumeQuoted(text, i + 1, len, rows.length + 1)
+      field = quoted.content
+      i = quoted.nextIndex
       chunkStart = i
+      closedQuote = true
       continue
     }
 
@@ -202,7 +209,6 @@ export function splitCsvRows(text: string, delimiter: string, maxRows?: number):
     i++
   }
 
-  if (quoted) throw new Error(`Unclosed quoted field in record ${rows.length + 1}`)
   if (chunkStart < len) {
     field += text.slice(chunkStart, len)
   }
@@ -287,6 +293,37 @@ export interface CsvOptions {
   unitRow?: boolean
 }
 
+function populateCsvColumns(
+  dataRows: string[][],
+  columnCount: number,
+  offset: number,
+  decimal: '.' | ',',
+  columns: CsvColumn[],
+  rejectedRows: { record: number; reason: string }[],
+) {
+  for (let r = 0; r < dataRows.length; r++) {
+    const row = dataRows[r]
+    if (row.length !== columnCount) {
+      rejectedRows.push({
+        record: r + offset + 1,
+        reason: 'Ragged record; missing cells remain blank',
+      })
+    }
+    for (let c = 0; c < columnCount; c++) {
+      const cell = row[c] ?? ''
+      const value = cellToNumber(cell, decimal)
+      if (looksLikeNumber(cell) && !Number.isFinite(value)) {
+        rejectedRows.push({
+          record: r + offset + 1,
+          reason: `Column ${c + 1}: invalid number`,
+        })
+      }
+      columns[c].values[r] = value
+      if (Number.isFinite(value)) columns[c].numericCount++
+    }
+  }
+}
+
 export function parseCsvTable(
   text: string,
   delimiter?: string,
@@ -325,27 +362,7 @@ export function parseCsvTable(
     unit: unitCells?.[index]?.trim() || undefined,
   }))
   const rejectedRows: { record: number; reason: string }[] = []
-  for (let r = 0; r < dataRows.length; r++) {
-    const row = dataRows[r]
-    if (row.length !== columnCount) {
-      rejectedRows.push({
-        record: r + offset + 1,
-        reason: 'Ragged record; missing cells remain blank',
-      })
-    }
-    for (let c = 0; c < columnCount; c++) {
-      const cell = row[c] ?? ''
-      const value = cellToNumber(cell, decimal)
-      if (looksLikeNumber(cell) && !Number.isFinite(value)) {
-        rejectedRows.push({
-          record: r + offset + 1,
-          reason: `Column ${c + 1}: invalid number`,
-        })
-      }
-      columns[c].values[r] = value
-      if (Number.isFinite(value)) columns[c].numericCount++
-    }
-  }
+  populateCsvColumns(dataRows, columnCount, offset, decimal, columns, rejectedRows)
 
   return { columns, rowCount: dataRows.length, headerless, delimiter: delim, rejectedRows }
 }

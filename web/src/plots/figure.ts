@@ -100,13 +100,75 @@ function curveTrace(
  */
 export function isMonotonicX(x: readonly (number | null)[]): boolean {
   let prev: number | null = null
-  for (let i = 0; i < x.length; i++) {
-    const v = x[i]
+  for (const v of x) {
     if (v === null || Number.isNaN(v)) continue
     if (prev !== null && v < prev) return false
     prev = v
   }
   return prev !== null
+}
+
+function findBucketExtrema(
+  y: readonly (number | null)[],
+  bStart: number,
+  bEnd: number,
+): { minIdx: number; maxIdx: number } {
+  let minIdx = bStart
+  let maxIdx = bStart
+  let minY = y[bStart] as number
+  let maxY = y[bStart] as number
+
+  for (let i = bStart + 1; i < bEnd; i++) {
+    const val = y[i] as number
+    if (val < minY) {
+      minY = val
+      minIdx = i
+    }
+    if (val > maxY) {
+      maxY = val
+      maxIdx = i
+    }
+  }
+  return { minIdx, maxIdx }
+}
+
+function decimateSegment(
+  x: readonly (number | null)[],
+  y: readonly (number | null)[],
+  sampleIds: readonly (string | undefined)[] | undefined,
+  segStart: number,
+  segEnd: number,
+  segBudget: number,
+  outX: (number | null)[],
+  outY: (number | null)[],
+  outIds?: (string | undefined)[],
+) {
+  const segLen = segEnd - segStart
+  if (segLen <= segBudget) {
+    for (let i = segStart; i < segEnd; i++) {
+      outX.push(x[i])
+      outY.push(y[i])
+      if (outIds) outIds.push(sampleIds?.[i])
+    }
+    return
+  }
+
+  const bucketCount = Math.floor(segBudget / 4)
+  const bucketSize = segLen / bucketCount
+
+  for (let b = 0; b < bucketCount; b++) {
+    const bStart = Math.floor(segStart + b * bucketSize)
+    const bEnd = Math.min(segEnd, Math.floor(segStart + (b + 1) * bucketSize))
+    if (bStart >= bEnd) continue
+
+    const { minIdx, maxIdx } = findBucketExtrema(y, bStart, bEnd)
+    const indices = Array.from(new Set([bStart, minIdx, maxIdx, bEnd - 1])).sort((a, b) => a - b)
+    for (const idx of indices) {
+      outX.push(x[idx])
+      outY.push(y[idx])
+      if (outIds) outIds.push(sampleIds?.[idx])
+    }
+  }
 }
 
 /**
@@ -159,48 +221,7 @@ export function decimateMonotonicSeries(
 
     const segLen = segEnd - segStart
     const segBudget = Math.max(4, Math.floor((maxPoints * segLen) / len))
-    if (segLen <= segBudget) {
-      for (let i = segStart; i < segEnd; i++) {
-        outX.push(x[i])
-        outY.push(y[i])
-        if (outIds) outIds.push(sampleIds?.[i])
-      }
-    } else {
-      const bucketCount = Math.floor(segBudget / 4)
-      const bucketSize = segLen / bucketCount
-
-      for (let b = 0; b < bucketCount; b++) {
-        const bStart = Math.floor(segStart + b * bucketSize)
-        const bEnd = Math.min(segEnd, Math.floor(segStart + (b + 1) * bucketSize))
-        if (bStart >= bEnd) continue
-
-        let minIdx = bStart
-        let maxIdx = bStart
-        let minY = y[bStart] as number
-        let maxY = y[bStart] as number
-
-        for (let i = bStart + 1; i < bEnd; i++) {
-          const val = y[i] as number
-          if (val < minY) {
-            minY = val
-            minIdx = i
-          }
-          if (val > maxY) {
-            maxY = val
-            maxIdx = i
-          }
-        }
-
-        const indices = Array.from(new Set([bStart, minIdx, maxIdx, bEnd - 1])).sort(
-          (a, b) => a - b,
-        )
-        for (const idx of indices) {
-          outX.push(x[idx])
-          outY.push(y[idx])
-          if (outIds) outIds.push(sampleIds?.[idx])
-        }
-      }
-    }
+    decimateSegment(x, y, sampleIds, segStart, segEnd, segBudget, outX, outY, outIds)
 
     segStart = segEnd
   }

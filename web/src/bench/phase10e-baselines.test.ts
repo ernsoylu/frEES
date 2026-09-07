@@ -83,9 +83,9 @@ describe('Phase 10E Baselines: Tables', () => {
       checkMessage: '',
     }
 
-    expect(spec100.rows.length).toBe(100)
-    expect(spec1000.rows.length).toBe(1000)
-    expect(spec5000.rows.length).toBe(5000)
+    expect(spec100.rows).toHaveLength(100)
+    expect(spec1000.rows).toHaveLength(1000)
+    expect(spec5000.rows).toHaveLength(5000)
 
     // Single cell commit timings on 1,000-row table (Target: candidate cell commit < 50ms p95)
     const commitTimes: number[] = []
@@ -142,7 +142,7 @@ describe('Phase 10E Baselines: Tables', () => {
       p: Math.cos(i * 0.01),
     }))
     const dt10k = performance.now() - t10k0
-    expect(derived10k.length).toBe(10000)
+    expect(derived10k).toHaveLength(10000)
 
     const t100k0 = performance.now()
     const derived100k = Array.from({ length: 100000 }, (_, i) => ({
@@ -151,7 +151,7 @@ describe('Phase 10E Baselines: Tables', () => {
       p: Math.cos(i * 0.001),
     }))
     const dt100k = performance.now() - t100k0
-    expect(derived100k.length).toBe(100000)
+    expect(derived100k).toHaveLength(100000)
 
     console.log(`[Baseline] Derived rows materialization: 10k rows in ${dt10k.toFixed(2)}ms, 100k rows in ${dt100k.toFixed(2)}ms`)
     expect(dt10k).toBeLessThan(100)
@@ -257,7 +257,7 @@ describe('Phase 10E Baselines: Plots', () => {
     const dt10k = performance.now() - t0_10k
 
     console.log(`[Baseline] 10k x 8 traces figure build: ${dt10k.toFixed(2)}ms`)
-    expect(fig10k.data.length).toBe(8)
+    expect(fig10k.data).toHaveLength(8)
     // Every dense trace must have markers suppressed (mode === 'lines')
     for (const trace of fig10k.data) {
       expect(trace.mode).toBe('lines')
