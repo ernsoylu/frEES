@@ -7,6 +7,8 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  # Ensure secondary threads in cargo test have an 8MB stack on macOS runners (which default to 512KB)
+  RUST_MIN_STACK: 8388608
   # The wasm bundle is a product constraint, not an afterthought (PLAN.md §3).
   # Gate it from day one, while there is nothing to gate — a budget introduced
   # after the bundle is already large is a budget that gets raised, not met.

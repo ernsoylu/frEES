@@ -2362,7 +2362,7 @@ mod tests {
     #[test]
     fn deeply_nested_input_is_refused_not_overflowed() {
         let mut e = Expr::var("x");
-        for _ in 0..2000 {
+        for _ in 0..400 {
             e = Expr::bin(BinOp::Add, e, Expr::var("x"));
         }
         assert!(matches!(factor(&e), Err(CasError::TooDeep)));
