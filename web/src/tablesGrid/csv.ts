@@ -113,15 +113,42 @@ function looksLikeNumber(cell: string): boolean {
  * its start (leading spaces tolerated), `""` is a literal quote inside one,
  * and CR / LF / CRLF all end a row. A UTF-8 BOM is stripped. Rows are ragged
  * exactly as the file is — squaring them up is `parseCsvTable`'s job.
+ * Optional `maxRows` stops parsing after accumulating that many data rows.
  */
-export function splitCsvRows(text: string, delimiter: string): string[][] {
+function consumeQuoted(
+  text: string,
+  start: number,
+  len: number,
+  recordNum: number,
+): { nextIndex: number; content: string } {
+  let i = start
+  let chunkStart = start
+  let content = ''
+  while (i < len) {
+    if (text[i] === '"') {
+      if (text[i + 1] === '"') {
+        content += text.slice(chunkStart, i) + '"'
+        i += 2
+        chunkStart = i
+      } else {
+        content += text.slice(chunkStart, i)
+        return { nextIndex: i + 1, content }
+      }
+    } else {
+      i++
+    }
+  }
+  throw new Error(`Unclosed quoted field in record ${recordNum}`)
+}
+
+export function splitCsvRows(text: string, delimiter: string, maxRows?: number): string[][] {
   const rows: string[][] = []
   let row: string[] = []
   let field = ''
-  let quoted = false
   let closedQuote = false
   let started = false // this row has content (guards the trailing newline)
   let i = text.charCodeAt(0) === 0xfeff ? 1 : 0
+  const len = text.length
 
   const endField = () => {
     row.push(field)
@@ -136,50 +163,55 @@ export function splitCsvRows(text: string, delimiter: string): string[][] {
     started = false
   }
 
-  while (i < text.length) {
+  let chunkStart = i
+
+  while (i < len) {
     const ch = text[i]
-    if (quoted) {
-      if (ch === '"') {
-        if (text[i + 1] === '"') {
-          field += '"'
-          i += 2
-          continue
-        }
-        quoted = false
-        closedQuote = true
+
+    if (closedQuote && ch !== delimiter && ch !== '\r' && ch !== '\n') {
+      if (!ch.trim()) {
         i++
+        chunkStart = i
         continue
       }
-      field += ch
-      i++
-      continue
-    }
-    if (closedQuote && ch !== delimiter && ch !== '\r' && ch !== '\n') {
-      if (!ch.trim()) { i++; continue }
       throw new Error(`Unexpected text after closing quote in record ${rows.length + 1}`)
     }
-    if (ch === '"' && field.trim() === '') {
-      // A quote only opens a field at its start; anywhere else it is literal.
-      quoted = true
-      field = ''
-      i++
+
+    if (ch === '"' && field === '' && text.slice(chunkStart, i).trim() === '') {
+      const quoted = consumeQuoted(text, i + 1, len, rows.length + 1)
+      field = quoted.content
+      i = quoted.nextIndex
+      chunkStart = i
+      closedQuote = true
       continue
     }
+
     if (ch === delimiter) {
+      field += text.slice(chunkStart, i)
       endField()
       i++
+      chunkStart = i
       continue
     }
+
     if (ch === '\r' || ch === '\n') {
+      field += text.slice(chunkStart, i)
       if (ch === '\r' && text[i + 1] === '\n') i++
       endRow()
       i++
+      chunkStart = i
+      if (maxRows !== undefined && rows.length >= maxRows) {
+        return rows
+      }
       continue
     }
-    field += ch
+
     i++
   }
-  if (quoted) throw new Error(`Unclosed quoted field in record ${rows.length + 1}`)
+
+  if (chunkStart < len) {
+    field += text.slice(chunkStart, len)
+  }
   // A file ending in a newline must not produce a phantom last row.
   if (field !== '' || started) endRow()
   return rows
@@ -261,9 +293,45 @@ export interface CsvOptions {
   unitRow?: boolean
 }
 
-export function parseCsvTable(text: string, delimiter?: string, options: CsvOptions = {}): CsvTable {
+function populateCsvColumns(
+  dataRows: string[][],
+  columnCount: number,
+  offset: number,
+  decimal: '.' | ',',
+  columns: CsvColumn[],
+  rejectedRows: { record: number; reason: string }[],
+) {
+  for (let r = 0; r < dataRows.length; r++) {
+    const row = dataRows[r]
+    if (row.length !== columnCount) {
+      rejectedRows.push({
+        record: r + offset + 1,
+        reason: 'Ragged record; missing cells remain blank',
+      })
+    }
+    for (let c = 0; c < columnCount; c++) {
+      const cell = row[c] ?? ''
+      const value = cellToNumber(cell, decimal)
+      if (looksLikeNumber(cell) && !Number.isFinite(value)) {
+        rejectedRows.push({
+          record: r + offset + 1,
+          reason: `Column ${c + 1}: invalid number`,
+        })
+      }
+      columns[c].values[r] = value
+      if (Number.isFinite(value)) columns[c].numericCount++
+    }
+  }
+}
+
+export function parseCsvTable(
+  text: string,
+  delimiter?: string,
+  options: CsvOptions = {},
+  maxRows?: number,
+): CsvTable {
   const delim = delimiter ?? detectDelimiter(text)
-  const rows = splitCsvRows(text, delim).filter((r) => {
+  const rows = splitCsvRows(text, delim, maxRows).filter((r) => {
     if (!r.some((c) => c.trim() !== '')) return false
     return !(r[0]?.trim().startsWith('#') && r.every((c, i) => i === 0 || c.trim() === ''))
   })
@@ -294,27 +362,21 @@ export function parseCsvTable(text: string, delimiter?: string, options: CsvOpti
     unit: unitCells?.[index]?.trim() || undefined,
   }))
   const rejectedRows: { record: number; reason: string }[] = []
-  for (let r = 0; r < dataRows.length; r++) {
-    const row = dataRows[r]
-    if (row.length !== columnCount) {
-      rejectedRows.push({
-        record: r + offset + 1,
-        reason: 'Ragged record; missing cells remain blank',
-      })
-    }
-    for (let c = 0; c < columnCount; c++) {
-      const cell = row[c] ?? ''
-      const value = cellToNumber(cell, decimal)
-      if (looksLikeNumber(cell) && !Number.isFinite(value)) {
-        rejectedRows.push({
-          record: r + offset + 1,
-          reason: `Column ${c + 1}: invalid number`,
-        })
-      }
-      columns[c].values[r] = value
-      if (Number.isFinite(value)) columns[c].numericCount++
-    }
-  }
+  populateCsvColumns(dataRows, columnCount, offset, decimal, columns, rejectedRows)
 
   return { columns, rowCount: dataRows.length, headerless, delimiter: delim, rejectedRows }
 }
+
+/**
+ * Fast preview of the first `maxRows` data rows of a CSV file.
+ * Avoids full file parsing on large (10–64 MiB) files for instant modal UI preview.
+ */
+export function parseCsvPreview(
+  text: string,
+  maxRows = 50,
+  delimiter?: string,
+  options: CsvOptions = {},
+): CsvTable {
+  return parseCsvTable(text, delimiter, options, maxRows)
+}
+

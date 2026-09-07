@@ -27,17 +27,40 @@ export default function PlotlyChart({
   const containerRef = useRef<HTMLDivElement>(null)
   const [renderError, setRenderError] = useState<string | null>(null)
   const [retryKey, setRetryKey] = useState(0)
+  const [visibleKey, setVisibleKey] = useState(0)
+  const pendingFigureRef = useRef<PlotlyFigure | null>(null)
   const renderSeq = useRef(0)
   const onPointClickRef = useRef(onPointClick)
-  onPointClickRef.current = onPointClick
+  useEffect(() => {
+    onPointClickRef.current = onPointClick
+  })
 
   useEffect(() => {
     let cancelled = false
     const seq = ++renderSeq.current
     async function render() {
       try {
-        const { default: Plotly } = await import('./plotlyBundle')
         const el = containerRef.current
+        if (cancelled || el === null || seq !== renderSeq.current) return
+
+        // Defer rendering when inside an invisible/hidden container (e.g. background dock tab)
+        const isTestEnv =
+          typeof (globalThis as { process?: { env?: { NODE_ENV?: string } } }).process?.env?.NODE_ENV === 'string' &&
+          (globalThis as { process?: { env?: { NODE_ENV?: string } } }).process?.env?.NODE_ENV === 'test'
+
+        const isHidden =
+          !isTestEnv &&
+          typeof ResizeObserver !== 'undefined' &&
+          el.clientWidth === 0 &&
+          el.clientHeight === 0 &&
+          el.offsetParent === null
+
+        if (isHidden) {
+          pendingFigureRef.current = figure
+          return
+        }
+
+        const { default: Plotly } = await import('./plotlyBundle')
         if (cancelled || el === null || seq !== renderSeq.current) return
         await Plotly.react(el, figure.data, figure.layout, {
           responsive: true,
@@ -89,7 +112,7 @@ export default function PlotlyChart({
     return () => {
       cancelled = true
     }
-  }, [figure, retryKey])
+  }, [figure, retryKey, visibleKey])
 
   // Handle WebGL context loss for 3D plots without erasing user's configuration
   useEffect(() => {
@@ -122,9 +145,17 @@ export default function PlotlyChart({
     const observer = new ResizeObserver(() => {
       cancelAnimationFrame(frame)
       frame = requestAnimationFrame(() => {
-        if (plotly && containerRef.current) {
+        const cur = containerRef.current
+        if (!cur) return
+        if (
+          pendingFigureRef.current &&
+          (cur.clientWidth > 0 || cur.clientHeight > 0 || cur.offsetParent !== null)
+        ) {
+          pendingFigureRef.current = null
+          setVisibleKey((k) => k + 1)
+        } else if (plotly && cur) {
           try {
-            plotly.Plots.resize(containerRef.current)
+            plotly.Plots.resize(cur)
           } catch {
             // ignore resize during transition/unmount
           }

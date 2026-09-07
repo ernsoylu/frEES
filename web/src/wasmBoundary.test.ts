@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeAll } from 'vitest'
-// @ts-ignore
+// @ts-expect-error Node built-in module not declared in Vite client tsconfig
 import { readFileSync } from 'node:fs'
-// @ts-ignore
+// @ts-expect-error Node built-in module not declared in Vite client tsconfig
 import { resolve } from 'node:path'
-// @ts-ignore
+// @ts-expect-error Node built-in module not declared in Vite client tsconfig
 import { fileURLToPath } from 'node:url'
 import {
   initSync,
@@ -14,7 +14,6 @@ import {
 } from './wasm/pkg/frees.js'
 
 beforeAll(() => {
-  // @ts-ignore
   const __dirname = resolve(fileURLToPath(import.meta.url), '..')
   const wasmPath = resolve(__dirname, './wasm/pkg/frees_bg.wasm')
   const bytes = readFileSync(wasmPath)

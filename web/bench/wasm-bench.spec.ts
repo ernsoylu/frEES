@@ -152,85 +152,112 @@ test('wasm solve benchmark over the benchmark suite documents', async ({ page })
   }
 })
 
-test('wasm constrained optimization benchmark', async ({ page }) => {
+interface BenchSummary {
+  medianMs: number
+  minMs: number
+  n: number
+}
+
+async function runWasmBench(
+  page: import('@playwright/test').Page,
+  name: string,
+  kind: 'optimize' | 'sweep' | 'accessor' | 'lookup',
+): Promise<BenchSummary> {
   page.on('console', (m) => console.log(`[page] ${m.text()}`))
   await page.goto('/web/bench/blank.html')
 
-  const res = await page.evaluate(async () => {
+  const res = await page.evaluate(async (benchKind) => {
     const mod = await import('/web/src/wasm/pkg/frees.js')
     await mod.default('/web/src/wasm/pkg/frees_bg.wasm')
-    const optSource = 'f = (x - 10)^2 + (y - 10)^2 + (z - 10)^2\n'
-    const optReq = JSON.stringify({
-      objective: 'f',
-      decisions: ['x', 'y', 'z'],
-      lowers: [0.0, 0.0, 0.0],
-      uppers: [15.0, 15.0, 15.0],
-      constraints: ['x + y <= 8', 'y + z <= 8', 'x >= 1'],
-      method: 'nelder-mead',
-      maximize: false,
-    })
 
-    const probe = JSON.parse(mod.optimize(optSource, optReq))
-    if (!probe.success) return { error: probe.warning || 'optimization did not converge' }
+    let iters = 10
+    let runStep: () => void = () => {}
 
-    // 3 warmup iterations
-    for (let i = 0; i < 3; i++) mod.optimize(optSource, optReq)
-
-    const optTimes: number[] = []
-    for (let i = 0; i < 20; i++) {
-      const tStart = performance.now()
-      mod.optimize(optSource, optReq)
-      optTimes.push(performance.now() - tStart)
+    if (benchKind === 'optimize') {
+      const optSource = 'f = (x - 10)^2 + (y - 10)^2 + (z - 10)^2\n'
+      const optReq = JSON.stringify({
+        objective: 'f',
+        decisions: ['x', 'y', 'z'],
+        lowers: [0.0, 0.0, 0.0],
+        uppers: [15.0, 15.0, 15.0],
+        constraints: ['x + y <= 8', 'y + z <= 8', 'x >= 1'],
+        method: 'nelder-mead',
+        maximize: false,
+      })
+      const probe = JSON.parse(mod.optimize(optSource, optReq))
+      if (!probe.success) return { error: probe.warning || 'optimization did not converge' }
+      for (let i = 0; i < 3; i++) mod.optimize(optSource, optReq)
+      iters = 20
+      runStep = () => mod.optimize(optSource, optReq)
+    } else if (benchKind === 'sweep') {
+      const sweepSource = 'y = 2 * x + 1\n'
+      const rows = Array.from({ length: 1000 }, (_, i) => ({ x: i + 1 }))
+      const sweepReq = JSON.stringify({
+        table: { variables: ['x', 'y'], rows },
+      })
+      const probe = JSON.parse(mod.solve_table(sweepSource, sweepReq))
+      if (!probe.stats || probe.stats.solved !== 1000) {
+        return { error: `sweep failed: ${probe.stats?.solved} solved of 1000` }
+      }
+      runStep = () => mod.solve_table(sweepSource, sweepReq)
+    } else if (benchKind === 'accessor') {
+      const source = "avg = TableAvg('y')\ny = 2 * x\n"
+      const rows = Array.from({ length: 100 }, (_, i) => ({ x: i + 1 }))
+      const req = JSON.stringify({
+        table: { variables: ['x', 'y', 'avg'], rows },
+      })
+      const probe = JSON.parse(mod.solve_table(source, req))
+      if (!probe.stats || probe.stats.solved !== 100) {
+        return { error: `accessor sweep failed: ${probe.stats?.solved} solved of 100` }
+      }
+      runStep = () => mod.solve_table(source, req)
+    } else if (benchKind === 'lookup') {
+      const K = 1000
+      let source = 'y = curve(x)\nx = 500.5\nTABLE curve(x)\n'
+      for (let i = 0; i < K; i++) {
+        source += `  ${i}  ${Math.sin(i * 0.05)}\n`
+      }
+      source += 'END\n'
+      const probe = JSON.parse(mod.solve(source, ''))
+      if (!probe.success) {
+        return { error: `lookup solve failed: ${probe.error?.message ?? probe.error}` }
+      }
+      iters = 15
+      runStep = () => mod.solve(source, '')
     }
-    optTimes.sort((a, b) => a - b)
+
+    const recorded: number[] = []
+    for (let c = 0; c < iters; c++) {
+      const t = performance.now()
+      runStep()
+      recorded.push(performance.now() - t)
+    }
+    recorded.sort((a, b) => a - b)
     return {
-      medianMs: optTimes[optTimes.length >> 1],
-      minMs: optTimes[0],
-      n: optTimes.length,
+      medianMs: recorded[recorded.length >> 1],
+      minMs: recorded[0],
+      n: recorded.length,
     }
-  })
+  }, kind)
 
   expect(res).not.toHaveProperty('error')
-  const r = res as { medianMs: number; minMs: number; n: number }
-  console.log(`constrained_optimization: median ${r.medianMs.toFixed(3)} ms, min ${r.minMs.toFixed(3)} ms, n=${r.n}`)
+  const r = res as BenchSummary
+  console.log(`${name}: median ${r.medianMs.toFixed(3)} ms, min ${r.minMs.toFixed(3)} ms, n=${r.n}`)
+  return r
+}
+
+test('wasm constrained optimization benchmark', async ({ page }) => {
+  await runWasmBench(page, 'constrained_optimization', 'optimize')
 })
 
 test('wasm 1,000-row sweep benchmark', async ({ page }) => {
-  page.on('console', (m) => console.log(`[page] ${m.text()}`))
-  await page.goto('/web/bench/blank.html')
+  await runWasmBench(page, 'sweep_1000_rows', 'sweep')
+})
 
-  const res = await page.evaluate(async () => {
-    const mod = await import('/web/src/wasm/pkg/frees.js')
-    await mod.default('/web/src/wasm/pkg/frees_bg.wasm')
-    const sweepSource = 'y = 2 * x + 1\n'
-    const rows = Array.from({ length: 1000 }, (_, i) => ({ x: i + 1 }))
-    const sweepReq = JSON.stringify({
-      table: {
-        variables: ['x', 'y'],
-        rows,
-      },
-    })
+test('wasm accessor sweep benchmark', async ({ page }) => {
+  await runWasmBench(page, 'accessor_sweep_100_rows', 'accessor')
+})
 
-    const probe = JSON.parse(mod.solve_table(sweepSource, sweepReq))
-    if (!probe.stats || probe.stats.solved !== 1000) {
-      return { error: `sweep failed: ${probe.stats?.solved} solved of 1000` }
-    }
-
-    const sweepDurations: number[] = []
-    for (let count = 0; count < 10; count++) {
-      const mark = performance.now()
-      mod.solve_table(sweepSource, sweepReq)
-      sweepDurations.push(performance.now() - mark)
-    }
-    sweepDurations.sort((x, y) => x - y)
-    return {
-      medianMs: sweepDurations[sweepDurations.length >> 1],
-      minMs: sweepDurations[0],
-      n: sweepDurations.length,
-    }
-  })
-
-  expect(res).not.toHaveProperty('error')
-  const r = res as { medianMs: number; minMs: number; n: number }
-  console.log(`sweep_1000_rows: median ${r.medianMs.toFixed(3)} ms, min ${r.minMs.toFixed(3)} ms, n=${r.n}`)
+test('wasm lookup table interpolation benchmark (1k knots)', async ({ page }) => {
+  await runWasmBench(page, 'lookup_1000_knots_solve', 'lookup')
 })

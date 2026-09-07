@@ -798,25 +798,104 @@ export async function getReference(): Promise<LanguageReference> {
  *  Points the backend declines arrive as `null` in `x`/`y`, which Plotly draws
  *  as a line break. A partial backend therefore produces a visibly incomplete
  *  curve, never an interpolated one. */
+const MAX_THERMO_CACHE_SIZE = 32
+
+const propertyDiagramCache = new Map<string, DiagramResponse>()
+const propertyDiagramInFlight = new Map<string, Promise<DiagramResponse>>()
+
+const psychartCache = new Map<string, PsychartResponse>()
+const psychartInFlight = new Map<string, Promise<PsychartResponse>>()
+
+/** Clears the thermo diagram caches (used in testing or when engine restarts). */
+export function clearThermoCache(): void {
+  propertyDiagramCache.clear()
+  propertyDiagramInFlight.clear()
+  psychartCache.clear()
+  psychartInFlight.clear()
+}
+
+/** `POST /api/plot/propplot` — saturation dome, isolines and markers.
+ *  Uses bounded LRU cache (up to 32 entries) and in-flight promise sharing.
+ *  Rejections are evicted immediately so Retry works.
+ */
 export async function getPropertyDiagram(
   fluid: string,
   type: string,
 ): Promise<DiagramResponse> {
-  return wasmPropertyDiagram(fluid, type)
+  const key = `${fluid.trim().toLowerCase()}:${type.trim().toLowerCase()}`
+  const cached = propertyDiagramCache.get(key)
+  if (cached) {
+    propertyDiagramCache.delete(key)
+    propertyDiagramCache.set(key, cached)
+    return cached
+  }
+
+  const inFlight = propertyDiagramInFlight.get(key)
+  if (inFlight) {
+    return inFlight
+  }
+
+  const promise = wasmPropertyDiagram(fluid, type)
+    .then((res) => {
+      propertyDiagramInFlight.delete(key)
+      if (propertyDiagramCache.size >= MAX_THERMO_CACHE_SIZE) {
+        const oldestKey = propertyDiagramCache.keys().next().value
+        if (oldestKey !== undefined) propertyDiagramCache.delete(oldestKey)
+      }
+      propertyDiagramCache.set(key, res)
+      return res
+    })
+    .catch((err: unknown) => {
+      propertyDiagramInFlight.delete(key)
+      propertyDiagramCache.delete(key)
+      throw err
+    })
+
+  propertyDiagramInFlight.set(key, promise)
+  return promise
 }
 
 /** `POST /api/plot/psychart` — the psychrometric chart, generated in-engine by
  *  `props::psychro`.
- *
- *  Same gap contract as `getPropertyDiagram`: every point HAPropsSI cannot
- *  serve is `null`. Rejects only for a bad window (pressure <= 1 kPa,
- *  tMax <= tMin), which is the Java's own guard. */
+ *  Uses bounded LRU cache (up to 32 entries) and in-flight promise sharing.
+ *  Rejections are evicted immediately so Retry works.
+ */
 export async function getPsychrometricChart(
   pressure: number,
   tMin: number,
   tMax: number,
 ): Promise<PsychartResponse> {
-  return wasmPsychrometricChart(pressure, tMin, tMax)
+  const key = `${pressure}:${tMin}:${tMax}`
+  const cached = psychartCache.get(key)
+  if (cached) {
+    psychartCache.delete(key)
+    psychartCache.set(key, cached)
+    return cached
+  }
+
+  const inFlight = psychartInFlight.get(key)
+  if (inFlight) {
+    return inFlight
+  }
+
+  const promise = wasmPsychrometricChart(pressure, tMin, tMax)
+    .then((res) => {
+      psychartInFlight.delete(key)
+      if (psychartCache.size >= MAX_THERMO_CACHE_SIZE) {
+        const oldestKey = psychartCache.keys().next().value
+        if (oldestKey !== undefined) psychartCache.delete(oldestKey)
+      }
+      psychartCache.set(key, res)
+      return res
+    })
+    .catch((err: unknown) => {
+      psychartInFlight.delete(key)
+      psychartCache.delete(key)
+      throw err
+    })
+
+  psychartInFlight.set(key, promise)
+  return promise
 }
 
 export interface TableStats {

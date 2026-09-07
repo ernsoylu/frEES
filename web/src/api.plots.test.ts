@@ -31,7 +31,7 @@ vi.mock('./wasm/engineClient', () => ({
   wasmPsychrometricChart: vi.fn(),
 }))
 
-import { getFluids, getPropertyDiagram, getPsychrometricChart } from './api'
+import { clearThermoCache, getFluids, getPropertyDiagram, getPsychrometricChart } from './api'
 import {
   wasmFluids,
   wasmPropertyDiagram,
@@ -93,6 +93,7 @@ const CHART = {
 
 beforeEach(() => {
   vi.resetAllMocks()
+  clearThermoCache()
 })
 
 describe('getFluids', () => {
@@ -183,5 +184,32 @@ describe('getPsychrometricChart', () => {
     await expect(getPsychrometricChart(500, 273.15, 323.15)).rejects.toThrow(
       /pressure > 1 kPa/,
     )
+  })
+
+  it('reuses in-flight requests and caches responses for identical queries', async () => {
+    chartMock.mockResolvedValue(CHART)
+    // Concurrent calls share in-flight promise
+    const [c1, c2] = await Promise.all([
+      getPsychrometricChart(101325, 273.15, 323.15),
+      getPsychrometricChart(101325, 273.15, 323.15),
+    ])
+    expect(c1).toEqual(CHART)
+    expect(c2).toEqual(CHART)
+    expect(chartMock).toHaveBeenCalledTimes(1)
+
+    // Subsequent call hits cache
+    const c3 = await getPsychrometricChart(101325, 273.15, 323.15)
+    expect(c3).toEqual(CHART)
+    expect(chartMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('evicts failed requests from cache so retrying invokes the engine again', async () => {
+    chartMock.mockRejectedValueOnce(new Error('transient error'))
+    await expect(getPsychrometricChart(101325, 273.15, 323.15)).rejects.toThrow('transient error')
+
+    chartMock.mockResolvedValueOnce(CHART)
+    const retry = await getPsychrometricChart(101325, 273.15, 323.15)
+    expect(retry).toEqual(CHART)
+    expect(chartMock).toHaveBeenCalledTimes(2)
   })
 })

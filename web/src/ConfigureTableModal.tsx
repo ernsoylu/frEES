@@ -30,7 +30,7 @@ export default function ConfigureTableModal({
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    let list = q ? variables.filter((v) => v.toLowerCase().includes(q)) : [...variables]
+    const list = q ? variables.filter((v) => v.toLowerCase().includes(q)) : [...variables]
     if (selectedFirst) {
       list.sort((a, b) => {
         const aSel = local.includes(a)
