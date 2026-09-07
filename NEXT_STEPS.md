@@ -93,7 +93,7 @@ Focus: Eliminating data transfer bottlenecks, preventing parser crashes, expandi
 - [ ] **2.4 Cross-Platform & Cross-Browser CI Matrix**
   - Add a macOS runner leg in CI to validate floating-point formatting and `libm` consistency across operating systems.
   - Expand Playwright test suites to run across a Chromium, Firefox, and WebKit (Safari) browser matrix to verify WebAssembly instantiation and IndexedDB storage resilience.
-- [ ] **2.5 Interactive Pareto Point-Click Inspection**
+- [x] **2.5 Interactive Pareto Point-Click Inspection**
   - Enhance `web/src/MinMaxModal.tsx` so clicking any point on the 2D Pareto front scatter plot highlights the corresponding decision variables and allows instant loading of the operating point into the active document.
 - [ ] **2.6 R15 Usability Pilot Validation**
   - Execute the structured R15 usability pilot with 5 engineering participants to validate core modeling tasks (scalar solve within 5 minutes, component chain within 10 minutes, missing boundary recovery within 3 minutes) prior to adding complex UI extensions.

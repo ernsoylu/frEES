@@ -3215,6 +3215,7 @@ export default function App() {
             unitSystem={unitSystem}
             getFunctionTables={functionTableDtos}
             onClose={() => setShowMinMax(false)}
+            onApply={(next) => applyText(next)}
           />
         </Suspense>
       )}

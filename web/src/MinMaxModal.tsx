@@ -7,6 +7,7 @@ import {
   Modal,
   MultiSelect,
   NumberInput,
+  Paper,
   SegmentedControl,
   Select,
   Stack,
@@ -15,6 +16,7 @@ import {
   Textarea,
   TextInput,
 } from '@mantine/core'
+import { applyFittedParameters } from './ParameterFitModal'
 import {
   optimize,
   optimizeMulti,
@@ -68,7 +70,16 @@ function OptimumLine({
   )
 }
 
-function ResultView({ result }: Readonly<{ result: OptimizeResponse }>) {
+function ResultView({
+  result,
+  text,
+  onApply,
+}: Readonly<{
+  result: OptimizeResponse
+  text: string
+  onApply?: (nextText: string) => void
+}>) {
+  const [applied, setApplied] = useState(false)
   if (!result.success) {
     return (
       <Alert color="red" variant="light" p="xs">
@@ -80,13 +91,31 @@ function ResultView({ result }: Readonly<{ result: OptimizeResponse }>) {
   }
   return (
     <Stack gap="xs">
-      <Group gap="xs">
-        <Badge color="green" variant="light" leftSection="✓">
-          Optimum found
-        </Badge>
-        <Text size="xs" c="dimmed">
-          {result.evaluations} objective evaluations
-        </Text>
+      <Group gap="xs" justify="space-between">
+        <Group gap="xs">
+          <Badge color="green" variant="light" leftSection="✓">
+            Optimum found
+          </Badge>
+          <Text size="xs" c="dimmed">
+            {result.evaluations} objective evaluations
+          </Text>
+        </Group>
+        {onApply && (
+          <Button
+            size="xs"
+            color={applied ? 'teal' : 'green'}
+            variant="light"
+            onClick={() => {
+              const names = result.decisions.map((d) => d.name)
+              const values = result.decisions.map((d) => d.value)
+              onApply(applyFittedParameters(text, names, values))
+              setApplied(true)
+              setTimeout(() => setApplied(false), 2500)
+            }}
+          >
+            {applied ? '✓ Applied to Document' : 'Load Optimum into Document'}
+          </Button>
+        )}
       </Group>
       {result.warning && (
         <Alert color="yellow" variant="light" p="xs">
@@ -125,7 +154,18 @@ function ResultView({ result }: Readonly<{ result: OptimizeResponse }>) {
   )
 }
 
-function ParetoView({ result }: Readonly<{ result: ParetoResponse }>) {
+function ParetoView({
+  result,
+  text,
+  onApply,
+}: Readonly<{
+  result: ParetoResponse
+  text: string
+  onApply?: (nextText: string) => void
+}>) {
+  const [selectedPointIndex, setSelectedPointIndex] = useState<number | null>(null)
+  const [applied, setApplied] = useState(false)
+
   if (!result.success) {
     return (
       <Alert color="red" variant="light" p="xs">
@@ -137,6 +177,8 @@ function ParetoView({ result }: Readonly<{ result: ParetoResponse }>) {
   }
   const { front, objectiveNames, decisionNames } = result
   const twoObjectives = objectiveNames.length === 2
+  const selectedPoint = selectedPointIndex !== null && selectedPointIndex < front.length ? front[selectedPointIndex] : null
+
   const figure = twoObjectives
     ? {
         data: [
@@ -148,7 +190,20 @@ function ParetoView({ result }: Readonly<{ result: ParetoResponse }>) {
             marker: { color: '#69db7c', size: 8 },
             line: { color: '#2f9e44', width: 1 },
             name: 'Pareto front',
+            customdata: front.map((_, i) => i),
           },
+          ...(selectedPoint
+            ? [
+                {
+                  x: [selectedPoint.objectives[0]],
+                  y: [selectedPoint.objectives[1]],
+                  type: 'scatter' as const,
+                  mode: 'markers' as const,
+                  marker: { color: '#ffa94d', size: 14, symbol: 'diamond', line: { color: '#d9480f', width: 2 } },
+                  name: `Point #${selectedPointIndex + 1}`,
+                },
+              ]
+            : []),
         ],
         layout: {
           xaxis: { title: { text: objectiveNames[0] }, gridcolor: '#373a40', zeroline: false },
@@ -161,48 +216,162 @@ function ParetoView({ result }: Readonly<{ result: ParetoResponse }>) {
         },
       }
     : null
+
+  const handleApply = (point: { decisions: number[] }) => {
+    if (!onApply) return
+    const nextText = applyFittedParameters(text, decisionNames, point.decisions)
+    onApply(nextText)
+    setApplied(true)
+    setTimeout(() => setApplied(false), 2500)
+  }
+
   return (
     <Stack gap="xs">
-      <Group gap="xs">
-        <Badge color="green" variant="light" leftSection="✓">
-          {front.length} Pareto-optimal points
-        </Badge>
+      <Group gap="xs" justify="space-between">
+        <Group gap="xs">
+          <Badge color="green" variant="light" leftSection="✓">
+            {front.length} Pareto-optimal points
+          </Badge>
+          <Text size="xs" c="dimmed">
+            {result.evaluations} evaluations
+          </Text>
+        </Group>
         <Text size="xs" c="dimmed">
-          {result.evaluations} evaluations
+          Click a point or row to inspect & load into document
         </Text>
       </Group>
-      {figure && <PlotlyChart figure={figure} minHeight={280} />}
+
+      {figure && (
+        <PlotlyChart
+          figure={figure}
+          minHeight={280}
+          onPointClick={(pt) => {
+            if (pt.pointIndex >= 0 && pt.pointIndex < front.length) {
+              setSelectedPointIndex(pt.pointIndex)
+              setApplied(false)
+            }
+          }}
+        />
+      )}
+
+      {selectedPoint && (
+        <Paper withBorder p="xs" radius="sm" style={{ backgroundColor: 'var(--mantine-color-dark-6)' }}>
+          <Stack gap="xs">
+            <Group justify="space-between" align="center">
+              <Group gap="xs">
+                <Badge color="orange" variant="filled">
+                  Selected Point #{selectedPointIndex + 1}
+                </Badge>
+                <Text size="xs" c="dimmed">
+                  of {front.length}
+                </Text>
+              </Group>
+              {onApply && (
+                <Button
+                  size="xs"
+                  color={applied ? 'teal' : 'orange'}
+                  variant="light"
+                  onClick={() => handleApply(selectedPoint)}
+                >
+                  {applied ? '✓ Applied to Document' : 'Load Point into Document'}
+                </Button>
+              )}
+            </Group>
+
+            <Group gap="md" wrap="wrap">
+              <Stack gap={2}>
+                <Text size="xs" fw={700} c="dimmed">
+                  OBJECTIVES
+                </Text>
+                <Group gap="xs">
+                  {objectiveNames.map((name, j) => (
+                    <Badge key={name} variant="outline" color="green">
+                      {name} = {formatValue(selectedPoint.objectives[j])}
+                    </Badge>
+                  ))}
+                </Group>
+              </Stack>
+              <Stack gap={2}>
+                <Text size="xs" fw={700} c="dimmed">
+                  DECISION VARIABLES
+                </Text>
+                <Group gap="xs">
+                  {decisionNames.map((name, j) => (
+                    <Badge key={name} variant="outline" color="cyan">
+                      {name} = {formatValue(selectedPoint.decisions[j])}
+                    </Badge>
+                  ))}
+                </Group>
+              </Stack>
+            </Group>
+          </Stack>
+        </Paper>
+      )}
+
       {!twoObjectives && (
         <Text size="xs" c="dimmed">
           Plotting is shown for exactly two objectives; the table below lists every point.
         </Text>
       )}
+
       <Table striped highlightOnHover withTableBorder>
         <Table.Thead>
           <Table.Tr>
+            <Table.Th style={{ width: 40 }}>#</Table.Th>
             {objectiveNames.map((name) => (
               <Table.Th key={`o-${name}`}>{name}</Table.Th>
             ))}
             {decisionNames.map((name) => (
               <Table.Th key={`d-${name}`}>{name}</Table.Th>
             ))}
+            {onApply && <Table.Th style={{ width: 90 }}>Action</Table.Th>}
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
-          {front.map((p, i) => (
-            <Table.Tr key={i}>
-              {p.objectives.map((v, j) => (
-                <Table.Td key={`o${j}`} ff="monospace" c="green.4">
-                  {formatValue(v)}
+          {front.map((p, i) => {
+            const isSelected = selectedPointIndex === i
+            return (
+              <Table.Tr
+                key={i}
+                onClick={() => {
+                  setSelectedPointIndex(i)
+                  setApplied(false)
+                }}
+                style={{
+                  cursor: 'pointer',
+                  backgroundColor: isSelected ? 'var(--mantine-color-blue-light)' : undefined,
+                }}
+              >
+                <Table.Td>
+                  <Text size="xs" c={isSelected ? 'blue.4' : 'dimmed'} fw={isSelected ? 700 : 400}>
+                    {i + 1}
+                  </Text>
                 </Table.Td>
-              ))}
-              {p.decisions.map((v, j) => (
-                <Table.Td key={`d${j}`} ff="monospace" c="dimmed">
-                  {formatValue(v)}
-                </Table.Td>
-              ))}
-            </Table.Tr>
-          ))}
+                {p.objectives.map((v, j) => (
+                  <Table.Td key={`o${j}`} ff="monospace" c="green.4">
+                    {formatValue(v)}
+                  </Table.Td>
+                ))}
+                {p.decisions.map((v, j) => (
+                  <Table.Td key={`d${j}`} ff="monospace" c={isSelected ? 'cyan.3' : 'dimmed'} fw={isSelected ? 700 : 400}>
+                    {formatValue(v)}
+                  </Table.Td>
+                ))}
+                {onApply && (
+                  <Table.Td onClick={(e) => e.stopPropagation()}>
+                    <Button
+                      size="compact-xs"
+                      variant={isSelected ? 'filled' : 'subtle'}
+                      color={isSelected ? 'orange' : 'gray'}
+                      onClick={() => handleApply(p)}
+                    >
+                      Load
+                    </Button>
+                  </Table.Td>
+                )}
+              </Table.Tr>
+            )
+          })}
         </Table.Tbody>
       </Table>
     </Stack>
@@ -218,6 +387,7 @@ interface Props {
   unitSystem: UnitSystem
   getFunctionTables: () => FunctionTableDto[]
   onClose: () => void
+  onApply?: (nextText: string) => void
 }
 
 /**
@@ -234,6 +404,7 @@ export default function MinMaxModal({
   unitSystem,
   getFunctionTables,
   onClose,
+  onApply,
 }: Readonly<Props>) {
   const [mode, setMode] = useState<Mode>('single')
   const [goal, setGoal] = useState<'minimize' | 'maximize'>('minimize')
@@ -558,8 +729,8 @@ export default function MinMaxModal({
           </Text>
         )}
 
-        {mode === 'single' && result && <ResultView result={result} />}
-        {mode === 'multi' && pareto && <ParetoView result={pareto} />}
+        {mode === 'single' && result && <ResultView result={result} text={text} onApply={onApply} />}
+        {mode === 'multi' && pareto && <ParetoView result={pareto} text={text} onApply={onApply} />}
 
         <Group justify="flex-end" mt="xs">
           <Button variant="default" onClick={onClose}>
