@@ -488,7 +488,9 @@ export function mergeCodeTables(
   const guiTables = existing.filter((t) => t.source !== 'code')
   const codeFunctionTables = (functionDtos ?? []).map(functionTableFromDto)
   const codeParamTables = (parametricDtos ?? []).map(paramTableFromDto)
-  const codeOdeTables = (odeDtos ?? []).map(odeTableFromDto)
+  const codeOdeTables = odeDtos !== undefined
+    ? odeDtos.map(odeTableFromDto)
+    : existing.filter((t) => t.source === 'code' && t.kind === 'parametric' && t.origin === 'ode')
   return [...guiTables, ...codeFunctionTables, ...codeParamTables, ...codeOdeTables]
 }
 

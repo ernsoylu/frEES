@@ -149,6 +149,26 @@ interface Props {
   onSelectRow?: (tableId: string | undefined, rowId: string) => void
 }
 
+function lookupVariableValue(
+  record: Record<string, number | string | undefined> | undefined,
+  name: string,
+): number | string | undefined {
+  if (!record) return undefined
+  if (record[name] !== undefined) return record[name]
+  const dollar = name.replaceAll('.', '$')
+  if (record[dollar] !== undefined) return record[dollar]
+  const dot = name.replaceAll('$', '.')
+  if (record[dot] !== undefined) return record[dot]
+  const lower = name.toLowerCase()
+  const lowerDot = dot.toLowerCase()
+  for (const [k, v] of Object.entries(record)) {
+    if (k.toLowerCase() === lower || k.replaceAll('$', '.').toLowerCase() === lowerDot) {
+      return v
+    }
+  }
+  return undefined
+}
+
 /** Value of one variable in one run: solved value or the typed input. */
 function runValue(
   row: ParamRow,
@@ -156,9 +176,12 @@ function runValue(
   name: string,
 ): number | undefined {
   if (result && !result.success) return undefined
-  const solved = result?.success ? result.values[name] : undefined
-  if (solved !== undefined) return Number.isFinite(solved) ? solved : undefined
-  const raw = (row.values[name] ?? '').trim()
+  const solved = result?.success ? lookupVariableValue(result.values, name) : undefined
+  if (solved !== undefined) {
+    const num = typeof solved === 'number' ? solved : Number(solved)
+    if (Number.isFinite(num)) return num
+  }
+  const raw = String(lookupVariableValue(row.values, name) ?? '').trim()
   if (raw === '') return undefined
   const value = Number(raw)
   return Number.isFinite(value) ? value : undefined
@@ -296,8 +319,8 @@ export interface FigureInputs {
   /** Per-column SI units for the active read-only table (ODE/code), whose
    * columns are not solved scalars — used to unit-annotate the axis labels. */
   tableUnits?: Record<string, string>
-  diagram: DiagramResponse | null
-  psychart: PsychartResponse | null
+  diagram?: DiagramResponse | null
+  psychart?: PsychartResponse | null
   /** Declared STATE TABLE blocks, so a plot can overlay just one circuit. */
   stateTableDefs?: StateTableDto[]
   theme: PlotTheme
@@ -410,7 +433,8 @@ function buildXyFigureFromSpec(spec: PlotSpec, inputs: FigureInputs, xVar: strin
   // the rows already carry the requested series data even though there are no
   // run results, which is the case for read-only code PARAMETRIC tables and
   // DYNAMIC/ODE trajectories (their values live in the rows, not in `results`).
-  const outcomes = spec.source?.kind === 'table' && spec.source.data === 'solved'
+  const hasResults = tableResults && tableResults.length > 0
+  const outcomes = spec.source?.kind === 'table' && spec.source.data === 'solved' && hasResults
     ? tableRows.map((_, i) => tableResults[i] ?? { success: false, values: {}, error: null }) : []
   const useArrays = spec.source?.kind === 'arrays'
   const series = useArrays
@@ -427,10 +451,18 @@ function buildXyFigureFromSpec(spec: PlotSpec, inputs: FigureInputs, xVar: strin
   // table column displays) to the default axis labels, unless disabled.
   const showUnits = spec.format.showUnits !== false
   const unitOf = (name: string): string => {
-    const v = variables.find((x) => x.name.toLowerCase() === name.toLowerCase())
+    const matchName = (n: string) => {
+      const a = n.toLowerCase().replaceAll('$', '.')
+      const b = name.toLowerCase().replaceAll('$', '.')
+      return a === b
+    }
+    const v = variables.find((x) => matchName(x.name))
     // Solved scalars carry their unit; ODE/code-table columns are not scalars,
     // so fall back to the table's per-column SI units.
-    return v?.units ?? inputs.tableUnits?.[name] ?? ''
+    if (v?.units) return v.units
+    if (!inputs.tableUnits) return ''
+    const unitKey = Object.keys(inputs.tableUnits).find(matchName)
+    return unitKey ? inputs.tableUnits[unitKey] : ''
   }
   const withUnit = (label: string, unit: string) =>
     showUnits && unit ? `${label} [${unit}]` : label

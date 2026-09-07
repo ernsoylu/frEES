@@ -121,7 +121,7 @@ export default function PlotTab({
     : (visible.find((p) => p.id === activePlot) ?? visible[0] ?? null)
 
   const source = current ? resolvePlotSource(current, tables, solvedVariables) : undefined
-  const sourceTable = source?.kind === 'table' ? tables.find((t) => t.id === source.tableId) : undefined
+  const sourceTable = source?.kind === 'table' ? tables.find((t) => t.id.toLowerCase() === source.tableId.toLowerCase()) : undefined
   const boundTable = sourceTable?.kind === 'parametric' ? sourceTable : undefined
 
   const functionRows: ParamRow[] = useMemo(() => {

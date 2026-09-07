@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { computeTraceStats, formatPlotValue } from './PlotCard'
+import { buildFigure, computeTraceStats, formatPlotValue } from './PlotCard'
 import { buildXYFigure, type XYSeries } from './figure'
 import { resolvePlotSource } from './sources'
 import { defaultFormat, newPlotSpec, PlotSpec } from './types'
-import { FunctionTableSpec, ParamTableSpec } from '../tables'
+import { FunctionTableSpec, mergeCodeTables, ParamTableSpec } from '../tables'
 
 describe('Phase 10D: Plot inspection, statistics, and cursor measurement', () => {
   describe('computeTraceStats', () => {
@@ -109,7 +109,7 @@ describe('Phase 10D: Plot inspection, statistics, and cursor measurement', () =>
       }
       const fig = buildXYFigure(series, format, 'X', 'Y', 'dark', { chartType: 'line', xVar: 'x', yVars: ['temp'] })
       expect(fig.data).toHaveLength(1)
-      const trace = fig.data[0] as any
+      const trace = fig.data[0] as { line?: { dash?: string }; marker?: { symbol?: string } }
       expect(trace.line?.dash).toBe('dash')
       expect(trace.marker?.symbol).toBe('square')
     })
@@ -146,13 +146,13 @@ describe('Phase 10D: Plot inspection, statistics, and cursor measurement', () =>
       expect(fig.layout.shapes?.length).toBe(2)
       expect(fig.layout.annotations?.length).toBe(2)
 
-      const hline = fig.layout.shapes?.[0] as any
+      const hline = fig.layout.shapes?.[0] as { type?: string; y0?: number; y1?: number; line?: { dash?: string } }
       expect(hline.type).toBe('line')
       expect(hline.y0).toBe(25)
       expect(hline.y1).toBe(25)
       expect(hline.line?.dash).toBe('dot')
 
-      const vline = fig.layout.shapes?.[1] as any
+      const vline = fig.layout.shapes?.[1] as { type?: string; x0?: number; x1?: number }
       expect(vline.type).toBe('line')
       expect(vline.x0).toBe(2)
       expect(vline.x1).toBe(2)
@@ -201,6 +201,102 @@ describe('Phase 10D: Plot inspection, statistics, and cursor measurement', () =>
       }
       const src = resolvePlotSource(plot, [paramTable], [])
       expect(src).toEqual({ kind: 'table', tableId: 'param-1', data: 'solved' })
+    })
+
+    it('resolves source for ODE table with dot vs dollar matching', () => {
+      const odeTable: ParamTableSpec = {
+        id: 'code-ode-cool',
+        kind: 'parametric',
+        name: 'cool',
+        vars: ['time', 'bp$soc', 'bp$t'],
+        rows: [{ id: 'r1', values: { time: '0', 'bp$soc': '0.9', 'bp$t': '306' } }],
+        results: [],
+        stats: null,
+        checkResult: null,
+        checkMessage: '',
+        source: 'code',
+        origin: 'ode',
+      }
+      const plot: PlotSpec = {
+        ...newPlotSpec('xy', 'SOC vs Time'),
+        xy: { xVar: 'time', yVars: ['bp.soc'] },
+      }
+      const src = resolvePlotSource(plot, [odeTable], [])
+      expect(src).toEqual({ kind: 'table', tableId: 'code-ode-cool', data: 'inputs' })
+    })
+  })
+
+  describe('mergeCodeTables ODE preservation on check', () => {
+    it('preserves existing code ODE tables when odeDtos is undefined (check response)', () => {
+      const existingOde: ParamTableSpec = {
+        id: 'code-ode-cooling',
+        kind: 'parametric',
+        name: 'cooling',
+        vars: ['time', 'temp'],
+        rows: [{ id: 'r1', values: { time: '0', temp: '95' } }],
+        results: [],
+        stats: null,
+        checkResult: null,
+        checkMessage: '',
+        source: 'code',
+        origin: 'ode',
+      }
+      const merged = mergeCodeTables([existingOde], [], [])
+      expect(merged).toHaveLength(1)
+      expect(merged[0].id).toBe('code-ode-cooling')
+      expect((merged[0] as ParamTableSpec).origin).toBe('ode')
+    })
+  })
+
+  describe('ODE trajectory plotting with component dot/dollar naming in buildFigure', () => {
+    it('renders valid points when plot references dot name and row values use dollar name', () => {
+      const spec: PlotSpec = {
+        ...newPlotSpec('xy', 'X-Y 1'),
+        source: { kind: 'table', tableId: 'code-ode-cool', data: 'inputs' },
+        xy: { xVar: 'time', yVars: ['bp.soc'] },
+      }
+      const inputs = {
+        states: { indices: [], columns: [], values: {} },
+        tableRows: [
+          { id: 'r1', values: { time: '0', 'bp$soc': '0.9' } },
+          { id: 'r2', values: { time: '10', 'bp$soc': '0.8986' } },
+        ],
+        tableResults: [],
+        variables: [],
+        tableUnits: { 'bp$soc': '%' },
+        theme: 'dark' as const,
+      }
+      const fig = buildFigure(spec, inputs)
+      expect(fig).not.toBeNull()
+      expect(fig!.data).toHaveLength(1)
+      const trace = fig!.data[0] as { x: number[]; y: number[]; name: string }
+      expect(trace.name).toBe('bp.soc')
+      expect(trace.x).toEqual([0, 10])
+      expect(trace.y).toEqual([0.9, 0.8986])
+      expect(fig!.layout.yaxis?.title).toEqual({ text: 'bp.soc [%]' })
+    })
+
+    it('renders valid points even if spec.source.data is solved on an ODE table with empty tableResults', () => {
+      const spec: PlotSpec = {
+        ...newPlotSpec('xy', 'X-Y 1'),
+        source: { kind: 'table', tableId: 'code-ode-cool', data: 'solved' },
+        xy: { xVar: 'time', yVars: ['bp.soc'] },
+      }
+      const inputs = {
+        states: { indices: [], columns: [], values: {} },
+        tableRows: [
+          { id: 'r1', values: { time: '0', 'bp$soc': '0.9' } },
+          { id: 'r2', values: { time: '10', 'bp$soc': '0.8986' } },
+        ],
+        tableResults: [],
+        variables: [],
+        theme: 'dark' as const,
+      }
+      const fig = buildFigure(spec, inputs)
+      expect(fig).not.toBeNull()
+      const trace = fig!.data[0] as { x: number[]; y: number[] }
+      expect(trace.x).toEqual([0, 10])
+      expect(trace.y).toEqual([0.9, 0.8986])
     })
   })
 })

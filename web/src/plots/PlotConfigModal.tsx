@@ -934,8 +934,9 @@ export default function PlotConfigModal({
     const base = newPlotSpec(allowedKinds[0], defaultName)
     // Seed a fresh X-Y plot from a table column selection: x = time, y = picks.
     if (initialXy && base.kind === 'xy') {
-      const srcTable = tables.find((t) => t.id === initialXy.tableId)
-      const data = srcTable?.kind === 'parametric' && srcTable.results.length > 0 ? 'solved' : 'inputs'
+      const srcTable = tables.find((t) => t.id.toLowerCase() === initialXy.tableId?.toLowerCase())
+      const isOde = srcTable?.kind === 'parametric' && srcTable.origin === 'ode'
+      const data = !isOde && srcTable?.kind === 'parametric' && srcTable.results.length > 0 ? 'solved' : 'inputs'
       return {
         ...base,
         source: initialXy.tableId ? { kind: 'table', tableId: initialXy.tableId, data } : undefined,
@@ -1000,12 +1001,15 @@ export default function PlotConfigModal({
                 } else if (value) {
                   const src = tables.find((t) => t.id === value)
                   const isFn = src?.kind === 'function'
+                  const isOde = src?.kind === 'parametric' && src.origin === 'ode'
+                  const emptyResults = src?.kind === 'parametric' && src.results.length === 0
+                  const data = isFn || isOde || emptyResults ? 'inputs' : 'solved'
                   setDraft({
                     ...draft,
                     source: {
                       kind: 'table',
                       tableId: value,
-                      data: isFn || (src?.kind === 'parametric' && src.results.length === 0) ? 'inputs' : 'solved',
+                      data,
                     },
                   })
                 } else {
@@ -1014,7 +1018,10 @@ export default function PlotConfigModal({
               }}
             />
             {draft.source?.kind === 'table' &&
-              tables.find((t) => draft.source?.kind === 'table' && t.id === draft.source.tableId)?.kind === 'parametric' && (
+              (() => {
+                const target = tables.find((t) => draft.source?.kind === 'table' && t.id === draft.source.tableId)
+                return target?.kind === 'parametric' && target.origin !== 'ode'
+              })() && (
                 <SegmentedControl
                   value={draft.source.data}
                   data={[
@@ -1038,7 +1045,7 @@ export default function PlotConfigModal({
             tableVars={(() => {
               if (draft.source?.kind !== 'table') return tableVars
               const targetId = draft.source.tableId
-              const target = tables.find((t) => t.id === targetId)
+              const target = tables.find((t) => t.id.toLowerCase() === targetId.toLowerCase())
               if (!target) return []
               if (target.kind === 'parametric') return target.vars
               return [target.argName, ...target.columns]

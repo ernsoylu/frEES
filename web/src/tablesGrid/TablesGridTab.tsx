@@ -17,7 +17,7 @@ import { tableInputIssues } from '../tableValidation'
 // the typed literal when the cell is edited — never silently dropped, never
 // evaluated.
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import {
   CompactSelection,
   DataEditor,
@@ -661,17 +661,15 @@ export default function TablesGridTab({
   }
 
   const selectedColIndices = selection.columns.toArray()
-  const canPlotColumns = useMemo(() => {
-    if (!onPlotColumns || !active) return false
+  let canPlotColumns = false
+  if (onPlotColumns && active) {
     if (active.kind === 'parametric') {
       const vars = selectedColIndices.filter((c) => c > 0).map((c) => active.vars[c - 1]).filter(Boolean)
-      return vars.length >= 2 || (vars.length === 1 && active.vars[0] !== vars[0])
+      canPlotColumns = vars.length >= 2 || (vars.length === 1 && active.vars[0] !== vars[0])
+    } else if (active.kind === 'function') {
+      canPlotColumns = selectedColIndices.some((c) => c > 0)
     }
-    if (active.kind === 'function') {
-      return selectedColIndices.some((c) => c > 0)
-    }
-    return false
-  }, [onPlotColumns, active, selectedColIndices])
+  }
 
   const handlePlotSelectedColumns = () => {
     if (!onPlotColumns || !active) return
