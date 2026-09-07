@@ -93,6 +93,121 @@ function curveTrace(
   }
 }
 
+/**
+ * Checks whether the non-null X coordinates are monotonic (non-decreasing).
+ * Reduction is only applied to monotonic series; unordered scatter or cyclic
+ * paths (phase diagrams, hysteresis, loops) must never be reduced.
+ */
+export function isMonotonicX(x: readonly (number | null)[]): boolean {
+  let prev: number | null = null
+  for (let i = 0; i < x.length; i++) {
+    const v = x[i]
+    if (v === null || Number.isNaN(v)) continue
+    if (prev !== null && v < prev) return false
+    prev = v
+  }
+  return prev !== null
+}
+
+/**
+ * Render-only min-max decimation for dense monotonic series.
+ * Preserves exact local extrema (peaks and valleys), segment endpoints, and
+ * gaps (null values), while drastically reducing SVG path complexity.
+ */
+export function decimateMonotonicSeries(
+  x: readonly (number | null)[],
+  y: readonly (number | null)[],
+  sampleIds?: readonly (string | undefined)[],
+  maxPoints = 2000,
+): { x: (number | null)[]; y: (number | null)[]; sampleIds?: (string | undefined)[] } {
+  if (x.length <= maxPoints || !isMonotonicX(x)) {
+    return { x: [...x], y: [...y], sampleIds: sampleIds ? [...sampleIds] : undefined }
+  }
+
+  const outX: (number | null)[] = []
+  const outY: (number | null)[] = []
+  const outIds: (string | undefined)[] | undefined = sampleIds ? [] : undefined
+
+  let segStart = 0
+  const len = x.length
+
+  while (segStart < len) {
+    while (
+      segStart < len &&
+      (x[segStart] === null ||
+        y[segStart] === null ||
+        Number.isNaN(x[segStart]) ||
+        Number.isNaN(y[segStart]))
+    ) {
+      outX.push(null)
+      outY.push(null)
+      if (outIds) outIds.push(sampleIds?.[segStart])
+      segStart++
+    }
+    if (segStart >= len) break
+
+    let segEnd = segStart
+    while (
+      segEnd < len &&
+      x[segEnd] !== null &&
+      y[segEnd] !== null &&
+      !Number.isNaN(x[segEnd]) &&
+      !Number.isNaN(y[segEnd])
+    ) {
+      segEnd++
+    }
+
+    const segLen = segEnd - segStart
+    const segBudget = Math.max(4, Math.floor((maxPoints * segLen) / len))
+    if (segLen <= segBudget) {
+      for (let i = segStart; i < segEnd; i++) {
+        outX.push(x[i])
+        outY.push(y[i])
+        if (outIds) outIds.push(sampleIds?.[i])
+      }
+    } else {
+      const bucketCount = Math.floor(segBudget / 4)
+      const bucketSize = segLen / bucketCount
+
+      for (let b = 0; b < bucketCount; b++) {
+        const bStart = Math.floor(segStart + b * bucketSize)
+        const bEnd = Math.min(segEnd, Math.floor(segStart + (b + 1) * bucketSize))
+        if (bStart >= bEnd) continue
+
+        let minIdx = bStart
+        let maxIdx = bStart
+        let minY = y[bStart] as number
+        let maxY = y[bStart] as number
+
+        for (let i = bStart + 1; i < bEnd; i++) {
+          const val = y[i] as number
+          if (val < minY) {
+            minY = val
+            minIdx = i
+          }
+          if (val > maxY) {
+            maxY = val
+            maxIdx = i
+          }
+        }
+
+        const indices = Array.from(new Set([bStart, minIdx, maxIdx, bEnd - 1])).sort(
+          (a, b) => a - b,
+        )
+        for (const idx of indices) {
+          outX.push(x[idx])
+          outY.push(y[idx])
+          if (outIds) outIds.push(sampleIds?.[idx])
+        }
+      }
+    }
+
+    segStart = segEnd
+  }
+
+  return { x: outX, y: outY, sampleIds: outIds }
+}
+
 /** Axis range bound in plot coordinates; log axes take the exponent. Nonpositive values are rejected. */
 function rangeValue(value: number | null | undefined, log: boolean): number | null {
   if (value === null || value === undefined) return null
@@ -546,15 +661,20 @@ export function buildXYFigure(
     // Default: 'line'
     series.forEach((s) => {
       const style = format.traceStyles?.[s.name]
+      const isDense = s.x.length > 300
+      const hasExplicitMarker = Boolean(style?.markerSymbol)
+      const mode = isDense && !hasExplicitMarker ? 'lines' : 'lines+markers'
+      const renderSeries = isDense ? decimateMonotonicSeries(s.x, s.y, s.sampleIds) : s
+
       traces.push({
         type: 'scatter',
-        mode: 'lines+markers',
+        mode,
         connectgaps: false,
-        customdata: s.sampleIds,
+        customdata: renderSeries.sampleIds,
         name: displayVar(s.name),
         uid: s.name,
-        x: s.x,
-        y: s.y,
+        x: renderSeries.x,
+        y: renderSeries.y,
         line: {
           color: format.lineColors?.[s.name] || undefined,
           dash: style?.dash || undefined,

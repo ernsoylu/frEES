@@ -302,14 +302,113 @@ export function applyCellEdit(
 
 /** Fill gestures preserve untouched computed cells; explicit paste freezes supplied values. */
 export function applyCellEdits(spec: TableSpec, edits: { gridRow: number; col: number; text: string }[]): EditResult {
-  let next = spec
-  const errorCells: string[] = []
-  for (const edit of edits) {
-    const result = applyCellEdit(next, edit.gridRow, edit.col, edit.text, spec, false)
-    next = result.spec
-    errorCells.push(...result.errorCells)
+  if (spec.source === 'code' || edits.length === 0) return unchanged(spec)
+  if (edits.length === 1) {
+    const res = applyCellEdit(spec, edits[0].gridRow, edits[0].col, edits[0].text, spec, true)
+    return res
   }
-  return { spec: next !== spec && next.kind === 'parametric' ? invalidated(next) : next, changed: next !== spec, errorCells }
+
+  const errorCells: string[] = []
+  let formulas = spec.formulas
+  let changed = false
+
+  if (spec.kind === 'parametric') {
+    const rows = [...spec.rows]
+    const modifiedRowIndices = new Set<number>()
+
+    for (const edit of edits) {
+      const i = edit.gridRow
+      if (i < 0 || i >= rows.length) continue
+      const col = edit.col
+      const name = spec.vars[col - 1]
+      if (name === undefined) continue
+
+      let raw = edit.text
+      if (isErrorValue(raw)) {
+        errorCells.push(formulaRefFor(spec, i, col))
+        raw = ''
+      }
+
+      const computed = paramComputedValue(spec, i, name)
+      const isUntouchedComputed =
+        computed !== undefined && raw.trim() !== '' && Number(raw) === computed
+      const draft = isUntouchedComputed ? '' : raw
+      const prevDraft = rows[i].values[name] ?? ''
+      if (draft !== prevDraft) {
+        if (!modifiedRowIndices.has(i)) {
+          rows[i] = { ...rows[i], values: { ...rows[i].values } }
+          modifiedRowIndices.add(i)
+        }
+        rows[i].values[name] = draft
+        changed = true
+      }
+      const ref = formulaRefFor(spec, i, col)
+      formulas = withoutFormula(formulas, ref)
+    }
+
+    if (!changed && errorCells.length === 0) return unchanged(spec)
+    return {
+      spec: invalidated({ ...spec, rows, formulas }),
+      changed,
+      errorCells,
+    }
+  }
+
+  if (spec.kind === 'function') {
+    const rows = [...spec.rows]
+    const modifiedRowIndices = new Set<number>()
+    let columns = spec.columns
+    let columnsModified = false
+
+    for (const edit of edits) {
+      let raw = edit.text
+      if (isErrorValue(raw)) {
+        errorCells.push(formulaRefFor(spec, edit.gridRow, edit.col))
+        raw = ''
+      }
+
+      if (edit.gridRow === 0) {
+        const j = edit.col - 1
+        if (j >= 0 && j < columns.length && (columns[j] ?? '') !== raw) {
+          if (!columnsModified) {
+            columns = [...columns]
+            columnsModified = true
+          }
+          columns[j] = raw
+          changed = true
+        }
+        continue
+      }
+
+      const i = edit.gridRow - 1
+      if (i < 0 || i >= rows.length) continue
+      const col = edit.col
+      const current = col === 0 ? rows[i].x : rows[i].ys[col - 1] ?? ''
+      if (current !== raw) {
+        if (!modifiedRowIndices.has(i)) {
+          rows[i] = { ...rows[i], ys: [...rows[i].ys] }
+          modifiedRowIndices.add(i)
+        }
+        if (col === 0) {
+          rows[i].x = raw
+        } else {
+          rows[i].ys[col - 1] = raw
+        }
+        changed = true
+      }
+      const ref = formulaRefFor(spec, edit.gridRow, col)
+      formulas = withoutFormula(formulas, ref)
+    }
+
+    if (!changed && errorCells.length === 0) return unchanged(spec)
+    return {
+      spec: { ...spec, rows, columns, formulas },
+      changed,
+      errorCells,
+    }
+  }
+
+  return unchanged(spec)
 }
 
 /** Restore only fields changed by the gesture; never restore solver output. */

@@ -777,7 +777,17 @@ export default function App() {
   }, [newPlotKind])
 
   useEffect(() => {
-    saveTables(tables)
+    const id = setTimeout(() => {
+      saveTables(tables)
+    }, 300)
+    const handleBeforeUnload = () => {
+      saveTables(tables)
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => {
+      clearTimeout(id)
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
   }, [tables])
 
   // Story 10.10: the current App-owned slices of the unified project. Child-owned

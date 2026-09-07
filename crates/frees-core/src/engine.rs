@@ -2400,8 +2400,12 @@ fn definition_identities(source: &str) -> Vec<DefinitionIdentity> {
     let mut out = Vec::new();
     for (i, line) in source.lines().enumerate() {
         let trimmed = line.trim_start();
-        let rest = if trimmed.len() >= 9 && trimmed[..9].eq_ignore_ascii_case("component") {
-            trimmed[9..].trim_start()
+        let rest = if let Some(prefix) = trimmed.get(..9) {
+            if prefix.eq_ignore_ascii_case("component") {
+                trimmed[9..].trim_start()
+            } else {
+                continue;
+            }
         } else {
             continue;
         };

@@ -113,8 +113,9 @@ function looksLikeNumber(cell: string): boolean {
  * its start (leading spaces tolerated), `""` is a literal quote inside one,
  * and CR / LF / CRLF all end a row. A UTF-8 BOM is stripped. Rows are ragged
  * exactly as the file is — squaring them up is `parseCsvTable`'s job.
+ * Optional `maxRows` stops parsing after accumulating that many data rows.
  */
-export function splitCsvRows(text: string, delimiter: string): string[][] {
+export function splitCsvRows(text: string, delimiter: string, maxRows?: number): string[][] {
   const rows: string[][] = []
   let row: string[] = []
   let field = ''
@@ -122,6 +123,7 @@ export function splitCsvRows(text: string, delimiter: string): string[][] {
   let closedQuote = false
   let started = false // this row has content (guards the trailing newline)
   let i = text.charCodeAt(0) === 0xfeff ? 1 : 0
+  const len = text.length
 
   const endField = () => {
     row.push(field)
@@ -136,50 +138,74 @@ export function splitCsvRows(text: string, delimiter: string): string[][] {
     started = false
   }
 
-  while (i < text.length) {
+  let chunkStart = i
+
+  while (i < len) {
     const ch = text[i]
     if (quoted) {
       if (ch === '"') {
         if (text[i + 1] === '"') {
-          field += '"'
+          field += text.slice(chunkStart, i) + '"'
           i += 2
+          chunkStart = i
           continue
         }
+        field += text.slice(chunkStart, i)
         quoted = false
         closedQuote = true
         i++
+        chunkStart = i
         continue
       }
-      field += ch
       i++
       continue
     }
+
     if (closedQuote && ch !== delimiter && ch !== '\r' && ch !== '\n') {
-      if (!ch.trim()) { i++; continue }
+      if (!ch.trim()) {
+        i++
+        chunkStart = i
+        continue
+      }
       throw new Error(`Unexpected text after closing quote in record ${rows.length + 1}`)
     }
-    if (ch === '"' && field.trim() === '') {
+
+    if (ch === '"' && field === '' && text.slice(chunkStart, i).trim() === '') {
       // A quote only opens a field at its start; anywhere else it is literal.
       quoted = true
       field = ''
       i++
+      chunkStart = i
       continue
     }
+
     if (ch === delimiter) {
+      field += text.slice(chunkStart, i)
       endField()
       i++
+      chunkStart = i
       continue
     }
+
     if (ch === '\r' || ch === '\n') {
+      field += text.slice(chunkStart, i)
       if (ch === '\r' && text[i + 1] === '\n') i++
       endRow()
       i++
+      chunkStart = i
+      if (maxRows !== undefined && rows.length >= maxRows) {
+        return rows
+      }
       continue
     }
-    field += ch
+
     i++
   }
+
   if (quoted) throw new Error(`Unclosed quoted field in record ${rows.length + 1}`)
+  if (chunkStart < len) {
+    field += text.slice(chunkStart, len)
+  }
   // A file ending in a newline must not produce a phantom last row.
   if (field !== '' || started) endRow()
   return rows
@@ -261,9 +287,14 @@ export interface CsvOptions {
   unitRow?: boolean
 }
 
-export function parseCsvTable(text: string, delimiter?: string, options: CsvOptions = {}): CsvTable {
+export function parseCsvTable(
+  text: string,
+  delimiter?: string,
+  options: CsvOptions = {},
+  maxRows?: number,
+): CsvTable {
   const delim = delimiter ?? detectDelimiter(text)
-  const rows = splitCsvRows(text, delim).filter((r) => {
+  const rows = splitCsvRows(text, delim, maxRows).filter((r) => {
     if (!r.some((c) => c.trim() !== '')) return false
     return !(r[0]?.trim().startsWith('#') && r.every((c, i) => i === 0 || c.trim() === ''))
   })
@@ -318,3 +349,17 @@ export function parseCsvTable(text: string, delimiter?: string, options: CsvOpti
 
   return { columns, rowCount: dataRows.length, headerless, delimiter: delim, rejectedRows }
 }
+
+/**
+ * Fast preview of the first `maxRows` data rows of a CSV file.
+ * Avoids full file parsing on large (10–64 MiB) files for instant modal UI preview.
+ */
+export function parseCsvPreview(
+  text: string,
+  maxRows = 50,
+  delimiter?: string,
+  options: CsvOptions = {},
+): CsvTable {
+  return parseCsvTable(text, delimiter, options, maxRows)
+}
+

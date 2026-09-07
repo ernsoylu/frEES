@@ -234,3 +234,81 @@ test('wasm 1,000-row sweep benchmark', async ({ page }) => {
   const r = res as { medianMs: number; minMs: number; n: number }
   console.log(`sweep_1000_rows: median ${r.medianMs.toFixed(3)} ms, min ${r.minMs.toFixed(3)} ms, n=${r.n}`)
 })
+
+test('wasm accessor sweep benchmark', async ({ page }) => {
+  page.on('console', (m) => console.log(`[page] ${m.text()}`))
+  await page.goto('/web/bench/blank.html')
+
+  const res = await page.evaluate(async () => {
+    const mod = await import('/web/src/wasm/pkg/frees.js')
+    await mod.default('/web/src/wasm/pkg/frees_bg.wasm')
+    const source = "avg = TableAvg('y')\ny = 2 * x\n"
+    const rows = Array.from({ length: 100 }, (_, i) => ({ x: i + 1 }))
+    const req = JSON.stringify({
+      table: {
+        variables: ['x', 'y', 'avg'],
+        rows,
+      },
+    })
+
+    const probe = JSON.parse(mod.solve_table(source, req))
+    if (!probe.stats || probe.stats.solved !== 100) {
+      return { error: `accessor sweep failed: ${probe.stats?.solved} solved of 100` }
+    }
+
+    const durations: number[] = []
+    for (let count = 0; count < 10; count++) {
+      const mark = performance.now()
+      mod.solve_table(source, req)
+      durations.push(performance.now() - mark)
+    }
+    durations.sort((x, y) => x - y)
+    return {
+      medianMs: durations[durations.length >> 1],
+      minMs: durations[0],
+      n: durations.length,
+    }
+  })
+
+  expect(res).not.toHaveProperty('error')
+  const r = res as { medianMs: number; minMs: number; n: number }
+  console.log(`accessor_sweep_100_rows: median ${r.medianMs.toFixed(3)} ms, min ${r.minMs.toFixed(3)} ms, n=${r.n}`)
+})
+
+test('wasm lookup table interpolation benchmark (1k knots)', async ({ page }) => {
+  page.on('console', (m) => console.log(`[page] ${m.text()}`))
+  await page.goto('/web/bench/blank.html')
+
+  const res = await page.evaluate(async () => {
+    const mod = await import('/web/src/wasm/pkg/frees.js')
+    await mod.default('/web/src/wasm/pkg/frees_bg.wasm')
+    const K = 1000
+    let source = `y = curve(x)\nx = 500.5\nTABLE curve(x)\n`
+    for (let i = 0; i < K; i++) {
+      source += `  ${i}  ${Math.sin(i * 0.05)}\n`
+    }
+    source += `END\n`
+
+    const probe = JSON.parse(mod.solve(source, ''))
+    if (!probe.success) {
+      return { error: `lookup solve failed: ${probe.error?.message ?? probe.error}` }
+    }
+
+    const durations: number[] = []
+    for (let count = 0; count < 15; count++) {
+      const mark = performance.now()
+      mod.solve(source, '')
+      durations.push(performance.now() - mark)
+    }
+    durations.sort((x, y) => x - y)
+    return {
+      medianMs: durations[durations.length >> 1],
+      minMs: durations[0],
+      n: durations.length,
+    }
+  })
+
+  expect(res).not.toHaveProperty('error')
+  const r = res as { medianMs: number; minMs: number; n: number }
+  console.log(`lookup_1000_knots_solve: median ${r.medianMs.toFixed(3)} ms, min ${r.minMs.toFixed(3)} ms, n=${r.n}`)
+})
