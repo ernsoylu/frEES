@@ -3213,7 +3213,7 @@ export default function App() {
             complexMode={complexMode}
             variableInfo={buildVariableInfo()}
             unitSystem={unitSystem}
-            functionTables={functionTableDtos()}
+            getFunctionTables={functionTableDtos}
             onClose={() => setShowMinMax(false)}
           />
         </Suspense>
@@ -3238,7 +3238,7 @@ export default function App() {
             text={effectiveText()}
             stopCriteria={{ ...stopCriteria, complexMode }}
             variableInfo={buildVariableInfo()}
-            functionTables={functionTableDtos()}
+            getFunctionTables={functionTableDtos}
             tables={tables}
             onApply={(next) => applyText(next)}
           />

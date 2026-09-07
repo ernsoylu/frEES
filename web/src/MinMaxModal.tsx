@@ -216,7 +216,7 @@ interface Props {
   complexMode: boolean
   variableInfo: VariableInfo[]
   unitSystem: UnitSystem
-  functionTables?: FunctionTableDto[]
+  getFunctionTables: () => FunctionTableDto[]
   onClose: () => void
 }
 
@@ -232,7 +232,7 @@ export default function MinMaxModal({
   complexMode,
   variableInfo,
   unitSystem,
-  functionTables,
+  getFunctionTables,
   onClose,
 }: Readonly<Props>) {
   const [mode, setMode] = useState<Mode>('single')
@@ -345,7 +345,7 @@ export default function MinMaxModal({
             maximize: goal === 'maximize',
             constraints: constraintLines(),
           },
-          functionTables ?? [],
+          getFunctionTables(),
         )
         setResult(response)
       } else {
@@ -365,12 +365,12 @@ export default function MinMaxModal({
             { ...stopCriteria, complexMode },
             variableInfo,
             params,
-            functionTables ?? [],
+            getFunctionTables(),
           ),
         )
       }
     } catch (e) {
-      const message = `Could not reach the solver backend: ${String(e)}`
+      const message = e instanceof Error ? e.message : String(e)
       if (mode === 'single') {
         setResult({ success: false, error: message, warning: null, objective: null, decision: null, decisions: [], evaluations: 0, variables: [] })
       } else {
