@@ -3,7 +3,12 @@ import { expect, test, type Page } from '@playwright/test'
 async function dismissWelcomeIfOpen(page: Page) {
   const welcome = page.getByRole('dialog').filter({ hasText: 'Welcome to frees' })
   if (await welcome.isVisible({ timeout: 1500 }).catch(() => false)) {
-    await page.keyboard.press('Escape')
+    const closeBtn = welcome.locator('.mantine-Modal-close, button[aria-label*="lose"]')
+    if (await closeBtn.isVisible().catch(() => false)) {
+      await closeBtn.click()
+    } else {
+      await page.keyboard.press('Escape')
+    }
     await expect(welcome).toBeHidden()
   }
 }

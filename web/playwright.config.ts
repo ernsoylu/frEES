@@ -5,7 +5,7 @@
 //
 // Run locally:   npm run build && npx playwright test
 // The CI job builds dist first and runs against chromium only.
-import { defineConfig } from '@playwright/test'
+import { defineConfig, devices } from '@playwright/test'
 
 export default defineConfig({
   testDir: './e2e',
@@ -17,6 +17,20 @@ export default defineConfig({
     baseURL: 'http://127.0.0.1:8931',
     trace: 'retain-on-failure',
   },
+  projects: [
+    {
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'firefox',
+      use: { ...devices['Desktop Firefox'] },
+    },
+    {
+      name: 'webkit',
+      use: { ...devices['Desktop Safari'] },
+    },
+  ],
   webServer: {
     command: 'python3 ../tools/serve-dist.py dist 8931',
     url: 'http://127.0.0.1:8931',

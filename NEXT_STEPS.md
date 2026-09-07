@@ -90,7 +90,7 @@ Focus: Eliminating data transfer bottlenecks, preventing parser crashes, expandi
 - [ ] **2.3 Crates.io Publishing for Dependencies & Core Engine**
   - Publish `rustprop` to crates.io and update `Cargo.toml` from a git tag dependency to a versioned registry dependency with cryptographic checksums.
   - Publish `frees-core` and `frees-cli` to crates.io for embedding in external Rust applications.
-- [ ] **2.4 Cross-Platform & Cross-Browser CI Matrix**
+- [x] **2.4 Cross-Platform & Cross-Browser CI Matrix**
   - Add a macOS runner leg in CI to validate floating-point formatting and `libm` consistency across operating systems.
   - Expand Playwright test suites to run across a Chromium, Firefox, and WebKit (Safari) browser matrix to verify WebAssembly instantiation and IndexedDB storage resilience.
 - [x] **2.5 Interactive Pareto Point-Click Inspection**

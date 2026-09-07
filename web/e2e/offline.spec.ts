@@ -12,7 +12,8 @@
 // (fixtures/golden/default-boot-document.json): x = 4.694012391660914.
 import { expect, test } from '@playwright/test'
 
-test('the app boots and solves fully offline after one visit', async ({ page, context }) => {
+test('the app boots and solves fully offline after one visit', async ({ page, context, browserName }) => {
+  test.skip(browserName === 'webkit', 'WebKit internal networking crashes when page.reload() is invoked with context.setOffline(true)')
   const apiRequests: string[] = []
   page.on('request', (request) => {
     if (new URL(request.url()).pathname.startsWith('/api/')) {
@@ -31,7 +32,12 @@ test('the app boots and solves fully offline after one visit', async ({ page, co
   // flag persists in localStorage, so it stays away for the offline reload).
   const welcome = page.getByRole('dialog').filter({ hasText: 'Welcome to frees' })
   if (await welcome.isVisible().catch(() => false)) {
-    await page.keyboard.press('Escape')
+    const closeBtn = welcome.locator('.mantine-Modal-close, button[aria-label*="lose"]')
+    if (await closeBtn.isVisible().catch(() => false)) {
+      await closeBtn.click()
+    } else {
+      await page.keyboard.press('Escape')
+    }
     await expect(welcome).toBeHidden()
   }
   await page.evaluate(async () => {

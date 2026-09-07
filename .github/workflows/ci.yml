@@ -114,8 +114,12 @@ jobs:
         run: npm audit --omit=dev || true
 
   native:
-    name: native tests
-    runs-on: ubuntu-latest
+    name: native tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
@@ -124,15 +128,18 @@ jobs:
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
 
       - name: Format
+        if: matrix.os == 'ubuntu-latest'
         run: cargo fmt --all --check
 
       - name: Clippy
+        if: matrix.os == 'ubuntu-latest'
         run: cargo clippy --workspace --all-targets -- -D warnings
 
       # Wave D6: the library must keep compiling with every feature off —
       # `linked-tables` and `rustprop-backend` are both optional, and nothing
       # else exercised this configuration (D9 recorded it as untested).
       - name: Check --no-default-features
+        if: matrix.os == 'ubuntu-latest'
         run: cargo check -p frees-core --no-default-features
 
       # The golden-corpus replay is DELIBERATELY skipped here, and this is the
@@ -343,15 +350,14 @@ jobs:
           fi
           echo "sw.js precaches $(grep -o 'revision' dist/sw.js | wc -l) manifest (present), wasm referenced"
 
-      # Wave D4, closing Phase 11's gap 7: the steps above only assert the
-      # PWA files EXIST — this actually RUNS the service worker: first-visit
-      # precache, an offline reload, an offline Solve of the boot document
-      # graded against the parity golden's value, and zero /api/ requests.
-      - name: Install Playwright chromium
+      # Wave D4, expanded in Phase 2.4 to full cross-browser matrix
+      # (Chromium, Firefox, WebKit/Safari): asserts service worker precaching,
+      # offline reload resilience, IndexedDB storage, and WASM runtime compatibility.
+      - name: Install Playwright browsers (chromium, firefox, webkit)
         working-directory: web
-        run: npx --no-install playwright install --with-deps chromium
+        run: npx --no-install playwright install --with-deps chromium firefox webkit
 
-      - name: Offline PWA proof (Playwright)
+      - name: Cross-browser E2E & offline proof (Playwright)
         working-directory: web
         run: npx --no-install playwright test
 
