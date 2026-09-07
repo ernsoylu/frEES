@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import {
+  ActionIcon,
   Button,
   Checkbox,
   ColorInput,
@@ -14,6 +15,7 @@ import {
   Text,
   TextInput,
 } from '@mantine/core'
+import { IconTrash } from '@tabler/icons-react'
 import {
   DIAGRAM_TYPES,
   PlotFormat,
@@ -407,6 +409,183 @@ function XyLineColors({
   )
 }
 
+function XyTraceStyles({
+  spec,
+  format,
+  onChange,
+}: Readonly<{
+  spec: PlotSpec
+  format: PlotFormat
+  onChange: (format: PlotFormat) => void
+}>) {
+  const yVars = [...spec.xy.yVars, ...(spec.xy.y2Vars ?? [])]
+  if (yVars.length === 0) return null
+
+  const LINE_DASH_OPTIONS = [
+    { value: 'solid', label: 'Solid' },
+    { value: 'dash', label: 'Dashed' },
+    { value: 'dot', label: 'Dotted' },
+    { value: 'dashdot', label: 'Dash-Dot' },
+  ]
+
+  const MARKER_OPTIONS = [
+    { value: '', label: 'None' },
+    { value: 'circle', label: 'Circle' },
+    { value: 'square', label: 'Square' },
+    { value: 'diamond', label: 'Diamond' },
+    { value: 'triangle-up', label: 'Triangle' },
+    { value: 'cross', label: 'Cross' },
+    { value: 'x', label: 'X' },
+  ]
+
+  return (
+    <Stack gap="xs">
+      {yVars.map((yVar) => {
+        const style = format.traceStyles?.[yVar]
+        return (
+          <Group key={yVar} grow align="flex-end">
+            <Text size="xs" fw={500} style={{ flex: '0 0 110px' }}>
+              {displayVar(yVar)}
+            </Text>
+            <Select
+              label="Line dash"
+              size="xs"
+              data={LINE_DASH_OPTIONS}
+              value={style?.dash ?? 'solid'}
+              onChange={(v) => {
+                const nextStyles = {
+                  ...format.traceStyles,
+                  [yVar]: {
+                    ...style,
+                    dash: (v as 'solid' | 'dash' | 'dot' | 'dashdot') || 'solid',
+                  },
+                }
+                onChange({ ...format, traceStyles: nextStyles })
+              }}
+            />
+            <Select
+              label="Marker symbol"
+              size="xs"
+              data={MARKER_OPTIONS}
+              value={style?.markerSymbol ?? ''}
+              onChange={(v) => {
+                const nextStyles = {
+                  ...format.traceStyles,
+                  [yVar]: {
+                    ...style,
+                    markerSymbol: v || undefined,
+                  },
+                }
+                onChange({ ...format, traceStyles: nextStyles })
+              }}
+            />
+          </Group>
+        )
+      })}
+    </Stack>
+  )
+}
+
+function ReferenceAnnotationsSection({
+  format,
+  onChange,
+}: Readonly<{
+  format: PlotFormat
+  onChange: (format: PlotFormat) => void
+}>) {
+  const annotations = format.annotations ?? []
+
+  const addAnnotation = (type: 'hline' | 'vline') => {
+    const newAnn: import('./types').ReferenceAnnotation = {
+      id: `ann-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      type,
+      value: 0,
+      text: type === 'hline' ? 'Threshold' : 'Limit',
+      color: type === 'hline' ? '#ff6b6b' : '#4dabf7',
+      dash: 'dash',
+    }
+    onChange({ ...format, annotations: [...annotations, newAnn] })
+  }
+
+  const updateAnnotation = (id: string, patch: Partial<import('./types').ReferenceAnnotation>) => {
+    onChange({
+      ...format,
+      annotations: annotations.map((a) => (a.id === id ? { ...a, ...patch } : a)),
+    })
+  }
+
+  const removeAnnotation = (id: string) => {
+    onChange({
+      ...format,
+      annotations: annotations.filter((a) => a.id !== id),
+    })
+  }
+
+  return (
+    <Stack gap="xs">
+      <Group justify="space-between" align="center">
+        <Text size="xs" c="dimmed">
+          Reference lines (thresholds and event limits)
+        </Text>
+        <Group gap="xs">
+          <Button size="compact-xs" variant="default" onClick={() => addAnnotation('hline')}>
+            + Horiz (Y)
+          </Button>
+          <Button size="compact-xs" variant="default" onClick={() => addAnnotation('vline')}>
+            + Vert (X)
+          </Button>
+        </Group>
+      </Group>
+
+      {annotations.map((ann) => (
+        <Group key={ann.id} grow align="flex-end" gap="xs">
+          <Select
+            label="Type"
+            size="xs"
+            style={{ flex: '0 0 90px' }}
+            data={[
+              { value: 'hline', label: 'Horiz (Y)' },
+              { value: 'vline', label: 'Vert (X)' },
+            ]}
+            value={ann.type}
+            onChange={(v) => updateAnnotation(ann.id, { type: (v as 'hline' | 'vline') ?? 'hline' })}
+          />
+          <NumberInput
+            label="Value"
+            size="xs"
+            value={ann.value}
+            onChange={(v) => updateAnnotation(ann.id, { value: typeof v === 'number' ? v : 0 })}
+          />
+          <TextInput
+            label="Label"
+            size="xs"
+            value={ann.text ?? ''}
+            placeholder="Label text"
+            onChange={(e) => updateAnnotation(ann.id, { text: e.currentTarget.value })}
+          />
+          <ColorInput
+            label="Color"
+            size="xs"
+            style={{ flex: '0 0 100px' }}
+            value={ann.color ?? (ann.type === 'hline' ? '#ff6b6b' : '#4dabf7')}
+            onChange={(c) => updateAnnotation(ann.id, { color: c })}
+          />
+          <ActionIcon
+            color="red"
+            variant="subtle"
+            size="sm"
+            onClick={() => removeAnnotation(ann.id)}
+            title="Remove annotation"
+            aria-label="Remove annotation"
+          >
+            <IconTrash size={14} />
+          </ActionIcon>
+        </Group>
+      ))}
+    </Stack>
+  )
+}
+
 export interface FormatErrors {
   xMin?: string
   xMax?: string
@@ -704,6 +883,20 @@ function FormatSection({
           )}
         </>
       )}
+
+      {!isPie && !is3D && spec.kind === 'xy' && (
+        <>
+          <Divider label="Trace Styles (Line & Marker)" labelPosition="left" />
+          <XyTraceStyles spec={spec} format={format} onChange={onChange} />
+        </>
+      )}
+
+      {!isPie && !is3D && (
+        <>
+          <Divider label="Reference Annotations" labelPosition="left" />
+          <ReferenceAnnotationsSection format={format} onChange={onChange} />
+        </>
+      )}
     </Stack>
   )
 }
@@ -733,7 +926,13 @@ export default function PlotConfigModal({
     const base = newPlotSpec(allowedKinds[0], defaultName)
     // Seed a fresh X-Y plot from a table column selection: x = time, y = picks.
     if (initialXy && base.kind === 'xy') {
-      return { ...base, source: initialXy.tableId ? { kind: 'table', tableId: initialXy.tableId, data: 'inputs' } : undefined, xy: { ...base.xy, xVar: initialXy.xVar, yVars: initialXy.yVars } }
+      const srcTable = tables.find((t) => t.id === initialXy.tableId)
+      const data = srcTable?.kind === 'parametric' && srcTable.results.length > 0 ? 'solved' : 'inputs'
+      return {
+        ...base,
+        source: initialXy.tableId ? { kind: 'table', tableId: initialXy.tableId, data } : undefined,
+        xy: { ...base.xy, xVar: initialXy.xVar, yVars: initialXy.yVars },
+      }
     }
     return base
   })
@@ -751,17 +950,18 @@ export default function PlotConfigModal({
     <Modal
       opened
       onClose={onClose}
-      title={creating ? 'Add Plot' : `Configure — ${draft.name}`}
-      size="xl"
+      title={creating ? 'New Plot' : `Configure ${spec?.name ?? 'Plot'}`}
+      size="lg"
     >
       <Stack gap="sm">
-        <Group grow align="flex-end">
+        <Group grow align="flex-start">
           <TextInput
             label="Plot name"
-            error={nameError}
             size="xs"
             value={draft.name}
+            error={nameError}
             onChange={(e) => setDraft({ ...draft, name: e.currentTarget.value })}
+            autoFocus={creating}
           />
           {kindOptions.length > 1 && (
             <SegmentedControl
@@ -773,17 +973,68 @@ export default function PlotConfigModal({
           )}
         </Group>
 
-        {draft.kind === 'xy' && <>
-          <Select label="Data source" placeholder="Select a source" data={[{ value: 'arrays', label: 'Solved arrays' }, ...tables.filter((t) => t.kind === 'parametric').map((t) => ({ value: t.id, label: t.name }))]}
-            value={draft.source?.kind === 'arrays' ? 'arrays' : draft.source?.tableId ?? null}
-            onChange={(value) => setDraft({ ...draft, source: value === 'arrays' ? { kind: 'arrays' } : value ? { kind: 'table', tableId: value, data: 'solved' } : undefined })} />
-          {draft.source?.kind === 'table' && <SegmentedControl value={draft.source.data} data={[{ value: 'inputs', label: 'Raw inputs / trajectory' }, { value: 'solved', label: 'Successful solved rows' }]}
-            onChange={(data) => setDraft((d) => d.source?.kind === 'table' ? { ...d, source: { ...d.source, data: data as 'inputs' | 'solved' } } : d)} />}
-        </>}
+        {draft.kind === 'xy' && (
+          <>
+            <Select
+              label="Data source"
+              placeholder="Select a source"
+              data={[
+                { value: 'arrays', label: 'Solved arrays' },
+                ...tables.map((t) => ({
+                  value: t.id,
+                  label: `${t.name} (${t.kind === 'parametric' ? (t.origin === 'ode' ? 'Trajectory' : 'Sweep') : 'Function'})`,
+                })),
+              ]}
+              value={draft.source?.kind === 'arrays' ? 'arrays' : draft.source?.tableId ?? null}
+              onChange={(value) => {
+                if (value === 'arrays') {
+                  setDraft({ ...draft, source: { kind: 'arrays' } })
+                } else if (value) {
+                  const src = tables.find((t) => t.id === value)
+                  const isFn = src?.kind === 'function'
+                  setDraft({
+                    ...draft,
+                    source: {
+                      kind: 'table',
+                      tableId: value,
+                      data: isFn || (src?.kind === 'parametric' && src.results.length === 0) ? 'inputs' : 'solved',
+                    },
+                  })
+                } else {
+                  setDraft({ ...draft, source: undefined })
+                }
+              }}
+            />
+            {draft.source?.kind === 'table' &&
+              tables.find((t) => draft.source?.kind === 'table' && t.id === draft.source.tableId)?.kind === 'parametric' && (
+                <SegmentedControl
+                  value={draft.source.data}
+                  data={[
+                    { value: 'inputs', label: 'Raw inputs / trajectory' },
+                    { value: 'solved', label: 'Successful solved rows' },
+                  ]}
+                  onChange={(data) =>
+                    setDraft((d) =>
+                      d.source?.kind === 'table'
+                        ? { ...d, source: { ...d.source, data: data as 'inputs' | 'solved' } }
+                        : d
+                    )
+                  }
+                />
+              )}
+          </>
+        )}
         {draft.kind === 'xy' && (
           <XYSection
             config={draft.xy}
-            tableVars={draft.source?.kind === 'table' ? (tables.find((t) => t.id === (draft.source?.kind === 'table' ? draft.source.tableId : '')) as import('../tables').ParamTableSpec | undefined)?.vars ?? [] : tableVars}
+            tableVars={(() => {
+              if (draft.source?.kind !== 'table') return tableVars
+              const targetId = draft.source.tableId
+              const target = tables.find((t) => t.id === targetId)
+              if (!target) return []
+              if (target.kind === 'parametric') return target.vars
+              return [target.argName, ...target.columns]
+            })()}
             onChange={(xy) => setDraft({ ...draft, xy })}
           />
         )}

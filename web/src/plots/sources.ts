@@ -8,8 +8,18 @@ export function resolvePlotSource(spec: PlotSpec, tables: TableSpec[], variables
   if (spec.kind !== 'xy') return undefined
   const names = [...(spec.xy.chartType === 'histogram' ? [] : [spec.xy.xVar]), ...spec.xy.yVars, ...(spec.xy.y2Vars ?? []), spec.xy.zVar, spec.xy.sizeVar].filter((s): s is string => !!s)
   if (!names.length) return undefined
-  const candidates: PlotSource[] = tables.flatMap((t) => t.kind === 'parametric' && names.every((n) => t.vars.includes(n))
-    ? [{ kind: 'table' as const, tableId: t.id, data: t.origin === 'ode' || t.results.length === 0 ? 'inputs' as const : 'solved' as const }] : [])
+  const candidates: PlotSource[] = tables.flatMap((t) => {
+    if (t.kind === 'parametric' && names.every((n) => t.vars.includes(n))) {
+      return [{ kind: 'table' as const, tableId: t.id, data: t.origin === 'ode' || t.results.length === 0 ? 'inputs' as const : 'solved' as const }]
+    }
+    if (t.kind === 'function') {
+      const allCols = [t.argName, ...t.columns]
+      if (names.every((n) => allCols.includes(n))) {
+        return [{ kind: 'table' as const, tableId: t.id, data: 'inputs' as const }]
+      }
+    }
+    return []
+  })
   if (names.every((n) => variables.some((v) => v.name.toLowerCase().startsWith(`${n.toLowerCase()}[`)))) candidates.push({ kind: 'arrays' })
   return candidates.length === 1 ? candidates[0] : undefined
 }

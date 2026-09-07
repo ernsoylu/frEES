@@ -56,6 +56,22 @@ export interface PlotFormat {
   xTick?: number | null
   yTick?: number | null
   lineColors?: Record<string, string>
+  traceStyles?: Record<string, TraceStyle>
+  annotations?: ReferenceAnnotation[]
+}
+
+export interface TraceStyle {
+  dash?: 'solid' | 'dash' | 'dot' | 'dashdot'
+  markerSymbol?: string
+}
+
+export interface ReferenceAnnotation {
+  id: string
+  type: 'hline' | 'vline'
+  value: number
+  text: string
+  color?: string
+  dash?: 'solid' | 'dash' | 'dot' | 'dashdot'
 }
 
 export type ChartType = 'line' | 'bar' | 'pie' | 'histogram' | 'scatter' | 'surface3d'

@@ -335,10 +335,10 @@ Primary files: [CSV](web/src/tablesGrid/csv.ts), [import modal](web/src/tablesGr
 
 #### 10D — Make engineering inspection practical
 
-- [ ] Add table role/source/status labels, visible Undo/Redo, searchable column configuration, frozen Run/time/X columns and selected-cell/row details. Use existing grid capabilities; view sorting/filtering/reordering must not alter solver row/column order or the run set.
-- [ ] Add selected-row insert/delete/duplicate and explicit independent-row retry with unchanged revisions. Accessor models require whole-table recomputation. Expose failure inputs and diagnostics so a run can be reproduced through the existing calculation/pin path.
-- [ ] Offer Plot selected columns from editable and derived tables, then link a persistent plot cursor to the original row. Add keyboard sample inspection, accessible raw-data alternatives and selection summaries with scope/units; calculate statistics from raw data. Add a second cursor with deltas/slope after the first workflow passes.
-- [ ] Add per-trace line/marker styles and reference annotations through existing Plotly controls. Test keyboard navigation, textual failure indicators, focus, touch controls and 360-pixel dock layouts across tables and plots.
+- [x] Add table role/source/status labels, visible Undo/Redo, searchable column configuration, frozen Run/time/X columns and selected-cell/row details. Use existing grid capabilities; view sorting/filtering/reordering must not alter solver row/column order or the run set.
+- [x] Add selected-row insert/delete/duplicate and explicit independent-row retry with unchanged revisions. Accessor models require whole-table recomputation. Expose failure inputs and diagnostics so a run can be reproduced through the existing calculation/pin path.
+- [x] Offer Plot selected columns from editable and derived tables, then link a persistent plot cursor to the original row. Add keyboard sample inspection, accessible raw-data alternatives and selection summaries with scope/units; calculate statistics from raw data. Add a second cursor with deltas/slope after the first workflow passes.
+- [x] Add per-trace line/marker styles and reference annotations through existing Plotly controls. Test keyboard navigation, textual failure indicators, focus, touch controls and 360-pixel dock layouts across tables and plots.
 
 #### 10E — Optimize only measured costs
 

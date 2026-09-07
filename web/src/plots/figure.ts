@@ -509,6 +509,7 @@ export function buildXYFigure(
   } else if (chartType === 'scatter') {
     series.forEach((s) => {
       const markerSize = s.size && s.size.length > 0 ? scaleSizes(s.size) : 10
+      const style = format.traceStyles?.[s.name]
       traces.push({
         type: 'scatter',
         mode: 'markers',
@@ -519,6 +520,7 @@ export function buildXYFigure(
         marker: {
           size: markerSize,
           color: format.lineColors?.[s.name] || undefined,
+          symbol: style?.markerSymbol || undefined,
         },
         ...(s.axis === 'y2' ? { yaxis: 'y2' } : {}),
       } as PlotlyTrace)
@@ -543,6 +545,7 @@ export function buildXYFigure(
   } else {
     // Default: 'line'
     series.forEach((s) => {
+      const style = format.traceStyles?.[s.name]
       traces.push({
         type: 'scatter',
         mode: 'lines+markers',
@@ -552,7 +555,11 @@ export function buildXYFigure(
         uid: s.name,
         x: s.x,
         y: s.y,
-        line: { color: format.lineColors?.[s.name] || undefined },
+        line: {
+          color: format.lineColors?.[s.name] || undefined,
+          dash: style?.dash || undefined,
+        },
+        marker: style?.markerSymbol ? { symbol: style.markerSymbol } : undefined,
         ...(s.axis === 'y2' ? { yaxis: 'y2' } : {}),
       } as PlotlyTrace)
     })
@@ -569,6 +576,54 @@ export function buildXYFigure(
   )
 
   if (chartType !== 'line') layout.annotations = [{ text: counts.join('; '), xref: 'paper', yref: 'paper', x: 0, y: 1.08, showarrow: false }]
+
+  if (format.annotations && format.annotations.length > 0) {
+    layout.shapes = layout.shapes ?? []
+    layout.annotations = layout.annotations ?? []
+    for (const ann of format.annotations) {
+      if (ann.type === 'hline') {
+        layout.shapes.push({
+          type: 'line',
+          y0: ann.value,
+          y1: ann.value,
+          xref: 'paper',
+          x0: 0,
+          x1: 1,
+          line: { color: ann.color || '#ff6b6b', dash: ann.dash || 'dash', width: 1.5 },
+        })
+        layout.annotations.push({
+          text: ann.text,
+          xref: 'paper',
+          x: 1,
+          y: ann.value,
+          showarrow: false,
+          xanchor: 'right',
+          yanchor: 'bottom',
+          font: { color: ann.color || '#ff6b6b', size: 11 },
+        })
+      } else if (ann.type === 'vline') {
+        layout.shapes.push({
+          type: 'line',
+          x0: ann.value,
+          x1: ann.value,
+          yref: 'paper',
+          y0: 0,
+          y1: 1,
+          line: { color: ann.color || '#4dabf7', dash: ann.dash || 'dash', width: 1.5 },
+        })
+        layout.annotations.push({
+          text: ann.text,
+          yref: 'paper',
+          y: 1,
+          x: ann.value,
+          showarrow: false,
+          xanchor: 'left',
+          yanchor: 'top',
+          font: { color: ann.color || '#4dabf7', size: 11 },
+        })
+      }
+    }
+  }
 
   if (chartType === 'bar') {
     layout.barmode = 'group'

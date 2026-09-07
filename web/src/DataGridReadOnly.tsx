@@ -187,12 +187,47 @@ export default function DataGridReadOnly({ vars, rows, results, varDrafts, colum
             smoothScrollX
             smoothScrollY
             getCellsForSelection
+            freezeColumns={1}
             gridSelection={selection}
             onGridSelectionChange={setSelection}
             onColumnResize={onColumnResize}
           />
         )}
       </div>
+      {(() => {
+        if (!selection.current?.cell) return null
+        const [col, row] = selection.current.cell
+        const name = vars[col]
+        if (!name || !rows[row]) return null
+        const value = readOnlyCellText(rows[row], results?.[row], name)
+        const unit = columnUnits?.[name] ?? varDrafts[name]?.units
+        return (
+          <Group
+            justify="space-between"
+            px="xs"
+            py={4}
+            style={{
+              borderTop: '1px solid var(--mantine-color-default-border)',
+              background: 'var(--mantine-color-default-hover)',
+              borderRadius: 4,
+            }}
+          >
+            <Group gap="sm">
+              <Text size="xs" fw={600}>
+                {displayVar(name)} (Row {row + 1})
+              </Text>
+              <Text size="xs" ff="monospace">
+                Value: {value || '<empty>'}
+              </Text>
+              {unit && (
+                <Text size="xs" c="dimmed">
+                  [{unit}]
+                </Text>
+              )}
+            </Group>
+          </Group>
+        )
+      })()}
     </Stack>
   )
 }

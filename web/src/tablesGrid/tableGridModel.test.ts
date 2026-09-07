@@ -31,6 +31,9 @@ import {
   removeLastRow,
   storedFormulaList,
   TABLE_MAX_ROWS,
+  insertRowAt,
+  deleteRowsAt,
+  duplicateRowsAt,
 } from './tableGridModel'
 
 function spec1D(over: Partial<FunctionTableSpec> = {}): FunctionTableSpec {
@@ -559,3 +562,74 @@ it('detaches legacy formulas before structural changes so removed cells never re
   expect(formulaAt(edited, 2, 1)).toBeUndefined()
   expect(storedFormulaList(edited)).toEqual([{ ref: 'Detached 1: A3', formula: '=old_x' }, { ref: 'Detached 1: B3', formula: '=old_y' }])
 })
+
+describe('selected-row structural operations (Phase 10D)', () => {
+  it('inserts an empty row at the selected index in a parametric table', () => {
+    const table = paramSpec()
+    const inserted = insertRowAt(table, 1) as ParamTableSpec
+    expect(inserted.rows.length).toBe(3)
+    expect(inserted.rows[0].values.T).toBe('300')
+    expect(inserted.rows[1].values).toEqual({})
+    expect(inserted.rows[2].values.T).toBe('350')
+    expect(inserted.results).toEqual([])
+  })
+
+  it('inserts an empty row at the selected index in a function table', () => {
+    const table = spec2D()
+    const inserted = insertRowAt(table, 0) as FunctionTableSpec
+    expect(inserted.rows.length).toBe(3)
+    expect(inserted.rows[0]).toEqual({ x: '', ys: ['', ''] })
+    expect(inserted.rows[1].x).toBe('0')
+    expect(inserted.rows[2].x).toBe('1')
+  })
+
+  it('duplicates selected rows at their position in a parametric table', () => {
+    const table = paramSpec()
+    const duped = duplicateRowsAt(table, [0]) as ParamTableSpec
+    expect(duped.rows.length).toBe(3)
+    expect(duped.rows[0].values.T).toBe('300')
+    expect(duped.rows[1].values.T).toBe('300')
+    expect(duped.rows[1].id).not.toBe(duped.rows[0].id)
+    expect(duped.rows[2].values.T).toBe('350')
+    expect(duped.results).toEqual([])
+  })
+
+  it('duplicates selected rows in a function table', () => {
+    const table = spec1D()
+    const duped = duplicateRowsAt(table, [1]) as FunctionTableSpec
+    expect(duped.rows.length).toBe(3)
+    expect(duped.rows[1]).toEqual({ x: '2', ys: ['20'] })
+    expect(duped.rows[2]).toEqual({ x: '2', ys: ['20'] })
+  })
+
+  it('deletes selected rows in a parametric table, ensuring at least one row remains', () => {
+    const table = paramSpec()
+    const deleted = deleteRowsAt(table, [0]) as ParamTableSpec
+    expect(deleted.rows.length).toBe(1)
+    expect(deleted.rows[0].values.T).toBe('350')
+    expect(deleted.results).toEqual([])
+
+    // Deleting all rows leaves a fresh empty row
+    const deletedAll = deleteRowsAt(deleted, [0]) as ParamTableSpec
+    expect(deletedAll.rows.length).toBe(1)
+    expect(deletedAll.rows[0].values).toEqual({})
+  })
+
+  it('deletes selected rows in a function table, ensuring at least one row remains', () => {
+    const table = spec2D()
+    const deleted = deleteRowsAt(table, [0, 1]) as FunctionTableSpec
+    expect(deleted.rows.length).toBe(1)
+    expect(deleted.rows[0]).toEqual({ x: '', ys: ['', ''] })
+  })
+
+  it('enforces TABLE_MAX_ROWS ceiling during insert and duplicate', () => {
+    const fullRows = Array.from({ length: TABLE_MAX_ROWS }, (_, i) => ({
+      id: `r${i}`,
+      values: { T: String(i) },
+    }))
+    const fullTable = paramSpec({ rows: fullRows })
+    expect(insertRowAt(fullTable, 0)).toBe(fullTable)
+    expect(duplicateRowsAt(fullTable, [0])).toBe(fullTable)
+  })
+})
+
