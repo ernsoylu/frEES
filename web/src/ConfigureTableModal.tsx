@@ -69,6 +69,35 @@ export default function ConfigureTableModal({
     onSave(local)
   }
 
+  const renderVariableList = () => {
+    if (variables.length === 0) {
+      return (
+        <Text c="dimmed" size="sm" style={{ fontStyle: 'italic' }}>
+          No variables detected yet — please check your equations first to find variables.
+        </Text>
+      )
+    }
+    if (filtered.length === 0) {
+      return (
+        <Text c="dimmed" size="sm" style={{ fontStyle: 'italic' }}>
+          No variables match "{query}".
+        </Text>
+      )
+    }
+    return (
+      <Stack gap="xs" style={{ maxHeight: 300, overflowY: 'auto' }} p={4}>
+        {filtered.map((name) => (
+          <Checkbox
+            key={name}
+            label={name}
+            checked={local.includes(name)}
+            onChange={() => toggle(name)}
+          />
+        ))}
+      </Stack>
+    )
+  }
+
   return (
     <Modal opened onClose={onClose} title="Configure Table Columns" centered size="lg">
       <Text size="sm" c="dimmed" mb="xs">
@@ -112,26 +141,7 @@ export default function ConfigureTableModal({
           </Text>
         </Group>
 
-        {variables.length === 0 ? (
-          <Text c="dimmed" size="sm" style={{ fontStyle: 'italic' }}>
-            No variables detected yet — please check your equations first to find variables.
-          </Text>
-        ) : filtered.length === 0 ? (
-          <Text c="dimmed" size="sm" style={{ fontStyle: 'italic' }}>
-            No variables match "{query}".
-          </Text>
-        ) : (
-          <Stack gap="xs" style={{ maxHeight: 300, overflowY: 'auto' }} p={4}>
-            {filtered.map((name) => (
-              <Checkbox
-                key={name}
-                label={name}
-                checked={local.includes(name)}
-                onChange={() => toggle(name)}
-              />
-            ))}
-          </Stack>
-        )}
+        {renderVariableList()}
       </Stack>
 
       <Group justify="flex-end" mt="xl">

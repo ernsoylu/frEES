@@ -486,6 +486,8 @@ function XyTraceStyles({
   )
 }
 
+let nextAnnotationCounter = 0
+
 function ReferenceAnnotationsSection({
   format,
   onChange,
@@ -496,8 +498,9 @@ function ReferenceAnnotationsSection({
   const annotations = format.annotations ?? []
 
   const addAnnotation = (type: 'hline' | 'vline') => {
+    nextAnnotationCounter += 1
     const newAnn: import('./types').ReferenceAnnotation = {
-      id: `ann-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      id: `ann-${Date.now()}-${nextAnnotationCounter}`,
       type,
       value: 0,
       text: type === 'hline' ? 'Threshold' : 'Limit',
@@ -907,6 +910,11 @@ const KIND_OPTIONS = [
   { value: 'xy', label: 'X-Y (parametric table)' },
 ]
 
+function getTableKindLabel(t: TableSpec): string {
+  if (t.kind === 'function') return 'Function'
+  return t.origin === 'ode' ? 'Trajectory' : 'Sweep'
+}
+
 export default function PlotConfigModal({
   spec,
   allowedKinds,
@@ -982,7 +990,7 @@ export default function PlotConfigModal({
                 { value: 'arrays', label: 'Solved arrays' },
                 ...tables.map((t) => ({
                   value: t.id,
-                  label: `${t.name} (${t.kind === 'parametric' ? (t.origin === 'ode' ? 'Trajectory' : 'Sweep') : 'Function'})`,
+                  label: `${t.name} (${getTableKindLabel(t)})`,
                 })),
               ]}
               value={draft.source?.kind === 'arrays' ? 'arrays' : draft.source?.tableId ?? null}

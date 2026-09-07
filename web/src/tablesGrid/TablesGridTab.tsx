@@ -138,6 +138,43 @@ interface UndoEntry {
 
 const UNDO_LIMIT = 100
 
+function getSelectedGridRow(selection: GridSelection): number | undefined {
+  if (selection.current?.cell) {
+    return selection.current.cell[1]
+  }
+  if (selection.rows.length > 0) {
+    return selection.rows.first()
+  }
+  return undefined
+}
+
+function getParametricCellRole(
+  isRunCol: boolean,
+  hasInput: boolean,
+  isComputed: boolean,
+  isFailed: boolean,
+): { role: string; roleColor: string } {
+  if (isRunCol) {
+    return { role: 'Run index', roleColor: 'gray' }
+  }
+  if (hasInput) {
+    return { role: 'User input', roleColor: 'blue' }
+  }
+  if (isComputed) {
+    return { role: 'Solver computed', roleColor: 'green' }
+  }
+  if (isFailed) {
+    return { role: 'Failed run', roleColor: 'red' }
+  }
+  return { role: 'Blank (unsolved)', roleColor: 'gray' }
+}
+
+function getParamSolveBadgeColor(statsFailed?: number, results: Array<{ success: boolean }> = []): string {
+  if (statsFailed) return 'red'
+  if (results.length > 0 && results.every((r) => r.success)) return 'green'
+  return 'gray'
+}
+
 export default function TablesGridTab({
   tables,
   activeTableId,
@@ -180,9 +217,9 @@ export default function TablesGridTab({
   // code-table refreshes arrive as external prop changes and never enter it.
   const undoStack = useRef<UndoEntry[]>([])
   const redoStack = useRef<UndoEntry[]>([])
-  const [, setHistoryEpoch] = useState(0)
-  const canUndo = undoStack.current.length > 0
-  const canRedo = redoStack.current.length > 0
+  const [historyEpoch, setHistoryEpoch] = useState(0)
+  const canUndo = historyEpoch >= 0 && undoStack.current.length > 0
+  const canRedo = historyEpoch >= 0 && redoStack.current.length > 0
 
   const [selection, setSelection] = useState<GridSelection>({
     columns: CompactSelection.empty(),
@@ -558,11 +595,7 @@ export default function TablesGridTab({
 
   // Selected cell & row computations for engineering inspection
   const selectedCell = selection.current?.cell
-  const selectedGridRow = selectedCell
-    ? selectedCell[1]
-    : selection.rows.length > 0
-      ? selection.rows.first()
-      : undefined
+  const selectedGridRow = getSelectedGridRow(selection)
 
   let selectedCellInfo: {
     coord: string
@@ -585,24 +618,9 @@ export default function TablesGridTab({
       const rawInput = varName && row ? (row.values[varName] ?? '') : ''
       const res = active.results[gridRow]
       const hasInput = rawInput.trim() !== ''
-      const role = isRunCol
-        ? 'Run index'
-        : hasInput
-          ? 'User input'
-          : view.kind === 'computed'
-            ? 'Solver computed'
-            : res && !res.success
-              ? 'Failed run'
-              : 'Blank (unsolved)'
-      const roleColor = isRunCol
-        ? 'gray'
-        : hasInput
-          ? 'blue'
-          : view.kind === 'computed'
-            ? 'green'
-            : res && !res.success
-              ? 'red'
-              : 'gray'
+      const isComputed = view.kind === 'computed'
+      const isFailed = Boolean(res && !res.success)
+      const { role, roleColor } = getParametricCellRole(isRunCol, hasInput, isComputed, isFailed)
       const unit = varName ? active.columnUnits?.[varName] : undefined
       selectedCellInfo = {
         coord: isRunCol ? `Run ${gridRow + 1}` : `${varName} (Run ${gridRow + 1})`,
@@ -871,13 +889,7 @@ export default function TablesGridTab({
                 <Badge
                   size="xs"
                   variant="light"
-                  color={
-                    activeParam.stats?.failed
-                      ? 'red'
-                      : activeParam.results.length > 0 && activeParam.results.every((r) => r.success)
-                        ? 'green'
-                        : 'gray'
-                  }
+                  color={getParamSolveBadgeColor(activeParam.stats?.failed, activeParam.results)}
                 >
                   {activeParam.results.length === 0
                     ? 'Not run'

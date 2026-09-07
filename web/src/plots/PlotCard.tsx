@@ -81,6 +81,10 @@ export function formatPlotValue(v: number | undefined | null): string {
   return v.toLocaleString(undefined, { maximumFractionDigits: 4 })
 }
 
+function isFiniteNumber(val: unknown): val is number {
+  return typeof val === 'number' && Number.isFinite(val)
+}
+
 export function computeTraceStats(trace: unknown): TraceStatistics | null {
   const t = trace as { name?: string; x?: unknown[]; y?: unknown[] } | undefined
   if (!t || !Array.isArray(t.x) || !Array.isArray(t.y)) return null
@@ -97,26 +101,26 @@ export function computeTraceStats(trace: unknown): TraceStatistics | null {
   for (let i = 0; i < n; i++) {
     const x = xs[i]
     const y = ys[i]
-    if (typeof x === 'number' && Number.isFinite(x) && typeof y === 'number' && Number.isFinite(y)) {
-      valid++
-      if (x < minX) minX = x
-      if (x > maxX) maxX = x
-      if (y < minY) minY = y
-      if (y > maxY) maxY = y
-      sumY += y
-    }
+    if (!isFiniteNumber(x) || !isFiniteNumber(y)) continue
+    valid++
+    if (x < minX) minX = x
+    if (x > maxX) maxX = x
+    if (y < minY) minY = y
+    if (y > maxY) maxY = y
+    sumY += y
   }
 
+  const hasValid = valid > 0
   return {
     traceName: t.name || 'Trace',
     count: n,
     valid,
     missing: n - valid,
-    minX: valid > 0 ? minX : NaN,
-    maxX: valid > 0 ? maxX : NaN,
-    minY: valid > 0 ? minY : NaN,
-    maxY: valid > 0 ? maxY : NaN,
-    meanY: valid > 0 ? sumY / valid : NaN,
+    minX: hasValid ? minX : Number.NaN,
+    maxX: hasValid ? maxX : Number.NaN,
+    minY: hasValid ? minY : Number.NaN,
+    maxY: hasValid ? maxY : Number.NaN,
+    meanY: hasValid ? sumY / valid : Number.NaN,
     sumY,
   }
 }
@@ -573,7 +577,17 @@ export default function PlotCard({
 
   const deltaX = cursor1 && cursor2 ? cursor2.x - cursor1.x : null
   const deltaY = cursor1 && cursor2 ? cursor2.y - cursor1.y : null
-  const slope = deltaX !== null && deltaY !== null ? (deltaX !== 0 ? deltaY / deltaX : null) : null
+  let slope: number | null = null
+  if (deltaX !== null && deltaY !== null && deltaX !== 0) {
+    slope = deltaY / deltaX
+  }
+
+  let slopeText = '—'
+  if (slope !== null) {
+    slopeText = formatPlotValue(slope)
+  } else if (deltaX === 0) {
+    slopeText = 'vertical'
+  }
 
   const activeTraceIndex = cursor1 ? cursor1.traceIndex : 0
   const activeTrace = figure?.data[activeTraceIndex] as { name?: string; x?: unknown[]; y?: unknown[]; customdata?: unknown[] } | undefined
@@ -852,7 +866,7 @@ export default function PlotCard({
 
                 {dualCursor && cursor1 && cursor2 && (
                   <Badge color="grape" variant="outline">
-                    ΔX: {formatPlotValue(deltaX)} | ΔY: {formatPlotValue(deltaY)} | Slope: {slope !== null ? formatPlotValue(slope) : (deltaX === 0 ? 'vertical' : '—')}
+                    ΔX: {formatPlotValue(deltaX)} | ΔY: {formatPlotValue(deltaY)} | Slope: {slopeText}
                   </Badge>
                 )}
 
@@ -974,8 +988,9 @@ export default function PlotCard({
                       const yVal = (activeTrace.y as unknown[])?.[idx]
                       const isValid = typeof xVal === 'number' && Number.isFinite(xVal) && typeof yVal === 'number' && Number.isFinite(yVal)
                       const sampleId = (Array.isArray(activeTrace.customdata) ? (activeTrace.customdata as unknown[])[idx] : undefined) ?? (spec.source?.kind === 'table' ? tableRows[idx]?.id : undefined)
+                      const sampleKey = typeof sampleId === 'string' && sampleId ? sampleId : `sample-${idx}`
                       return (
-                        <Table.Tr key={idx}>
+                        <Table.Tr key={sampleKey}>
                           <Table.Td>{idx + 1}</Table.Td>
                           <Table.Td>{typeof sampleId === 'string' ? sampleId : `pt-${idx + 1}`}</Table.Td>
                           <Table.Td>{formatPlotValue(typeof xVal === 'number' ? xVal : Number(xVal))}</Table.Td>

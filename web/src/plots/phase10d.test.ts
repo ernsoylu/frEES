@@ -108,7 +108,7 @@ describe('Phase 10D: Plot inspection, statistics, and cursor measurement', () =>
         },
       }
       const fig = buildXYFigure(series, format, 'X', 'Y', 'dark', { chartType: 'line', xVar: 'x', yVars: ['temp'] })
-      expect(fig.data.length).toBe(1)
+      expect(fig.data).toHaveLength(1)
       const trace = fig.data[0] as any
       expect(trace.line?.dash).toBe('dash')
       expect(trace.marker?.symbol).toBe('square')

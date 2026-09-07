@@ -2163,7 +2163,7 @@ export default function App() {
 
   const handleGoToTableDeclaration = useCallback((tableName: string) => {
     const lower = tableName.toLowerCase()
-    const regex = new RegExp(`^\\s*(TABLE|PARAMETRIC)\\s+${lower}\\b`, 'i')
+    const regex = new RegExp(String.raw`^\s*(TABLE|PARAMETRIC)\s+${lower}\b`, 'i')
     const lines = (textRef.current ?? '').split('\n')
     const idx = lines.findIndex((l: string) => regex.test(l))
     if (idx >= 0) {

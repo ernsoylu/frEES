@@ -13,8 +13,8 @@ export function resolvePlotSource(spec: PlotSpec, tables: TableSpec[], variables
       return [{ kind: 'table' as const, tableId: t.id, data: t.origin === 'ode' || t.results.length === 0 ? 'inputs' as const : 'solved' as const }]
     }
     if (t.kind === 'function') {
-      const allCols = [t.argName, ...t.columns]
-      if (names.every((n) => allCols.includes(n))) {
+      const allCols = new Set([t.argName, ...t.columns])
+      if (names.every((n) => allCols.has(n))) {
         return [{ kind: 'table' as const, tableId: t.id, data: 'inputs' as const }]
       }
     }
