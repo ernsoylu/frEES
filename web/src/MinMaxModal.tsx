@@ -192,7 +192,7 @@ function ParetoView({
             name: 'Pareto front',
             customdata: front.map((_, i) => i),
           },
-          ...(selectedPoint
+          ...(selectedPoint && selectedPointIndex !== null
             ? [
                 {
                   x: [selectedPoint.objectives[0]],
@@ -254,7 +254,7 @@ function ParetoView({
         />
       )}
 
-      {selectedPoint && (
+      {selectedPoint && selectedPointIndex !== null && (
         <Paper withBorder p="xs" radius="sm" style={{ backgroundColor: 'var(--mantine-color-dark-6)' }}>
           <Stack gap="xs">
             <Group justify="space-between" align="center">

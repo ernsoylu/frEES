@@ -59,6 +59,7 @@ it('supports interactive Pareto point click, inspection and loading into documen
 
   const optimizeMultiSpy = vi.spyOn(await import('./api'), 'optimizeMulti').mockResolvedValue({
     success: true,
+    error: null,
     decisionNames: ['x'],
     objectiveNames: ['f1', 'f2'],
     evaluations: 160,
