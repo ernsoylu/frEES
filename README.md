@@ -144,6 +144,6 @@ The WebAssembly engine binary is strictly gated in CI against a ceiling of **4,0
 
 ## Documentation
 
-- [`ARCHITECTURE_AND_REQIREMENTS.md`](ARCHITECTURE_AND_REQIREMENTS.md): Detailed architectural specification, numerical solver pipelines, property algorithms, DAE formulations, and system requirements.
+- [`ARCHITECTURE_AND_REQUIREMENTS.md`](ARCHITECTURE_AND_REQUIREMENTS.md): Detailed architectural specification, numerical solver pipelines, property algorithms, DAE formulations, and system requirements.
 - [`CLAUDE.md`](CLAUDE.md): Developer and AI assistant guidelines, build instructions, invariant constraints, and debugging notes.
 - [`NEXT_STEPS.md`](NEXT_STEPS.md): Active engineering roadmap, upcoming capabilities, and change control standards.
