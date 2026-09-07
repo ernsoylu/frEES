@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildFigure, computeTraceStats, formatPlotValue } from './PlotCard'
-import { buildXYFigure, type XYSeries } from './figure'
+import { buildXYFigure, cleanPlotlyFigure, pruneUndefined, type XYSeries } from './figure'
 import { resolvePlotSource } from './sources'
 import { defaultFormat, newPlotSpec, PlotSpec } from './types'
 import { FunctionTableSpec, mergeCodeTables, ParamTableSpec } from '../tables'
@@ -298,5 +298,68 @@ describe('Phase 10D: Plot inspection, statistics, and cursor measurement', () =>
       expect(trace.x).toEqual([0, 10])
       expect(trace.y).toEqual([0.9, 0.8986])
     })
+
+    it('produces clean traces and mounts successfully via Plotly.react without undefined property errors', async () => {
+      const spec: PlotSpec = {
+        ...newPlotSpec('xy', 'X-Y 1'),
+        source: { kind: 'table', tableId: 'code-ode-cool', data: 'inputs' },
+        xy: { xVar: 'time', yVars: ['bp.soc'] },
+      }
+      const inputs = {
+        states: { indices: [], columns: [], values: {} },
+        tableRows: Array.from({ length: 400 }, (_, i) => ({
+          id: `r-${i}`,
+          values: { time: String(i * 10), 'bp$soc': String(0.9 - i * 0.0005) },
+        })),
+        tableResults: [],
+        variables: [],
+        tableUnits: { 'bp$soc': '%' },
+        theme: 'dark' as const,
+      }
+      const fig = buildFigure(spec, inputs)
+      expect(fig).not.toBeNull()
+      const trace = fig!.data[0] as unknown as Record<string, unknown>
+      // Verify marker is not present as undefined
+      expect('marker' in trace).toBe(false)
+      // Verify line has no undefined properties
+      if ('line' in trace && trace.line) {
+        expect(trace.line).not.toHaveProperty('color', undefined)
+        expect(trace.line).not.toHaveProperty('dash', undefined)
+      }
+      // Verify layout has no undefined title
+      expect('title' in fig!.layout).toBe(false)
+
+      // Test real Plotly.react invocation with this figure
+      const Plotly = (await import('./plotlyBundle')).default
+      const el = document.createElement('div')
+      document.body.appendChild(el)
+      await expect(Plotly.react(el, fig!.data, fig!.layout)).resolves.not.toThrow()
+    })
+  })
+
+  describe('pruneUndefined and cleanPlotlyFigure', () => {
+    it('strips undefined keys recursively while preserving primitives and arrays', () => {
+      const input = {
+        name: 'test',
+        x: [1, 2, 3],
+        marker: undefined,
+        line: { color: undefined, width: 2 },
+        layout: { title: undefined, visible: true },
+      }
+      const clean = pruneUndefined(input)
+      expect(clean).toEqual({
+        name: 'test',
+        x: [1, 2, 3],
+        line: { width: 2 },
+        layout: { visible: true },
+      })
+      expect('marker' in clean).toBe(false)
+      expect('color' in (clean as Record<string, any>).line).toBe(false)
+      expect('title' in (clean as Record<string, any>).layout).toBe(false)
+
+      const figClean = cleanPlotlyFigure({ data: [], layout: { title: undefined } as any })
+      expect('title' in figClean.layout).toBe(false)
+    })
   })
 })
+
