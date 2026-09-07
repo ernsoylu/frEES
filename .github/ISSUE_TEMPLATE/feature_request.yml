@@ -1,0 +1,23 @@
+name: Feature or Component Request
+description: Propose a new acausal component, numerical algorithm, or workbench capability
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement / Engineering Use Case
+      description: Describe the physical engineering scenario or modeling workflow you are aiming to solve.
+    validations:
+      required: true
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed Solution / Component Specification
+      description: Describe the mathematical equations, ports, physical constants, or UI interaction proposed.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Considered Alternatives
+      description: Any alternative approaches or workarounds you've considered.

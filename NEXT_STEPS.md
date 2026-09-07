@@ -59,19 +59,19 @@ graph TD
 
 Focus: Low-risk, high-impact developer ergonomics, supply-chain security, and release automation.
 
-- [ ] **1.1 Enforce Node 22 in Toolchain Configuration**
+- [x] **1.1 Enforce Node 22 in Toolchain Configuration**
   - Add `"engines": { "node": ">=22" }` to `web/package.json` to prevent cryptic `jsdom` / `undici` initialization crashes under Node 20.
-- [ ] **1.2 Supply-Chain Hardening & Security Policy**
+- [x] **1.2 Supply-Chain Hardening & Security Policy**
   - Integrate `cargo audit` and `cargo deny` (checking licenses, bans, and advisories) into `.github/workflows/ci.yml`.
   - Add `npm audit --omit=dev` to the frontend CI pipeline.
   - Author `SECURITY.md` establishing a formal vulnerability disclosure and triage protocol.
-- [ ] **1.3 Release Engineering & Automation**
+- [x] **1.3 Release Engineering & Automation**
   - Tag initial release `v0.1.0`.
   - Configure Release-Please to automate semantic version bumps and `CHANGELOG.md` generation from conventional commits.
   - Add automated GitHub release asset publishing: compiled WebAssembly package, zipped `web/dist` PWA artifact, and native `frees-cli` binaries for Linux, macOS, and Windows.
-- [ ] **1.4 Standing Offline ("No-Network") CI Invariant**
+- [x] **1.4 Standing Offline ("No-Network") CI Invariant**
   - Add a dedicated Playwright test step in CI that routes all non-same-origin requests to `route.abort()` and verifies model solving, diagram plotting, and table export complete successfully offline.
-- [ ] **1.5 Contributor Onboarding & Issue Templates**
+- [x] **1.5 Contributor Onboarding & Issue Templates**
   - Add `CONTRIBUTING.md` detailing coding standards, PR expectations, and verification commands.
   - Configure GitHub issue templates (`.github/ISSUE_TEMPLATE/`) for bug reports, engine numerics, and documentation improvements.
 

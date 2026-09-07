@@ -57,3 +57,31 @@ test('the app boots and solves fully offline after one visit', async ({ page, co
 
   expect(apiRequests, 'the app must never call /api/').toEqual([])
 })
+
+test('zero-network solve with all external network requests aborted', async ({ page }) => {
+  // Abort all non-local / non-origin network traffic to verify zero external calls
+  await page.route('**/*', (route) => {
+    const url = new URL(route.request().url())
+    // Allow local origin assets and data/blob URIs only
+    if (url.origin === new URL(page.url() || 'http://localhost').origin || url.protocol === 'data:' || url.protocol === 'blob:') {
+      route.continue()
+    } else {
+      route.abort()
+    }
+  })
+
+  await page.goto('/')
+  await expect(page.getByRole('button', { name: 'Solve', exact: true })).toBeVisible({
+    timeout: 60_000,
+  })
+  const welcome = page.getByRole('dialog').filter({ hasText: 'Welcome to frees' })
+  if (await welcome.isVisible().catch(() => false)) {
+    await page.keyboard.press('Escape')
+    await expect(welcome).toBeHidden()
+  }
+
+  // Perform solve with all external routes blocked
+  await page.getByRole('button', { name: 'Solve', exact: true }).click()
+  await expect(page.getByText(/4\.69401/).first()).toBeVisible({ timeout: 60_000 })
+})
+

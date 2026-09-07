@@ -1,0 +1,33 @@
+name: Numerical & Solver Discrepancy
+description: Report unexpected solver convergence failure, residual discrepancy, or thermodynamic state error
+labels: ["numerics", "solver"]
+body:
+  - type: markdown
+    attributes:
+      value: Numerical precision and exact reproducibility are core tenets of frees.
+  - type: textarea
+    id: model
+    attributes:
+      label: Minimal Reproducible Model (.frees)
+      description: Provide the minimal .frees model demonstrating the numerical discrepancy.
+    validations:
+      required: true
+  - type: textarea
+    id: observation
+    attributes:
+      label: Observed Numerical Behavior
+      description: What residuals, iterations, error classifications, or fluid state values were returned?
+    validations:
+      required: true
+  - type: textarea
+    id: reference
+    attributes:
+      label: Reference Solution & Physical Expectation
+      description: What is the expected mathematical or thermodynamic solution, and from what reference source?
+    validations:
+      required: true
+  - type: textarea
+    id: solver-settings
+    attributes:
+      label: Solver Settings & Initial Guesses
+      description: Provide any non-default stop criteria, variable bounds, or initial guesses used.
