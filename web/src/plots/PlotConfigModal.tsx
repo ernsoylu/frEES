@@ -26,7 +26,7 @@ import {
   diagramAxes,
   newPlotSpec,
 } from './types'
-import { defaultUnitId, unitIdsFor } from './units'
+import { defaultUnitId, isOffsetUnit, unitIdsFor } from './units'
 import { StateTableDto } from '../api'
 import type { TableSpec } from '../tables'
 import { displayVar, varOptions } from '../varDisplay'
@@ -407,15 +407,88 @@ function XyLineColors({
   )
 }
 
+export interface FormatErrors {
+  xMin?: string
+  xMax?: string
+  yMin?: string
+  yMax?: string
+  xUnit?: string
+  yUnit?: string
+  xLog?: string
+  yLog?: string
+}
+
+export function validatePlotFormat(spec: PlotSpec): FormatErrors {
+  const errors: FormatErrors = {}
+  const { format } = spec
+  const axes = axisProperties(spec)
+  const isPie = spec.kind === 'xy' && spec.xy.chartType === 'pie'
+  if (isPie) return errors
+
+  if (format.xLog) {
+    if (format.xMin !== null && format.xMin !== undefined && format.xMin <= 0) {
+      errors.xMin = 'Log scale requires a value greater than zero.'
+    }
+    if (format.xMax !== null && format.xMax !== undefined && format.xMax <= 0) {
+      errors.xMax = 'Log scale requires a value greater than zero.'
+    }
+    if (axes && isOffsetUnit(axes.x, format.xUnit, format.celsius)) {
+      errors.xUnit = 'Log scale cannot be used with offset units (°C, °F, psig).'
+      errors.xLog = 'Log scale cannot be used with offset units.'
+    }
+  }
+
+  if (format.yLog) {
+    if (format.yMin !== null && format.yMin !== undefined && format.yMin <= 0) {
+      errors.yMin = 'Log scale requires a value greater than zero.'
+    }
+    if (format.yMax !== null && format.yMax !== undefined && format.yMax <= 0) {
+      errors.yMax = 'Log scale requires a value greater than zero.'
+    }
+    if (axes && isOffsetUnit(axes.y, format.yUnit, false)) {
+      errors.yUnit = 'Log scale cannot be used with offset units (°C, °F, psig).'
+      errors.yLog = 'Log scale cannot be used with offset units.'
+    }
+  }
+
+  if (
+    format.xMin !== null &&
+    format.xMax !== null &&
+    format.xMin !== undefined &&
+    format.xMax !== undefined &&
+    format.xMin >= format.xMax
+  ) {
+    errors.xMin = errors.xMin || 'Min must be less than max.'
+  }
+
+  if (
+    format.yMin !== null &&
+    format.yMax !== null &&
+    format.yMin !== undefined &&
+    format.yMax !== undefined &&
+    format.yMin >= format.yMax
+  ) {
+    errors.yMin = errors.yMin || 'Min must be less than max.'
+  }
+
+  return errors
+}
+
 function FormatSection({
   spec,
+  errors = {},
   onChange,
 }: Readonly<{
   spec: PlotSpec
+  errors?: FormatErrors
   onChange: (format: PlotFormat) => void
 }>) {
   const format = spec.format
   const axes = axisProperties(spec)
+  const isPie = spec.kind === 'xy' && spec.xy.chartType === 'pie'
+  const is3D = spec.kind === 'xy' && spec.xy.chartType === 'surface3d'
+  const isHistogram = spec.kind === 'xy' && spec.xy.chartType === 'histogram'
+
   return (
     <Stack gap="xs">
       <Group grow>
@@ -437,90 +510,105 @@ function FormatSection({
           }
         />
       </Group>
-      <Group grow>
-        <TextInput
-          label="X-axis label"
-          size="xs"
-          value={format.xLabel}
-          placeholder="auto"
-          onChange={(e) => onChange({ ...format, xLabel: e.currentTarget.value })}
-        />
-        <TextInput
-          label="Y-axis label"
-          size="xs"
-          value={format.yLabel}
-          placeholder="auto"
-          onChange={(e) => onChange({ ...format, yLabel: e.currentTarget.value })}
-        />
-        {spec.kind === 'xy' && (spec.xy.y2Vars?.length ?? 0) > 0 && (
+      {!isPie && (
+        <Group grow>
           <TextInput
-            label="Right Y-axis label"
+            label="X-axis label"
             size="xs"
-            value={format.y2Label ?? ''}
+            value={format.xLabel}
             placeholder="auto"
-            onChange={(e) => onChange({ ...format, y2Label: e.currentTarget.value })}
+            onChange={(e) => onChange({ ...format, xLabel: e.currentTarget.value })}
           />
-        )}
-      </Group>
-      <Group grow>
-        <NumberInput
-          label="X min (auto if empty)"
-          size="xs"
-          value={format.xMin ?? ''}
-          onChange={(v) =>
-            onChange({ ...format, xMin: typeof v === 'number' ? v : null })
-          }
-        />
-        <NumberInput
-          label="X max (auto if empty)"
-          size="xs"
-          value={format.xMax ?? ''}
-          onChange={(v) =>
-            onChange({ ...format, xMax: typeof v === 'number' ? v : null })
-          }
-        />
-        <NumberInput
-          label="X tick interval"
-          size="xs"
-          value={format.xTick ?? ''}
-          min={0}
-          onChange={(v) =>
-            onChange({ ...format, xTick: typeof v === 'number' && v > 0 ? v : null })
-          }
-        />
-      </Group>
-      <Group grow>
-        <NumberInput
-          label="Y min (auto if empty)"
-          size="xs"
-          value={format.yMin ?? ''}
-          onChange={(v) =>
-            onChange({ ...format, yMin: typeof v === 'number' ? v : null })
-          }
-        />
-        <NumberInput
-          label="Y max (auto if empty)"
-          size="xs"
-          value={format.yMax ?? ''}
-          onChange={(v) =>
-            onChange({ ...format, yMax: typeof v === 'number' ? v : null })
-          }
-        />
-        <NumberInput
-          label="Y tick interval"
-          size="xs"
-          value={format.yTick ?? ''}
-          min={0}
-          onChange={(v) =>
-            onChange({ ...format, yTick: typeof v === 'number' && v > 0 ? v : null })
-          }
-        />
-      </Group>
-      {axes && (
+          <TextInput
+            label="Y-axis label"
+            size="xs"
+            value={format.yLabel}
+            placeholder="auto"
+            onChange={(e) => onChange({ ...format, yLabel: e.currentTarget.value })}
+          />
+          {spec.kind === 'xy' && !is3D && (spec.xy.y2Vars?.length ?? 0) > 0 && (
+            <TextInput
+              label="Right Y-axis label"
+              size="xs"
+              value={format.y2Label ?? ''}
+              placeholder="auto"
+              onChange={(e) => onChange({ ...format, y2Label: e.currentTarget.value })}
+            />
+          )}
+        </Group>
+      )}
+      {!isPie && (
+        <Group grow>
+          <NumberInput
+            label="X min (auto if empty)"
+            size="xs"
+            error={errors.xMin}
+            value={format.xMin ?? ''}
+            onChange={(v) =>
+              onChange({ ...format, xMin: typeof v === 'number' ? v : null })
+            }
+          />
+          <NumberInput
+            label="X max (auto if empty)"
+            size="xs"
+            error={errors.xMax}
+            value={format.xMax ?? ''}
+            onChange={(v) =>
+              onChange({ ...format, xMax: typeof v === 'number' ? v : null })
+            }
+          />
+          {!is3D && (
+            <NumberInput
+              label="X tick interval"
+              size="xs"
+              value={format.xTick ?? ''}
+              min={0}
+              onChange={(v) =>
+                onChange({ ...format, xTick: typeof v === 'number' && v > 0 ? v : null })
+              }
+            />
+          )}
+        </Group>
+      )}
+      {!isPie && (
+        <Group grow>
+          <NumberInput
+            label="Y min (auto if empty)"
+            size="xs"
+            error={errors.yMin}
+            value={format.yMin ?? ''}
+            onChange={(v) =>
+              onChange({ ...format, yMin: typeof v === 'number' ? v : null })
+            }
+          />
+          <NumberInput
+            label="Y max (auto if empty)"
+            size="xs"
+            error={errors.yMax}
+            value={format.yMax ?? ''}
+            onChange={(v) =>
+              onChange({ ...format, yMax: typeof v === 'number' ? v : null })
+            }
+          />
+          {!is3D && (
+            <NumberInput
+              label="Y tick interval"
+              size="xs"
+              value={format.yTick ?? ''}
+              min={0}
+              onChange={(v) =>
+                onChange({ ...format, yTick: typeof v === 'number' && v > 0 ? v : null })
+              }
+            />
+          )}
+        </Group>
+      )}
+      {!isPie && axes && (
         <Group grow>
           <Select
             label={`X unit (${axes.x})`}
             size="xs"
+            error={errors.xUnit}
             data={unitIdsFor(axes.x)}
             value={format.xUnit ?? defaultUnitId(axes.x, format.celsius)}
             onChange={(xUnit) => onChange({ ...format, xUnit })}
@@ -528,6 +616,7 @@ function FormatSection({
           <Select
             label={`Y unit (${axes.y})`}
             size="xs"
+            error={errors.yUnit}
             data={unitIdsFor(axes.y)}
             value={format.yUnit ?? defaultUnitId(axes.y, false)}
             onChange={(yUnit) => onChange({ ...format, yUnit })}
@@ -535,33 +624,41 @@ function FormatSection({
         </Group>
       )}
       <Group gap="md">
-        <Checkbox
-          label="Log X"
-          size="xs"
-          checked={format.xLog ?? false}
-          indeterminate={format.xLog === null}
-          onChange={(e) => onChange({ ...format, xLog: e.currentTarget.checked })}
-        />
-        <Checkbox
-          label="Log Y"
-          size="xs"
-          checked={format.yLog ?? false}
-          indeterminate={format.yLog === null}
-          onChange={(e) => onChange({ ...format, yLog: e.currentTarget.checked })}
-        />
-        <Checkbox
-          label="Grid"
-          size="xs"
-          checked={format.grid}
-          onChange={(e) => onChange({ ...format, grid: e.currentTarget.checked })}
-        />
+        {!isPie && !is3D && !isHistogram && (
+          <Checkbox
+            label="Log X"
+            size="xs"
+            error={errors.xLog}
+            checked={format.xLog ?? false}
+            indeterminate={format.xLog === null}
+            onChange={(e) => onChange({ ...format, xLog: e.currentTarget.checked })}
+          />
+        )}
+        {!isPie && !is3D && !isHistogram && (
+          <Checkbox
+            label="Log Y"
+            size="xs"
+            error={errors.yLog}
+            checked={format.yLog ?? false}
+            indeterminate={format.yLog === null}
+            onChange={(e) => onChange({ ...format, yLog: e.currentTarget.checked })}
+          />
+        )}
+        {!isPie && (
+          <Checkbox
+            label="Grid"
+            size="xs"
+            checked={format.grid}
+            onChange={(e) => onChange({ ...format, grid: e.currentTarget.checked })}
+          />
+        )}
         <Checkbox
           label="Legend"
           size="xs"
           checked={format.legend}
           onChange={(e) => onChange({ ...format, legend: e.currentTarget.checked })}
         />
-        {spec.kind === 'xy' && (
+        {!isPie && spec.kind === 'xy' && (
           <Checkbox
             label="Show units"
             size="xs"
@@ -587,21 +684,25 @@ function FormatSection({
         />
       </Group>
 
-      <Divider label="Line Colors" labelPosition="left" />
-      {spec.kind === 'xy' ? (
-        <XyLineColors spec={spec} format={format} onChange={onChange} />
-      ) : (
-        <Group grow>
-          <ColorInput
-            label="States Overlay / Cycle path color"
-            size="xs"
-            value={format.lineColors?.['states'] ?? '#ffa94b'}
-            onChange={(color) => {
-              const lineColors = { ...format.lineColors, states: color }
-              onChange({ ...format, lineColors })
-            }}
-          />
-        </Group>
+      {!isPie && !is3D && (
+        <>
+          <Divider label="Line Colors" labelPosition="left" />
+          {spec.kind === 'xy' ? (
+            <XyLineColors spec={spec} format={format} onChange={onChange} />
+          ) : (
+            <Group grow>
+              <ColorInput
+                label="States Overlay / Cycle path color"
+                size="xs"
+                value={format.lineColors?.['states'] ?? '#ffa94b'}
+                onChange={(color) => {
+                  const lineColors = { ...format.lineColors, states: color }
+                  onChange({ ...format, lineColors })
+                }}
+              />
+            </Group>
+          )}
+        </>
       )}
     </Stack>
   )
@@ -714,19 +815,32 @@ export default function PlotConfigModal({
         )}
 
         <Divider label="Format" labelPosition="left" />
-        <FormatSection
-          spec={draft}
-          onChange={(format) => setDraft({ ...draft, format })}
-        />
+        {(() => {
+          const formatErrors = validatePlotFormat(draft)
+          const hasFormatErrors = Object.values(formatErrors).some(Boolean)
+          return (
+            <>
+              <FormatSection
+                spec={draft}
+                errors={formatErrors}
+                onChange={(format) => setDraft({ ...draft, format })}
+              />
 
-        <Group justify="flex-end" mt="xs">
-          <Button variant="default" size="xs" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button size="xs" disabled={!!nameError} onClick={() => onSave({ ...draft, name: draft.name.trim() })}>
-            {creating ? 'Add plot' : 'Apply'}
-          </Button>
-        </Group>
+              <Group justify="flex-end" mt="xs">
+                <Button variant="default" size="xs" onClick={onClose}>
+                  Cancel
+                </Button>
+                <Button
+                  size="xs"
+                  disabled={!!nameError || hasFormatErrors}
+                  onClick={() => onSave({ ...draft, name: draft.name.trim() })}
+                >
+                  {creating ? 'Add plot' : 'Apply'}
+                </Button>
+              </Group>
+            </>
+          )
+        })()}
       </Stack>
     </Modal>
   )

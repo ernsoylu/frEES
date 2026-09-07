@@ -120,3 +120,13 @@ export function resolveUnit(
 export function unitIdsFor(property: string): string[] {
   return (PROPERTY_UNITS[property] ?? []).map((c) => c.id)
 }
+
+/** Returns true if the resolved unit has a non-zero offset (e.g. °C, °F, psig). */
+export function isOffsetUnit(
+  property: string,
+  unitId?: string | null,
+  celsius = false,
+): boolean {
+  const unit = resolveUnit(property, unitId, celsius)
+  return unit.offset !== 0
+}

@@ -39,6 +39,8 @@ declare module 'plotly.js/lib/core' {
     yaxis?: string
     /** Histogram bin-count hint (histogram plots, Monte Carlo). */
     nbinsx?: number
+    uid?: string
+    customdata?: (string | number)[]
   }
 
   export interface PlotlyAxisLayout {
@@ -55,12 +57,14 @@ declare module 'plotly.js/lib/core' {
     domain?: number[]
     scaleanchor?: string
     range?: (number | null)[]
+    autorange?: boolean | 'reversed'
     dtick?: number
     overlaying?: string
     side?: 'left' | 'right' | 'top' | 'bottom'
   }
 
   export interface PlotlyLayout {
+    uirevision?: string | number | boolean
     annotations?: Record<string, unknown>[]
     title?: { text: string; font?: { size?: number } }
     paper_bgcolor?: string
