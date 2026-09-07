@@ -70,7 +70,7 @@ export default function ParameterFitModal({
   text,
   stopCriteria,
   variableInfo,
-  functionTables,
+  getFunctionTables,
   tables,
   onApply,
 }: Readonly<{
@@ -79,7 +79,7 @@ export default function ParameterFitModal({
   text: string
   stopCriteria: StopCriteria
   variableInfo: VariableInfo[]
-  functionTables: FunctionTableDto[]
+  getFunctionTables: () => FunctionTableDto[]
   tables: TableSpec[]
   onApply: (nextText: string) => void
 }>) {
@@ -134,7 +134,7 @@ export default function ParameterFitModal({
       [name]: { ...(prev[name] ?? { initial: '', lower: '', upper: '' }), [key]: value },
     }))
 
-  const run = () => {
+  const run = async () => {
     setError(null)
     setResult(null)
     if (measSel === null || targetSel === null || paramNames.length === 0) {
@@ -165,29 +165,28 @@ export default function ParameterFitModal({
     }
     const [odeBlock, column] = targetSel.split('|')
     setRunning(true)
-    parameterFit({
-      text,
-      stopCriteria,
-      variableInfo,
-      functionTables,
-      parameters: paramNames,
-      initial,
-      lower,
-      upper,
-      odeBlock,
-      column,
-      measuredT: raw.t,
-      measuredV: raw.v,
-    })
-      .then((r) => {
-        if (r.success) {
-          setResult(r)
-        } else {
-          setError(r.error ?? 'Parameter fit failed.')
-        }
+    try {
+      const r = await parameterFit({
+        text,
+        stopCriteria,
+        variableInfo,
+        functionTables: getFunctionTables(),
+        parameters: paramNames,
+        initial,
+        lower,
+        upper,
+        odeBlock,
+        column,
+        measuredT: raw.t,
+        measuredV: raw.v,
       })
-      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
-      .finally(() => setRunning(false))
+      if (r.success) setResult(r)
+      else setError(r.error ?? 'Parameter fit failed.')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setRunning(false)
+    }
   }
 
   return (

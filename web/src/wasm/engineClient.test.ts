@@ -44,6 +44,34 @@ afterEach(() => {
 const client = () => import('./engineClient')
 
 describe('engineClient worker lifecycle', () => {
+  it('rejects dispatch failures and accepts the next request', async () => {
+    const { wasmVersion } = await client()
+    vi.spyOn(FakeWorker.prototype, 'postMessage').mockImplementationOnce(() => {
+      throw new Error('dispatch failed')
+    })
+    await expect(wasmVersion()).rejects.toThrow('dispatch failed')
+    const next = wasmVersion()
+    const w = FakeWorker.instances[0]
+    w.onmessage?.({ data: { id: w.posted[0].id, ok: true, result: 'ok' } })
+    await expect(next).resolves.toBe('ok')
+    vi.restoreAllMocks()
+  })
+
+  it('ignores late errors from retired workers after a new request starts', async () => {
+    const { wasmVersion, wasmStop } = await client()
+    const first = wasmVersion()
+    const old = FakeWorker.instances[0]
+    wasmStop()
+    await expect(first).rejects.toThrow('Operation stopped')
+    const next = wasmVersion()
+    const current = FakeWorker.instances[1]
+    old.onerror?.({ message: 'late crash' })
+    old.onmessageerror?.()
+    expect(current.terminated).toBe(false)
+    current.onmessage?.({ data: { id: current.posted[0].id, ok: true, result: 'ok' } })
+    await expect(next).resolves.toBe('ok')
+  })
+
   it('spawns exactly one worker across many calls and correlates by id', async () => {
     const { wasmVersion, wasmCheck } = await client()
     const p1 = wasmVersion()
@@ -222,6 +250,8 @@ describe('engineClient worker pool for independent sweeps (Phase 7)', () => {
     setWorkerPoolConcurrency(100) // clamped to MAX_WORKER_POOL_SIZE
     expect(getWorkerPoolConcurrency()).toBe(4)
     setWorkerPoolConcurrency(0) // clamped to min 1
+    expect(getWorkerPoolConcurrency()).toBe(1)
+    setWorkerPoolConcurrency(Number.NaN)
     expect(getWorkerPoolConcurrency()).toBe(1)
     resetWorkerPoolConcurrency()
   })
@@ -443,6 +473,22 @@ describe('engineClient worker pool for independent sweeps (Phase 7)', () => {
     expect(w1.terminated).toBe(true)
   })
 
+  it('retiring busy extras settles the sweep and preserves primary requests', async () => {
+    const { wasmSolveTable, wasmVersion, setWorkerPoolConcurrency, retireExtraWorkers } = await client()
+    setWorkerPoolConcurrency(2)
+    const sweep = wasmSolveTable('y = x', JSON.stringify({
+      table: { variables: ['x', 'y'], rows: [{ x: 1 }, { x: 2 }] },
+    }))
+    const version = wasmVersion()
+    const [primary, extra] = FakeWorker.instances
+    retireExtraWorkers()
+    expect(primary.terminated).toBe(false)
+    expect(extra.terminated).toBe(true)
+    await expect(sweep).rejects.toThrow('Operation stopped')
+    primary.onmessage?.({ data: { id: primary.posted[1].id, ok: true, result: 'ok' } })
+    await expect(version).resolves.toBe('ok')
+  })
+
   it('produces identical row results, stats, and variable lists across worker counts (1 vs 2 vs 4)', async () => {
     const { mergeSolveTableResponses } = await client()
 
@@ -564,5 +610,3 @@ describe('engineClient worker pool for independent sweeps (Phase 7)', () => {
     expect(res.results).toEqual([])
   })
 })
-
-

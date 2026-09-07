@@ -64,6 +64,34 @@ pub struct PreparedDocument {
 }
 
 impl PreparedDocument {
+    /// Pins that participate in lowering must enter before that lowering runs.
+    fn with_source_pins(
+        &self,
+        pinned: &[(String, f64)],
+    ) -> std::result::Result<Option<Self>, SolveFailure> {
+        if pinned.is_empty()
+            || !(self.settings.complex_mode
+                || self.stepping_iterations > 0
+                || !self.doc.linearizes.is_empty()
+                || pinned.iter().any(|(name, _)| {
+                    name.is_empty()
+                        || name.as_bytes()[0].is_ascii_digit()
+                        || !name.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'_')
+                }))
+        {
+            return Ok(None);
+        }
+        // ponytail: uncommon lowered pins recompile; cache before lowering if
+        // profiling shows complex/array/component sweeps need the fast path.
+        Self::new(
+            &crate::analysis::parametric::row_source(&self.source, pinned),
+            &self.settings,
+            &self.overrides,
+            &self.extra_tables,
+        )
+        .map(Some)
+    }
+
     /// Prepare a base document: parses and runs stages 1 through 3e.
     pub fn new(
         source: &str,
@@ -202,7 +230,7 @@ impl PreparedDocument {
             let mut subsystem: Vec<Equation> = self.ordinary_equations.to_vec();
             for (name, value) in pinned {
                 subsystem.push(Equation::new(
-                    Expr::Var(name.clone()),
+                    Expr::var(name),
                     Expr::num(*value),
                     format!("{name} = {value}"),
                 ));
@@ -242,7 +270,13 @@ impl PreparedDocument {
                 Some((plan, values)) => (Some(plan), values),
                 None => (None, Vec::new()),
             };
-            let display_names = complete_display_names(&self.doc.display_names, &subsystem);
+            let mut names = self.doc.display_names.clone();
+            for (name, _) in pinned {
+                names
+                    .entry(name.to_ascii_lowercase())
+                    .or_insert_with(|| name.clone());
+            }
+            let display_names = complete_display_names(&names, &subsystem);
             let unit_equations = self.unaugmented.as_deref().unwrap_or(&subsystem);
             let declared = declared_units(
                 unit_equations,
@@ -306,8 +340,15 @@ impl PreparedDocument {
         parametric: Option<&ParametricAccessors>,
         warm_start: Option<&Scope>,
     ) -> std::result::Result<Solution, SolveFailure> {
+        if let Some(mut document) = self.with_source_pins(pinned)? {
+            let result = document.solve_with_pins_and_warm(&[], parametric, warm_start);
+            self.prep_count += document.prep_count;
+            self.solve_count += document.solve_count;
+            return result;
+        }
         // ODE-only shortcut
-        if self.ordinary_equations.is_empty() && !self.doc.dynamics.is_empty() {
+        if pinned.is_empty() && self.ordinary_equations.is_empty() && !self.doc.dynamics.is_empty()
+        {
             let base_ctx = {
                 let mut ctx = EvalContext::with_defs(&self.doc.defs);
                 ctx.parametric = parametric;
@@ -598,6 +639,12 @@ impl PreparedDocument {
         pinned: &[(String, f64)],
         parametric: Option<&ParametricAccessors>,
     ) -> std::result::Result<Vec<Solution>, SolveFailure> {
+        if let Some(mut document) = self.with_source_pins(pinned)? {
+            let result = document.solve_all_with_pins(&[], parametric);
+            self.prep_count += document.prep_count;
+            self.solve_count += document.solve_count;
+            return result;
+        }
         if self.ordinary_equations.is_empty() {
             let sol = self.solve_with_pins(pinned, parametric)?;
             return Ok(vec![sol]);

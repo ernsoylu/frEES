@@ -20,6 +20,7 @@ import type { EngineRequest, EngineResponse } from './engine.worker'
 export type ProgressListener = (fraction: number) => void
 
 interface Pending {
+  worker: Worker
   resolve: (result: string) => void
   reject: (reason: Error) => void
   onProgress?: ProgressListener
@@ -52,7 +53,7 @@ let configuredConcurrency: number | null = null
 
 /** Sets the worker pool concurrency limit (clamped between 1 and MAX_WORKER_POOL_SIZE). */
 export function setWorkerPoolConcurrency(count: number): void {
-  configuredConcurrency = Math.min(MAX_WORKER_POOL_SIZE, Math.max(1, Math.floor(count)))
+  configuredConcurrency = Number.isNaN(count) ? 1 : Math.min(MAX_WORKER_POOL_SIZE, Math.max(1, Math.floor(count)))
 }
 
 /** Returns the effective worker pool concurrency limit. */
@@ -69,6 +70,12 @@ export function resetWorkerPoolConcurrency(): void {
 export function retireExtraWorkers(): void {
   for (let i = 1; i < pool.length; i++) {
     if (pool[i]) {
+      for (const [id, entry] of pending) {
+        if (entry.worker === pool[i]) {
+          pending.delete(id)
+          entry.reject(new Error('Operation stopped'))
+        }
+      }
       try {
         pool[i].terminate()
       } catch {
@@ -108,6 +115,7 @@ function spawn(): Worker {
     type: 'module',
   })
   w.onmessage = (event: MessageEvent<EngineResponse>) => {
+    if (!pool.includes(w)) return
     const response = event.data
     const entry = pending.get(response.id)
     if (!entry) return
@@ -130,9 +138,11 @@ function spawn(): Worker {
     }
   }
   w.onerror = (event: ErrorEvent) => {
+    if (!pool.includes(w)) return
     fail(new Error(event.message || 'The engine worker failed'))
   }
   w.onmessageerror = () => {
+    if (!pool.includes(w)) return
     fail(new Error('The engine worker sent an unreadable message'))
   }
   return w
@@ -152,11 +162,16 @@ function call(
   onProgress?: ProgressListener,
   workerIndex = 0,
 ): Promise<string> {
-  const w = getWorker(workerIndex)
   const id = nextId++
   return new Promise<string>((resolve, reject) => {
-    pending.set(id, { resolve, reject, onProgress })
-    w.postMessage({ id, method, args } satisfies EngineRequest)
+    const w = getWorker(workerIndex)
+    pending.set(id, { worker: w, resolve, reject, onProgress })
+    try {
+      w.postMessage({ id, method, args } satisfies EngineRequest)
+    } catch (error) {
+      pending.delete(id)
+      reject(error)
+    }
   })
 }
 

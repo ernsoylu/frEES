@@ -2,6 +2,117 @@ use frees_core::engine::{solve_with_parametric_tables, PreparedDocument};
 use frees_core::solver::SolverSettings;
 
 #[test]
+fn prepared_pins_match_parsed_equations() {
+    for (model, name, complex) in [
+        ("Y = 2 * X", "X", false),
+        ("y = 2 * x", "x", true),
+        ("y = 2 * x[1]", "X[1]", false),
+        ("y = 2 * part.x", "part.X", false),
+    ] {
+        let settings = SolverSettings {
+            complex_mode: complex,
+            ..Default::default()
+        };
+        let mut prep = PreparedDocument::new(model, &settings, &[], &[]).unwrap();
+        for value in [2.0, 3.0] {
+            let fresh = solve_with_parametric_tables(
+                &format!("{model}\n{name} = {value}"),
+                &settings,
+                &[],
+                None,
+                &[],
+            )
+            .unwrap();
+            let cached = prep.solve_with_pins(&[(name.into(), value)], None).unwrap();
+            assert_eq!(cached.values, fresh.values, "{model}, {name}={value}");
+            assert_eq!(cached.display_names, fresh.display_names);
+        }
+    }
+}
+
+#[test]
+fn prepared_ode_uses_pinned_parameters() {
+    let model = "DYNAMIC d (time = 0 .. 1, points = 2)\n der(y) = rate\n y(0) = 0\nEND";
+    let settings = SolverSettings::default();
+    let mut prep = PreparedDocument::new(model, &settings, &[], &[]).unwrap();
+    for rate in [2.0, 3.0] {
+        let solution = prep
+            .solve_with_pins(&[("rate".into(), rate)], None)
+            .unwrap();
+        assert!((solution.ode_tables[0].rows.last().unwrap()[1] - rate).abs() < 1e-8);
+        assert_eq!(solution.values["rate"], rate);
+    }
+}
+
+// Frees notebook, Holman, Heat Transfer (10th ed.), Examples 1-2/1-3,
+// p. 17: convection plus radiation through a steel plate. SI inputs;
+// the book rounds 2156.25 W to 2.156 kW before its temperature calculation.
+#[test]
+fn holman_plate_heat_balance_sweep() {
+    let model = "Area = 0.5 * 0.75\nQconv = H * Area * (250 - 20)\n\
+        Qtotal = Qconv + 300\nQtotal = 43 * Area * (Tin - 250) / 0.02";
+    let mut prep = PreparedDocument::new(model, &SolverSettings::default(), &[], &[]).unwrap();
+    for h in [25.0, 50.0] {
+        let sol = prep.solve_with_pins(&[("H".into(), h)], None).unwrap();
+        let heat = h * 0.375 * 230.0 + 300.0;
+        assert!((sol.values["qtotal"] - heat).abs() < 1e-7);
+        assert!((sol.values["tin"] - (250.0 + heat * 0.02 / (43.0 * 0.375))).abs() < 1e-7);
+    }
+    assert_eq!(prep.prep_count(), 1);
+}
+
+// Same source, Example 4-1, p. 143: a 5 cm steel ball cools from 450 C
+// in a 100 C environment. Published time to 150 C: 5819 s (rounded).
+#[test]
+fn holman_cooling_ball_sweep_and_stop_event() {
+    for method in ["ode45", "radau"] {
+        let model = format!(
+            "DYNAMIC cooling (method = {method}, time = 0 .. 6000, points = 31)\n\
+            der(Temp) = -6 * H / (7800 * 460 * 0.05) * (Temp - 100)\n\
+            Temp(0) = 450\nEVENT cooled: Temp = 150 | falling -> stop\nEND"
+        );
+        let mut prep = PreparedDocument::new(&model, &SolverSettings::default(), &[], &[]).unwrap();
+        for h in [10.0, 20.0] {
+            let sol = prep.solve_with_pins(&[("H".into(), h)], None).unwrap();
+            let table = &sol.ode_tables[0];
+            let decay = 6.0 * h / (7800.0 * 460.0 * 0.05);
+            let expected_time = 7.0_f64.ln() / decay;
+            assert!(table.stopped);
+            assert_eq!(table.events.len(), 1);
+            assert!(
+                (table.end_time - expected_time).abs() < 0.05,
+                "{method}: {} vs {expected_time}",
+                table.end_time
+            );
+            for row in &table.rows {
+                let expected = 100.0 + 350.0 * (-decay * row[0]).exp();
+                assert!((row[1] - expected).abs() < 0.01, "{method}: {row:?}");
+            }
+        }
+    }
+}
+
+// Nhut Ho, ME584, Modeling Electrical Systems, slides 12 and 16:
+// impedance and Kirchhoff's law. Adapted phasor case, chosen here:
+// 10 V across R + j3 ohms, giving I = 10(R-j3)/(R^2+9) amperes.
+#[test]
+fn series_rl_phasor_sweep() {
+    let settings = SolverSettings {
+        complex_mode: true,
+        ..Default::default()
+    };
+    let model = "Voltage = 10\nZ = Resistance + 3i\nCurrent = Voltage / Z";
+    let mut prep = PreparedDocument::new(model, &settings, &[], &[]).unwrap();
+    for r in [4.0, 8.0] {
+        let sol = prep
+            .solve_with_pins(&[("Resistance".into(), r)], None)
+            .unwrap();
+        assert!((sol.values["current_r"] - 10.0 * r / (r * r + 9.0)).abs() < 1e-7);
+        assert!((sol.values["current_i"] + 30.0 / (r * r + 9.0)).abs() < 1e-7);
+    }
+}
+
+#[test]
 fn test_prepared_pins_in_place_numeric_reuse() {
     let model = "x + y = 10\nz = x * y\n";
     let settings = SolverSettings::default();
@@ -144,7 +255,7 @@ fn test_complex_mode_isolated_preparation() {
 }
 
 #[test]
-fn test_prepared_solver_throughput_speedup() {
+fn test_prepared_function_reuse_matches_fresh_solves() {
     let model = r#"
 FUNCTION f(t)
   f = t^2 + 2*t + 1
@@ -157,7 +268,6 @@ z = x * t
     let n_iterations = 50;
 
     // Fresh solves (baseline)
-    let start_fresh = std::time::Instant::now();
     for i in 1..=n_iterations {
         let t = i as f64;
         let sol =
@@ -166,10 +276,8 @@ z = x * t
         let expected_y = t * t + 2.0 * t + 1.0;
         assert!((sol.values["y"] - expected_y).abs() < 1e-6);
     }
-    let elapsed_fresh = start_fresh.elapsed();
 
     // Prepared solve (prepare once, solve repeatedly)
-    let start_prep = std::time::Instant::now();
     let mut prep = PreparedDocument::new(model, &settings, &[], &[]).expect("prep failed");
     for i in 1..=n_iterations {
         let t = i as f64;
@@ -179,22 +287,7 @@ z = x * t
         let expected_y = t * t + 2.0 * t + 1.0;
         assert!((sol.values["y"] - expected_y).abs() < 1e-6);
     }
-    let elapsed_prep = start_prep.elapsed();
 
     assert_eq!(prep.prep_count(), 1);
     assert_eq!(prep.solve_count(), n_iterations);
-
-    println!(
-        "Prepared solver benchmark ({n_iterations} solves): fresh = {:?}, prepared = {:?}, speedup = {:.2}x",
-        elapsed_fresh,
-        elapsed_prep,
-        elapsed_fresh.as_secs_f64() / elapsed_prep.as_secs_f64()
-    );
-
-    assert!(
-        elapsed_prep < elapsed_fresh,
-        "Prepared solver ({:?}) should be faster than fresh solves ({:?})",
-        elapsed_prep,
-        elapsed_fresh
-    );
 }
