@@ -59,11 +59,11 @@ test('the app boots and solves fully offline after one visit', async ({ page, co
 })
 
 test('zero-network solve with all external network requests aborted', async ({ page }) => {
-  // Abort all non-local / non-origin network traffic to verify zero external calls
+  // Abort all non-local network traffic to verify zero external calls
   await page.route('**/*', (route) => {
     const url = new URL(route.request().url())
-    // Allow local origin assets and data/blob URIs only
-    if (url.origin === new URL(page.url() || 'http://localhost').origin || url.protocol === 'data:' || url.protocol === 'blob:') {
+    // Allow local test server (localhost / 127.0.0.1) and data/blob URIs only
+    if (url.hostname === '127.0.0.1' || url.hostname === 'localhost' || url.protocol === 'data:' || url.protocol === 'blob:') {
       route.continue()
     } else {
       route.abort()
