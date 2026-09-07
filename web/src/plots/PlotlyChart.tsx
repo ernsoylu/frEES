@@ -6,14 +6,30 @@ import type { PlotlyFigure } from 'plotly.js/lib/core'
  * Renders a pre-built Plotly figure. Plotly is loaded on demand so the
  * main bundle does not carry the charting library.
  */
+export interface PlotPointClickEvent {
+  traceIndex: number
+  pointIndex: number
+  x: number
+  y: number
+  sampleId?: string
+  traceName?: string
+}
+
 export default function PlotlyChart({
   figure,
   minHeight = 380,
-}: Readonly<{ figure: PlotlyFigure; minHeight?: number }>) {
+  onPointClick,
+}: Readonly<{
+  figure: PlotlyFigure
+  minHeight?: number
+  onPointClick?: (point: PlotPointClickEvent) => void
+}>) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [renderError, setRenderError] = useState<string | null>(null)
   const [retryKey, setRetryKey] = useState(0)
   const renderSeq = useRef(0)
+  const onPointClickRef = useRef(onPointClick)
+  onPointClickRef.current = onPointClick
 
   useEffect(() => {
     let cancelled = false
@@ -27,6 +43,39 @@ export default function PlotlyChart({
           responsive: true,
           displaylogo: false,
         })
+        if (el) {
+          const elAny = el as unknown as {
+            removeAllListeners?: (event: string) => void
+            on?: (event: string, handler: (data: unknown) => void) => void
+          }
+          elAny.removeAllListeners?.('plotly_click')
+          elAny.on?.('plotly_click', (data: unknown) => {
+            if (!onPointClickRef.current) return
+            const d = data as {
+              points?: Array<{
+                curveNumber?: number
+                pointIndex?: number
+                x?: number
+                y?: number
+                customdata?: unknown
+                data?: { name?: string; customdata?: unknown[] }
+              }>
+            }
+            const pt = d?.points?.[0]
+            if (!pt) return
+            const sampleId =
+              pt.customdata ??
+              (Array.isArray(pt.data?.customdata) ? pt.data.customdata[pt.pointIndex ?? 0] : undefined)
+            onPointClickRef.current({
+              traceIndex: pt.curveNumber ?? 0,
+              pointIndex: pt.pointIndex ?? 0,
+              x: typeof pt.x === 'number' ? pt.x : Number(pt.x),
+              y: typeof pt.y === 'number' ? pt.y : Number(pt.y),
+              sampleId: typeof sampleId === 'string' ? sampleId : undefined,
+              traceName: pt.data?.name || '',
+            })
+          })
+        }
         if (!cancelled && seq === renderSeq.current) {
           setRenderError(null)
         }

@@ -19,6 +19,7 @@ import { tableInputIssues } from '../tableValidation'
 
 import { useEffect, useLayoutEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import {
+  CompactSelection,
   DataEditor,
   GridCellKind,
   type EditableGridCell,
@@ -39,6 +40,7 @@ import {
   Code,
   Group,
   Menu,
+  Select,
   Stack,
   Text,
   TextInput,
@@ -46,12 +48,17 @@ import {
 } from '@mantine/core'
 import { useElementSize } from '@mantine/hooks'
 import {
+  IconArrowBackUp,
+  IconArrowForwardUp,
   IconArrowsSort,
   IconChartGridDots,
+  IconChartLine,
   IconDownload,
+  IconFileCode,
   IconFileTypeCsv,
   IconMathFunction,
   IconPlus,
+  IconRefresh,
   IconSparkles,
   IconTable,
   IconTrash,
@@ -82,8 +89,11 @@ import {
   clearCells,
   csvExportComments,
   csvValuesFor,
+  deleteRowsAt,
+  duplicateRowsAt,
   gridRowCount,
   headerTitles,
+  insertRowAt,
   isHostedTable,
   removeLastRow,
   storedFormulaList,
@@ -99,6 +109,16 @@ interface Props {
   onConfigureTable?: (tableId: string) => void
   /** Opens the fill-column-values modal for a parametric table variable. */
   onAlterColumn?: (tableId: string, varName: string) => void
+  /** Open an X-Y plot modal from selected columns in the active table. */
+  onPlotColumns?: (xVar: string, yVars: string[], tableId?: string) => void
+  /** Jump to code declaration line for a code-defined table. */
+  onGoToDeclaration?: (tableName: string) => void
+  /** Reproduce a parametric row's inputs in the calculation workspace. */
+  onReproduceRow?: (table: ParamTableSpec, rowIndex: number) => void
+  /** Retry failed runs for a parametric table. */
+  onRetryFailedRows?: (tableId: string) => void
+  /** Highlight and focus a specific row (e.g. linked from plot persistent cursor). */
+  highlightedRowId?: string | null
 }
 
 function hostedOf(tables: TableSpec[]): TableSpec[] {
@@ -118,6 +138,43 @@ interface UndoEntry {
 
 const UNDO_LIMIT = 100
 
+function getSelectedGridRow(selection: GridSelection): number | undefined {
+  if (selection.current?.cell) {
+    return selection.current.cell[1]
+  }
+  if (selection.rows.length > 0) {
+    return selection.rows.first()
+  }
+  return undefined
+}
+
+function getParametricCellRole(
+  isRunCol: boolean,
+  hasInput: boolean,
+  isComputed: boolean,
+  isFailed: boolean,
+): { role: string; roleColor: string } {
+  if (isRunCol) {
+    return { role: 'Run index', roleColor: 'gray' }
+  }
+  if (hasInput) {
+    return { role: 'User input', roleColor: 'blue' }
+  }
+  if (isComputed) {
+    return { role: 'Solver computed', roleColor: 'green' }
+  }
+  if (isFailed) {
+    return { role: 'Failed run', roleColor: 'red' }
+  }
+  return { role: 'Blank (unsolved)', roleColor: 'gray' }
+}
+
+function getParamSolveBadgeColor(statsFailed?: number, results: Array<{ success: boolean }> = []): string {
+  if (statsFailed) return 'red'
+  if (results.length > 0 && results.every((r) => r.success)) return 'green'
+  return 'gray'
+}
+
 export default function TablesGridTab({
   tables,
   activeTableId,
@@ -125,6 +182,11 @@ export default function TablesGridTab({
   onActiveTableIdChange,
   onConfigureTable,
   onAlterColumn,
+  onPlotColumns,
+  onGoToDeclaration,
+  onReproduceRow,
+  onRetryFailedRows,
+  highlightedRowId,
 }: Readonly<Props>) {
   const hosted = hostedOf(tables)
   const active = hosted.find((t) => t.id === activeTableId) ?? hosted[0] ?? null
@@ -155,6 +217,46 @@ export default function TablesGridTab({
   // code-table refreshes arrive as external prop changes and never enter it.
   const undoStack = useRef<UndoEntry[]>([])
   const redoStack = useRef<UndoEntry[]>([])
+  const [historyEpoch, setHistoryEpoch] = useState(0)
+  const canUndo = historyEpoch >= 0 && undoStack.current.length > 0
+  const canRedo = historyEpoch >= 0 && redoStack.current.length > 0
+
+  const [selection, setSelection] = useState<GridSelection>({
+    columns: CompactSelection.empty(),
+    rows: CompactSelection.empty(),
+  })
+
+  useEffect(() => {
+    setSelection({
+      columns: CompactSelection.empty(),
+      rows: CompactSelection.empty(),
+    })
+  }, [active?.id])
+
+  useEffect(() => {
+    if (!highlightedRowId || !active) return
+    let rIndex = -1
+    if (active.kind === 'parametric') {
+      rIndex = active.rows.findIndex((r) => r.id === highlightedRowId)
+    } else if (active.kind === 'function') {
+      const idx = Number(highlightedRowId) - 1
+      if (idx >= 0 && idx < active.rows.length) {
+        rIndex = idx
+      }
+    }
+    if (rIndex >= 0) {
+      const colCount = active.kind === 'parametric' ? active.vars.length + 1 : active.columns.length + 2
+      setSelection({
+        current: {
+          cell: [0, rIndex],
+          range: { x: 0, y: rIndex, width: colCount, height: 1 },
+          rangeStack: [],
+        },
+        rows: CompactSelection.fromSingleSelection(rIndex),
+        columns: CompactSelection.empty(),
+      })
+    }
+  }, [highlightedRowId, active?.id])
 
   useEffect(() => {
     tablesWorkbookSync.flush = () => hostedOf(tablesRef.current)
@@ -187,6 +289,7 @@ export default function TablesGridTab({
       undoStack.current.push({ tableId: before.id, before, after })
       if (undoStack.current.length > UNDO_LIMIT) undoStack.current.shift()
       redoStack.current = []
+      setHistoryEpoch((v) => v + 1)
     }
     onTablesChange((prev) => prev.map((t) => (t.id === before.id ? after : t)))
   }
@@ -213,6 +316,7 @@ export default function TablesGridTab({
     if (e.after && (!current || current.rows !== e.after.rows)) return
     const restored = e.after && current ? restoreUserEdit(current, e.after, e.before) : e.before
     redoStack.current.push(e)
+    setHistoryEpoch((v) => v + 1)
     tablesRef.current = current ? tablesRef.current.map((t) => t.id === e.tableId ? restored : t) : [...tablesRef.current, restored]
     onTablesChange(tablesRef.current)
     onActiveTableIdChange(e.tableId)
@@ -223,6 +327,7 @@ export default function TablesGridTab({
     const current = e && liveSpec(e.tableId)
     if (!e || !current || current.rows !== e.before.rows) return
     undoStack.current.push(e)
+    setHistoryEpoch((v) => v + 1)
     tablesRef.current = e.after
       ? tablesRef.current.map((t) => t.id === e.tableId ? restoreUserEdit(t, e.before, e.after!) : t)
       : tablesRef.current.filter((t) => t.id !== e.tableId)
@@ -455,6 +560,7 @@ export default function TablesGridTab({
     if (!before) return
     undoStack.current.push({ tableId: id, before, after: null })
     redoStack.current = []
+    setHistoryEpoch((v) => v + 1)
     tablesRef.current = tablesRef.current.filter((t) => t.id !== id)
     onTablesChange((prev) => prev.filter((t) => t.id !== id))
     if (activeTableId === id) onActiveTableIdChange(hosted.find((t) => t.id !== id)?.id ?? null)
@@ -487,131 +593,362 @@ export default function TablesGridTab({
     : ''
   const legacyFormulas = active ? storedFormulaList(active) : []
 
+  // Selected cell & row computations for engineering inspection
+  const selectedCell = selection.current?.cell
+  const selectedGridRow = getSelectedGridRow(selection)
+
+  let selectedCellInfo: {
+    coord: string
+    value: string
+    role: string
+    roleColor: string
+    unit?: string
+    error?: string
+    rowIndex?: number
+    canReproduce?: boolean
+  } | null = null
+
+  if (active && selectedCell) {
+    const [col, gridRow] = selectedCell
+    const view = cellViewAt(active, gridRow, col)
+    if (active.kind === 'parametric') {
+      const isRunCol = col === 0
+      const varName = col > 0 ? active.vars[col - 1] : undefined
+      const row = active.rows[gridRow]
+      const rawInput = varName && row ? (row.values[varName] ?? '') : ''
+      const res = active.results[gridRow]
+      const hasInput = rawInput.trim() !== ''
+      const isComputed = view.kind === 'computed'
+      const isFailed = Boolean(res && !res.success)
+      const { role, roleColor } = getParametricCellRole(isRunCol, hasInput, isComputed, isFailed)
+      const unit = varName ? active.columnUnits?.[varName] : undefined
+      selectedCellInfo = {
+        coord: isRunCol ? `Run ${gridRow + 1}` : `${varName} (Run ${gridRow + 1})`,
+        value: isRunCol ? String(gridRow + 1) : view.text,
+        role,
+        roleColor,
+        unit,
+        error: res && !res.success ? (res.error ?? undefined) : undefined,
+        rowIndex: gridRow,
+        canReproduce: Boolean(
+          onReproduceRow &&
+            row &&
+            active.vars.some((v) => (row.values[v] ?? '').trim() !== ''),
+        ),
+      }
+    } else if (active.kind === 'function') {
+      if (gridRow === 0) {
+        selectedCellInfo = {
+          coord: col === 0 ? 'Argument Header' : `Curve Header ${col}`,
+          value: view.text,
+          role: 'Header',
+          roleColor: 'gray',
+        }
+      } else {
+        const isArg = col === 0
+        selectedCellInfo = {
+          coord: isArg
+            ? `${active.argName || 'x'} (Row ${gridRow})`
+            : `Curve ${active.columns[col - 1] || col} (Row ${gridRow})`,
+          value: view.text,
+          role: isArg ? 'Argument (X)' : 'Output (Y)',
+          roleColor: isArg ? 'teal' : 'cyan',
+          unit: isArg ? active.argUnit : active.outputUnit,
+          rowIndex: gridRow - 1,
+        }
+      }
+    }
+  }
+
+  const selectedColIndices = selection.columns.toArray()
+  let canPlotColumns = false
+  if (onPlotColumns && active) {
+    if (active.kind === 'parametric') {
+      const vars = selectedColIndices.filter((c) => c > 0).map((c) => active.vars[c - 1]).filter(Boolean)
+      canPlotColumns = vars.length >= 2 || (vars.length === 1 && active.vars[0] !== vars[0])
+    } else if (active.kind === 'function') {
+      canPlotColumns = selectedColIndices.some((c) => c > 0)
+    }
+  }
+
+  const handlePlotSelectedColumns = () => {
+    if (!onPlotColumns || !active) return
+    if (active.kind === 'parametric') {
+      const vars = selectedColIndices.filter((c) => c > 0).map((c) => active.vars[c - 1]).filter(Boolean)
+      if (vars.length >= 2) {
+        onPlotColumns(vars[0], vars.slice(1), active.id)
+      } else if (vars.length === 1 && active.vars[0] && active.vars[0] !== vars[0]) {
+        onPlotColumns(active.vars[0], [vars[0]], active.id)
+      }
+    } else if (active.kind === 'function') {
+      const x = active.argName || 'x'
+      const curveIndices = selectedColIndices.filter((c) => c > 0).map((c) => c - 1)
+      const ys = curveIndices.map((ci) => active.columns[ci] || `Curve ${ci + 1}`)
+      if (ys.length > 0) {
+        onPlotColumns(x, ys, active.id)
+      }
+    }
+  }
+
   return (
     <Group align="stretch" gap={0} style={{ flex: 1, minHeight: 0, height: '100%' }} wrap="nowrap">
-      {/* Navigation list of all hosted tables. */}
-      <Stack
-        gap={4}
-        p="xs"
-        style={{ width: 180, borderRight: '1px solid var(--mantine-color-default-border)', overflowY: 'auto' }}
-      >
-        <Group justify="space-between" wrap="nowrap">
-          <Text size="xs" fw={700} c="dimmed">
-            Tables
-          </Text>
-          <Menu position="bottom-end" shadow="md">
-            <Menu.Target>
-              <ActionIcon size="sm" variant="light" aria-label="Export active table as CSV" disabled={!active}>
-                <IconDownload size={14} />
-              </ActionIcon>
-            </Menu.Target>
-            <Menu.Dropdown>
-              <Menu.Item leftSection={<IconFileTypeCsv size={14} />} onClick={() => handleExportCsv('exact')}>
-                Exact values (round-trip)
-              </Menu.Item>
-              <Menu.Item leftSection={<IconFileTypeCsv size={14} />} onClick={() => handleExportCsv('display')}>
-                Formatted report (6 significant digits)
-              </Menu.Item>
-            </Menu.Dropdown>
-          </Menu>
-          <Menu position="bottom-start" shadow="md">
-            <Menu.Target>
-              <ActionIcon size="sm" variant="light" aria-label="Add table">
-                <IconPlus size={14} />
-              </ActionIcon>
-            </Menu.Target>
-            <Menu.Dropdown>
-              <Menu.Item leftSection={<IconTable size={14} />} onClick={() => addTable('parametric')}>
-                Parametric Table — solve the system once per row
-              </Menu.Item>
-              <Menu.Item leftSection={<IconChartGridDots size={14} />} onClick={() => addTable('function-1d')}>
-                Function Table (without Curve)
-              </Menu.Item>
-              <Menu.Item leftSection={<IconChartGridDots size={14} />} onClick={() => addTable('function-2d')}>
-                Function Table (with Curve family)
-              </Menu.Item>
-              <Menu.Divider />
-              <Menu.Item leftSection={<IconFileTypeCsv size={14} />} onClick={() => setImportCsvOpen(true)}>
-                Import CSV… — a Function Table from measured data
-              </Menu.Item>
-            </Menu.Dropdown>
-          </Menu>
-        </Group>
-        {hosted.map((t) => (
-          <Group
-            key={t.id}
-            gap={4}
-            px={6}
-            py={2}
-            wrap="nowrap"
-            style={{
-              cursor: 'pointer',
-              borderRadius: 4,
-              background: active?.id === t.id ? 'var(--mantine-color-default-hover)' : undefined,
-            }}
-            onClick={() => onActiveTableIdChange(t.id)}
-            onDoubleClick={() => {
-              if (t.source !== 'code') {
-                setRenamingId(t.id)
-                setRenameDraft(t.name)
-              }
-            }}
-          >
-            {t.kind === 'parametric' ? (
-              <IconTable size={13} color="var(--mantine-color-teal-4)" />
-            ) : (
-              <IconChartGridDots size={13} color="var(--mantine-color-teal-4)" />
-            )}
-            {renamingId === t.id ? (
-              <TextInput
-                size="xs"
-                value={renameDraft}
-                autoFocus
-                onChange={(e) => setRenameDraft(e.currentTarget.value)}
-                onBlur={commitRename}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') commitRename()
-                  if (e.key === 'Escape') setRenamingId(null)
-                }}
-                style={{ flex: 1 }}
-              />
-            ) : (
-              <Text size="xs" style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {t.name}
-              </Text>
-            )}
-            {t.source === 'code' ? (
-              <Tooltip label="Defined by a TABLE block in the editor (read-only)">
-                <Badge size="xs" variant="light" color="grape">
-                  code
-                </Badge>
-              </Tooltip>
-            ) : (
-              <ActionIcon
-                size="xs"
-                variant="subtle"
-                color="red"
-                aria-label={`Delete ${t.name}`}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  removeTable(t.id)
-                }}
-              >
-                <IconTrash size={11} />
-              </ActionIcon>
-            )}
+      {/* Navigation list of all hosted tables (hidden in narrow dock windows < 480px). */}
+      {width >= 480 && (
+        <Stack
+          gap={4}
+          p="xs"
+          style={{ width: 180, borderRight: '1px solid var(--mantine-color-default-border)', overflowY: 'auto' }}
+        >
+          <Group justify="space-between" wrap="nowrap">
+            <Text size="xs" fw={700} c="dimmed">
+              Tables
+            </Text>
+            <Menu position="bottom-end" shadow="md">
+              <Menu.Target>
+                <ActionIcon size="sm" variant="light" aria-label="Export active table as CSV" disabled={!active}>
+                  <IconDownload size={14} />
+                </ActionIcon>
+              </Menu.Target>
+              <Menu.Dropdown>
+                <Menu.Item leftSection={<IconFileTypeCsv size={14} />} onClick={() => handleExportCsv('exact')}>
+                  Exact values (round-trip)
+                </Menu.Item>
+                <Menu.Item leftSection={<IconFileTypeCsv size={14} />} onClick={() => handleExportCsv('display')}>
+                  Formatted report (6 significant digits)
+                </Menu.Item>
+              </Menu.Dropdown>
+            </Menu>
+            <Menu position="bottom-start" shadow="md">
+              <Menu.Target>
+                <ActionIcon size="sm" variant="light" aria-label="Add table">
+                  <IconPlus size={14} />
+                </ActionIcon>
+              </Menu.Target>
+              <Menu.Dropdown>
+                <Menu.Item leftSection={<IconTable size={14} />} onClick={() => addTable('parametric')}>
+                  Parametric Table — solve the system once per row
+                </Menu.Item>
+                <Menu.Item leftSection={<IconChartGridDots size={14} />} onClick={() => addTable('function-1d')}>
+                  Function Table (without Curve)
+                </Menu.Item>
+                <Menu.Item leftSection={<IconChartGridDots size={14} />} onClick={() => addTable('function-2d')}>
+                  Function Table (with Curve family)
+                </Menu.Item>
+                <Menu.Divider />
+                <Menu.Item leftSection={<IconFileTypeCsv size={14} />} onClick={() => setImportCsvOpen(true)}>
+                  Import CSV… — a Function Table from measured data
+                </Menu.Item>
+              </Menu.Dropdown>
+            </Menu>
           </Group>
-        ))}
-        {hosted.length === 0 && (
-          <Text size="xs" c="dimmed">
-            No tables yet. Add a Parametric Table to run the system over value sets, or a Function
-            Table to turn tabulated data into a function callable from the equations — typed in,
-            swept from a solved table, or imported from a .csv.
-          </Text>
-        )}
-      </Stack>
+          {hosted.map((t) => (
+            <Group
+              key={t.id}
+              gap={4}
+              px={6}
+              py={2}
+              wrap="nowrap"
+              style={{
+                cursor: 'pointer',
+                borderRadius: 4,
+                background: active?.id === t.id ? 'var(--mantine-color-default-hover)' : undefined,
+              }}
+              onClick={() => onActiveTableIdChange(t.id)}
+              onDoubleClick={() => {
+                if (t.source !== 'code') {
+                  setRenamingId(t.id)
+                  setRenameDraft(t.name)
+                }
+              }}
+            >
+              {t.kind === 'parametric' ? (
+                <IconTable size={13} color="var(--mantine-color-teal-4)" />
+              ) : (
+                <IconChartGridDots size={13} color="var(--mantine-color-teal-4)" />
+              )}
+              {renamingId === t.id ? (
+                <TextInput
+                  size="xs"
+                  value={renameDraft}
+                  autoFocus
+                  onChange={(e) => setRenameDraft(e.currentTarget.value)}
+                  onBlur={commitRename}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') commitRename()
+                    if (e.key === 'Escape') setRenamingId(null)
+                  }}
+                  style={{ flex: 1 }}
+                />
+              ) : (
+                <Text size="xs" style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {t.name}
+                </Text>
+              )}
+              {t.source === 'code' ? (
+                <Tooltip label="Defined by a TABLE block in the editor (read-only)">
+                  <Badge size="xs" variant="light" color="grape">
+                    code
+                  </Badge>
+                </Tooltip>
+              ) : (
+                <ActionIcon
+                  size="xs"
+                  variant="subtle"
+                  color="red"
+                  aria-label={`Delete ${t.name}`}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    removeTable(t.id)
+                  }}
+                >
+                  <IconTrash size={11} />
+                </ActionIcon>
+              )}
+            </Group>
+          ))}
+          {hosted.length === 0 && (
+            <Text size="xs" c="dimmed">
+              No tables yet. Add a Parametric Table to run the system over value sets, or a Function
+              Table to turn tabulated data into a function callable from the equations — typed in,
+              swept from a solved table, or imported from a .csv.
+            </Text>
+          )}
+        </Stack>
+      )}
 
       <Stack gap={4} p="xs" style={{ flex: 1, minWidth: 0 }}>
+        {/* Narrow dock layout (< 480px) table selector */}
+        {width < 480 && hosted.length > 0 && (
+          <Group gap="xs" mb={4} wrap="nowrap">
+            <Select
+              size="xs"
+              style={{ flex: 1 }}
+              data={hosted.map((t) => ({
+                value: t.id,
+                label: `${t.name} (${t.kind === 'parametric' ? 'Parametric' : 'Function'})`,
+              }))}
+              value={active?.id ?? null}
+              onChange={(val) => val && onActiveTableIdChange(val)}
+              allowDeselect={false}
+            />
+            <Menu position="bottom-end" shadow="md">
+              <Menu.Target>
+                <ActionIcon size="sm" variant="light" aria-label="Add table">
+                  <IconPlus size={14} />
+                </ActionIcon>
+              </Menu.Target>
+              <Menu.Dropdown>
+                <Menu.Item leftSection={<IconTable size={14} />} onClick={() => addTable('parametric')}>
+                  Parametric Table
+                </Menu.Item>
+                <Menu.Item leftSection={<IconChartGridDots size={14} />} onClick={() => addTable('function-1d')}>
+                  Function Table (1D)
+                </Menu.Item>
+                <Menu.Item leftSection={<IconChartGridDots size={14} />} onClick={() => addTable('function-2d')}>
+                  Function Table (2D)
+                </Menu.Item>
+                <Menu.Divider />
+                <Menu.Item leftSection={<IconFileTypeCsv size={14} />} onClick={() => setImportCsvOpen(true)}>
+                  Import CSV…
+                </Menu.Item>
+              </Menu.Dropdown>
+            </Menu>
+          </Group>
+        )}
+
+        {/* Active table role, metadata, and undo/redo bar */}
+        {active && (
+          <Group justify="space-between" align="center" wrap="wrap" gap="xs">
+            <Group gap="xs" align="center" wrap="wrap">
+              <Text size="xs" fw={700}>
+                {active.name}
+              </Text>
+              {active.kind === 'parametric' ? (
+                <Badge size="xs" variant="light" color={active.source === 'code' ? 'grape' : 'blue'}>
+                  {active.source === 'code' ? 'Code-defined sweep' : 'Sweep inputs'}
+                </Badge>
+              ) : (
+                <Badge size="xs" variant="light" color={activeFn?.is1D ? 'teal' : 'cyan'}>
+                  {activeFn?.is1D ? 'Lookup function — one curve' : 'Lookup function — multiple parameter values'}
+                </Badge>
+              )}
+              {active.source === 'code' && onGoToDeclaration && (
+                <Button
+                  size="compact-xs"
+                  variant="light"
+                  color="grape"
+                  leftSection={<IconFileCode size={12} />}
+                  onClick={() => onGoToDeclaration(active.name)}
+                >
+                  Go to declaration
+                </Button>
+              )}
+              {activeParam && (
+                <Badge
+                  size="xs"
+                  variant="light"
+                  color={getParamSolveBadgeColor(activeParam.stats?.failed, activeParam.results)}
+                >
+                  {activeParam.results.length === 0
+                    ? 'Not run'
+                    : `${activeParam.results.filter((r) => r.success).length}/${activeParam.results.length} solved`}
+                </Badge>
+              )}
+            </Group>
+
+            <Group gap="xs" align="center">
+              <Group gap={4}>
+                <Tooltip label="Undo (Ctrl+Z)">
+                  <ActionIcon
+                    size="xs"
+                    variant="default"
+                    aria-label="Undo"
+                    disabled={!canUndo}
+                    onClick={undo}
+                  >
+                    <IconArrowBackUp size={13} />
+                  </ActionIcon>
+                </Tooltip>
+                <Tooltip label="Redo (Ctrl+Y)">
+                  <ActionIcon
+                    size="xs"
+                    variant="default"
+                    aria-label="Redo"
+                    disabled={!canRedo}
+                    onClick={redo}
+                  >
+                    <IconArrowForwardUp size={13} />
+                  </ActionIcon>
+                </Tooltip>
+              </Group>
+
+              {canPlotColumns && (
+                <Button
+                  size="compact-xs"
+                  variant="light"
+                  color="teal"
+                  leftSection={<IconChartLine size={13} />}
+                  onClick={handlePlotSelectedColumns}
+                >
+                  Plot selected columns
+                </Button>
+              )}
+
+              {activeParam && activeParam.results.some((r) => !r.success) && onRetryFailedRows && (
+                <Button
+                  size="compact-xs"
+                  variant="light"
+                  color="orange"
+                  leftSection={<IconRefresh size={13} />}
+                  onClick={() => onRetryFailedRows(activeParam.id)}
+                >
+                  Retry failed runs
+                </Button>
+              )}
+            </Group>
+          </Group>
+        )}
+
         {activeFn && (
           <Group gap="xs" align="flex-end" wrap="wrap">
             <TextInput
@@ -701,6 +1038,43 @@ export default function TablesGridTab({
                     Remove curve
                   </Button>
                 )}
+                {/* Row operations */}
+                <Button
+                  size="compact-xs"
+                  variant="default"
+                  mb={4}
+                  onClick={() => {
+                    const idx = selectedGridRow !== undefined && selectedGridRow > 0 ? selectedGridRow - 1 : activeFn.rows.length
+                    transformActive((t) => insertRowAt(t, idx))
+                  }}
+                >
+                  Insert row
+                </Button>
+                <Button
+                  size="compact-xs"
+                  variant="default"
+                  mb={4}
+                  disabled={selectedGridRow === undefined || selectedGridRow === 0}
+                  onClick={() => {
+                    if (selectedGridRow === undefined || selectedGridRow === 0) return
+                    transformActive((t) => duplicateRowsAt(t, [selectedGridRow - 1]))
+                  }}
+                >
+                  Duplicate row
+                </Button>
+                <Button
+                  size="compact-xs"
+                  variant="default"
+                  color="red"
+                  mb={4}
+                  disabled={selectedGridRow === undefined || selectedGridRow === 0 || activeFn.rows.length <= 1}
+                  onClick={() => {
+                    if (selectedGridRow === undefined || selectedGridRow === 0) return
+                    transformActive((t) => deleteRowsAt(t, [selectedGridRow - 1]))
+                  }}
+                >
+                  Delete row
+                </Button>
                 <Button
                   size="compact-xs"
                   variant="default"
@@ -743,6 +1117,43 @@ export default function TablesGridTab({
             >
               Remove Row
             </Button>
+            {!readOnly && (
+              <Group gap={4}>
+                <Button
+                  size="xs"
+                  variant="default"
+                  onClick={() => {
+                    const idx = selectedGridRow !== undefined ? selectedGridRow : activeParam.rows.length
+                    transformActive((t) => insertRowAt(t, idx))
+                  }}
+                >
+                  Insert row
+                </Button>
+                <Button
+                  size="xs"
+                  variant="default"
+                  disabled={selectedGridRow === undefined}
+                  onClick={() => {
+                    if (selectedGridRow === undefined) return
+                    transformActive((t) => duplicateRowsAt(t, [selectedGridRow]))
+                  }}
+                >
+                  Duplicate row
+                </Button>
+                <Button
+                  size="xs"
+                  variant="default"
+                  color="red"
+                  disabled={selectedGridRow === undefined || activeParam.rows.length <= 1}
+                  onClick={() => {
+                    if (selectedGridRow === undefined) return
+                    transformActive((t) => deleteRowsAt(t, [selectedGridRow]))
+                  }}
+                >
+                  Delete row
+                </Button>
+              </Group>
+            )}
             {activeParam.vars.length > 0 && (
               <Menu position="bottom-start" shadow="md">
                 <Menu.Target>
@@ -836,6 +1247,9 @@ export default function TablesGridTab({
               smoothScrollX
               smoothScrollY
               getCellsForSelection
+              freezeColumns={1}
+              gridSelection={selection}
+              onGridSelectionChange={setSelection}
               fillHandle={!readOnly}
               onCellEdited={readOnly ? undefined : handleCellEdited}
               onCellsEdited={readOnly ? undefined : handleCellsEdited}
@@ -861,6 +1275,52 @@ export default function TablesGridTab({
             </Text>
           )}
         </div>
+
+        {/* Selected cell / row details footer bar */}
+        {selectedCellInfo && (
+          <Group
+            justify="space-between"
+            px="xs"
+            py={4}
+            wrap="wrap"
+            style={{
+              borderTop: '1px solid var(--mantine-color-default-border)',
+              background: 'var(--mantine-color-default-hover)',
+              borderRadius: 4,
+            }}
+          >
+            <Group gap="sm" wrap="nowrap">
+              <Text size="xs" fw={600}>
+                {selectedCellInfo.coord}
+              </Text>
+              <Badge size="xs" variant="outline" color={selectedCellInfo.roleColor}>
+                {selectedCellInfo.role}
+              </Badge>
+              <Text size="xs" ff="monospace">
+                Value: {selectedCellInfo.value || '<empty>'}
+              </Text>
+              {selectedCellInfo.unit && (
+                <Text size="xs" c="dimmed">
+                  [{selectedCellInfo.unit}]
+                </Text>
+              )}
+              {selectedCellInfo.error && (
+                <Text size="xs" c="red" fw={500}>
+                  Error: {selectedCellInfo.error}
+                </Text>
+              )}
+            </Group>
+            {selectedCellInfo.canReproduce && selectedCellInfo.rowIndex !== undefined && (
+              <Button
+                size="compact-xs"
+                variant="subtle"
+                onClick={() => onReproduceRow?.(activeParam!, selectedCellInfo!.rowIndex!)}
+              >
+                Reproduce in calculation
+              </Button>
+            )}
+          </Group>
+        )}
       </Stack>
 
       {(() => {

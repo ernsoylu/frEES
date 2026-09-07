@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Button, Stack, Tabs, Text } from '@mantine/core'
 import { StateTableDto, TableRowResult, VariableResult, getFluids } from './api'
 import { ParamRow, TableSpec } from './tables'
@@ -32,6 +32,7 @@ interface Props {
   /** When set, render only this one plot and hide the plot-tab strip + Add
    *  (used when each plot is its own dock window). */
   singlePlotId?: string
+  onSelectRow?: (tableId: string | undefined, rowId: string) => void
 }
 
 /**
@@ -48,11 +49,15 @@ export default function PlotTab({
   stateTableDefs,
   cyclePath,
   tableVars,
+  rows,
+  results,
+  tableUnits,
   activePlotId,
   onActivePlotIdChange,
   hideHeader = false,
   exportTrigger = null,
   singlePlotId,
+  onSelectRow,
 }: Readonly<Props>) {
   const visible = plots.filter((p) => kinds.includes(p.kind))
   const [fluids, setFluids] = useState<string[]>([])
@@ -69,10 +74,19 @@ export default function PlotTab({
     }
   }
 
-  const needsFluids = editing?.kind === 'property' || (adding && kinds.includes('property'))
   useEffect(() => {
-    if (needsFluids) void getFluids().then(setFluids)
-  }, [needsFluids])
+    let cancelled = false
+    getFluids()
+      .then((f) => {
+        if (!cancelled) setFluids(f)
+      })
+      .catch(() => {
+        if (!cancelled) setFluids([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     if (visible.length > 0 && (activePlot === null || !visible.some((p) => p.id === activePlot))) {
@@ -94,9 +108,10 @@ export default function PlotTab({
   }
 
   function removePlot(id: string) {
-    onPlotsChange(plots.filter((p) => p.id !== id))
+    const next = plots.filter((p) => p.id !== id)
+    onPlotsChange(next)
     if (activePlot === id) {
-      const remaining = visible.find((p) => p.id !== id)
+      const remaining = next.find((p) => kinds.includes(p.kind))
       setActivePlot(remaining?.id ?? null)
     }
   }
@@ -106,9 +121,32 @@ export default function PlotTab({
     : (visible.find((p) => p.id === activePlot) ?? visible[0] ?? null)
 
   const source = current ? resolvePlotSource(current, tables, solvedVariables) : undefined
-  const sourceTable = source?.kind === 'table' ? tables.find((t) => t.id === source.tableId) : undefined
+  const sourceTable = source?.kind === 'table' ? tables.find((t) => t.id.toLowerCase() === source.tableId.toLowerCase()) : undefined
   const boundTable = sourceTable?.kind === 'parametric' ? sourceTable : undefined
-  const boundSpec = current && { ...current, source: source?.kind === 'table' && !boundTable ? undefined : source }
+
+  const functionRows: ParamRow[] = useMemo(() => {
+    if (sourceTable?.kind !== 'function') return []
+    return sourceTable.rows.map((r, i) => ({
+      id: String(i + 1),
+      values: {
+        [sourceTable.argName]: r.x,
+        ...Object.fromEntries(sourceTable.columns.map((c, ci) => [c, r.ys[ci] ?? ''])),
+      },
+    }))
+  }, [sourceTable])
+
+  const functionUnits = useMemo(() => {
+    if (sourceTable?.kind !== 'function') return undefined
+    return {
+      [sourceTable.argName]: sourceTable.argUnit ?? '',
+      ...Object.fromEntries(sourceTable.columns.map((c) => [c, sourceTable.outputUnit ?? ''])),
+    }
+  }, [sourceTable])
+
+  const effectiveRows = boundTable?.rows ?? (sourceTable?.kind === 'function' ? functionRows : rows)
+  const effectiveResults = boundTable?.results ?? results ?? []
+  const effectiveUnits = boundTable?.columnUnits ?? functionUnits ?? tableUnits
+  const boundSpec = current && { ...current, source: source?.kind === 'table' && !sourceTable ? undefined : source }
 
   return (
     <Stack gap="sm" style={{ flex: 1, minHeight: 0 }}>
@@ -148,16 +186,17 @@ export default function PlotTab({
           spec={boundSpec!}
           states={states}
           cyclePath={cyclePath}
-          tableRows={boundTable?.rows ?? []}
-          tableResults={boundTable?.results ?? []}
+          tableRows={effectiveRows}
+          tableResults={effectiveResults}
           variables={solvedVariables}
-          tableUnits={boundTable?.columnUnits}
+          tableUnits={effectiveUnits}
           stateTableDefs={stateTableDefs}
           onConfigure={() => setEditing(boundSpec)}
           onDuplicate={() => addPlot(editablePlotCopy(boundSpec!, plots))}
           onRemove={() => removePlot(current.id)}
           hideHeader={hideHeader}
           exportTrigger={exportTrigger}
+          onSelectRow={onSelectRow}
           leftSection={
             singlePlotId ? undefined : (
               <Tabs

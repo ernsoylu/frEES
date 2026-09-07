@@ -566,6 +566,68 @@ export function removeLastRow(spec: TableSpec): TableSpec {
   return invalidated({ ...spec, rows: spec.rows.slice(0, -1) })
 }
 
+/** Inserts a blank row at the specified index. */
+export function insertRowAt(spec: TableSpec, index: number): TableSpec {
+  if (spec.source === 'code' || spec.rows.length >= TABLE_MAX_ROWS) return spec
+  spec = detachLegacyFormulas(spec)
+  const idx = Math.max(0, Math.min(spec.rows.length, index))
+  if (spec.kind === 'function') {
+    const newRow = { x: '', ys: spec.columns.map(() => '') }
+    const nextRows = [...spec.rows.slice(0, idx), newRow, ...spec.rows.slice(idx)]
+    return { ...spec, rows: nextRows }
+  }
+  const nextRows = [...spec.rows.slice(0, idx), newParamRow(), ...spec.rows.slice(idx)]
+  return invalidated({ ...spec, rows: nextRows })
+}
+
+/** Deletes rows at the given indices. Keeps at least one row. */
+export function deleteRowsAt(spec: TableSpec, indices: number[]): TableSpec {
+  if (spec.source === 'code') return spec
+  spec = detachLegacyFormulas(spec)
+  const toDelete = new Set(indices)
+  if (toDelete.size === 0) return spec
+  if (toDelete.size >= spec.rows.length || spec.rows.every((_, i) => toDelete.has(i))) {
+    if (spec.kind === 'function') {
+      return { ...spec, rows: [{ x: '', ys: spec.columns.map(() => '') }] }
+    }
+    return invalidated({ ...spec, rows: [newParamRow()] })
+  }
+  if (spec.kind === 'function') {
+    const nextRows = spec.rows.filter((_, i) => !toDelete.has(i))
+    return { ...spec, rows: nextRows.length > 0 ? nextRows : [{ x: '', ys: spec.columns.map(() => '') }] }
+  }
+  const nextRows = spec.rows.filter((_, i) => !toDelete.has(i))
+  return invalidated({ ...spec, rows: nextRows.length > 0 ? nextRows : [newParamRow()] })
+}
+
+/** Duplicates rows at the given indices immediately following each row. */
+export function duplicateRowsAt(spec: TableSpec, indices: number[]): TableSpec {
+  if (spec.source === 'code' || spec.rows.length >= TABLE_MAX_ROWS) return spec
+  spec = detachLegacyFormulas(spec)
+  const toDup = new Set(indices)
+  if (toDup.size === 0) return spec
+
+  if (spec.kind === 'function') {
+    const nextRows: typeof spec.rows = []
+    for (let i = 0; i < spec.rows.length; i++) {
+      nextRows.push(spec.rows[i])
+      if (toDup.has(i) && nextRows.length < TABLE_MAX_ROWS) {
+        nextRows.push({ x: spec.rows[i].x, ys: [...spec.rows[i].ys] })
+      }
+    }
+    return { ...spec, rows: nextRows }
+  }
+
+  const nextRows: ParamRow[] = []
+  for (let i = 0; i < spec.rows.length; i++) {
+    nextRows.push(spec.rows[i])
+    if (toDup.has(i) && nextRows.length < TABLE_MAX_ROWS) {
+      nextRows.push({ id: crypto.randomUUID(), values: { ...spec.rows[i].values } })
+    }
+  }
+  return invalidated({ ...spec, rows: nextRows })
+}
+
 /** Fill Column (the AlterValuesModal application): writes one value per row
  * into the named column and invalidates the runs. */
 export function applyColumnFill(

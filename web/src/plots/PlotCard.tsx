@@ -1,5 +1,27 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Alert, Badge, Button, Group, Loader, Menu, Text } from '@mantine/core'
+import {
+  ActionIcon,
+  Alert,
+  Badge,
+  Button,
+  Group,
+  Loader,
+  Menu,
+  Modal,
+  Paper,
+  ScrollArea,
+  Table,
+  Text,
+  Tooltip,
+} from '@mantine/core'
+import {
+  IconArrowRight,
+  IconChartBar,
+  IconChevronLeft,
+  IconChevronRight,
+  IconTable,
+  IconX,
+} from '@tabler/icons-react'
 import type { PlotlyFigure } from 'plotly.js/lib/core'
 import {
   DiagramResponse,
@@ -27,7 +49,81 @@ import {
   buildRootLocusFigure,
 } from './figure'
 import { EXPORT_FORMATS, exportPlot } from './exportPlot'
-import PlotlyChart from './PlotlyChart'
+import PlotlyChart, { type PlotPointClickEvent } from './PlotlyChart'
+
+export interface PlotCursor {
+  traceIndex: number
+  traceName: string
+  pointIndex: number
+  x: number
+  y: number
+  sampleId?: string
+}
+
+export interface TraceStatistics {
+  traceName: string
+  count: number
+  valid: number
+  missing: number
+  minX: number
+  maxX: number
+  minY: number
+  maxY: number
+  meanY: number
+  sumY: number
+}
+
+export function formatPlotValue(v: number | undefined | null): string {
+  if (v === undefined || v === null || !Number.isFinite(v)) return '—'
+  if (Math.abs(v) >= 1e5 || (Math.abs(v) < 1e-3 && v !== 0)) {
+    return v.toExponential(4)
+  }
+  return v.toLocaleString(undefined, { maximumFractionDigits: 4 })
+}
+
+function isFiniteNumber(val: unknown): val is number {
+  return typeof val === 'number' && Number.isFinite(val)
+}
+
+export function computeTraceStats(trace: unknown): TraceStatistics | null {
+  const t = trace as { name?: string; x?: unknown[]; y?: unknown[] } | undefined
+  if (!t || !Array.isArray(t.x) || !Array.isArray(t.y)) return null
+  const xs = t.x
+  const ys = t.y
+  const n = Math.max(xs.length, ys.length)
+  let valid = 0
+  let minX = Infinity
+  let maxX = -Infinity
+  let minY = Infinity
+  let maxY = -Infinity
+  let sumY = 0
+
+  for (let i = 0; i < n; i++) {
+    const x = xs[i]
+    const y = ys[i]
+    if (!isFiniteNumber(x) || !isFiniteNumber(y)) continue
+    valid++
+    if (x < minX) minX = x
+    if (x > maxX) maxX = x
+    if (y < minY) minY = y
+    if (y > maxY) maxY = y
+    sumY += y
+  }
+
+  const hasValid = valid > 0
+  return {
+    traceName: t.name || 'Trace',
+    count: n,
+    valid,
+    missing: n - valid,
+    minX: hasValid ? minX : Number.NaN,
+    maxX: hasValid ? maxX : Number.NaN,
+    minY: hasValid ? minY : Number.NaN,
+    maxY: hasValid ? maxY : Number.NaN,
+    meanY: hasValid ? sumY / valid : Number.NaN,
+    sumY,
+  }
+}
 
 interface Props {
   spec: PlotSpec
@@ -50,6 +146,27 @@ interface Props {
   rightSection?: React.ReactNode
   hideHeader?: boolean
   exportTrigger?: { format: string; timestamp: number } | null
+  onSelectRow?: (tableId: string | undefined, rowId: string) => void
+}
+
+function lookupVariableValue(
+  record: Record<string, number | string | undefined> | undefined,
+  name: string,
+): number | string | undefined {
+  if (!record) return undefined
+  if (record[name] !== undefined) return record[name]
+  const dollar = name.replaceAll('.', '$')
+  if (record[dollar] !== undefined) return record[dollar]
+  const dot = name.replaceAll('$', '.')
+  if (record[dot] !== undefined) return record[dot]
+  const lower = name.toLowerCase()
+  const lowerDot = dot.toLowerCase()
+  for (const [k, v] of Object.entries(record)) {
+    if (k.toLowerCase() === lower || k.replaceAll('$', '.').toLowerCase() === lowerDot) {
+      return v
+    }
+  }
+  return undefined
 }
 
 /** Value of one variable in one run: solved value or the typed input. */
@@ -59,9 +176,12 @@ function runValue(
   name: string,
 ): number | undefined {
   if (result && !result.success) return undefined
-  const solved = result?.success ? result.values[name] : undefined
-  if (solved !== undefined) return Number.isFinite(solved) ? solved : undefined
-  const raw = (row.values[name] ?? '').trim()
+  const solved = result?.success ? lookupVariableValue(result.values, name) : undefined
+  if (solved !== undefined) {
+    const num = typeof solved === 'number' ? solved : Number(solved)
+    if (Number.isFinite(num)) return num
+  }
+  const raw = String(lookupVariableValue(row.values, name) ?? '').trim()
   if (raw === '') return undefined
   const value = Number(raw)
   return Number.isFinite(value) ? value : undefined
@@ -199,8 +319,8 @@ export interface FigureInputs {
   /** Per-column SI units for the active read-only table (ODE/code), whose
    * columns are not solved scalars — used to unit-annotate the axis labels. */
   tableUnits?: Record<string, string>
-  diagram: DiagramResponse | null
-  psychart: PsychartResponse | null
+  diagram?: DiagramResponse | null
+  psychart?: PsychartResponse | null
   /** Declared STATE TABLE blocks, so a plot can overlay just one circuit. */
   stateTableDefs?: StateTableDto[]
   theme: PlotTheme
@@ -313,7 +433,8 @@ function buildXyFigureFromSpec(spec: PlotSpec, inputs: FigureInputs, xVar: strin
   // the rows already carry the requested series data even though there are no
   // run results, which is the case for read-only code PARAMETRIC tables and
   // DYNAMIC/ODE trajectories (their values live in the rows, not in `results`).
-  const outcomes = spec.source?.kind === 'table' && spec.source.data === 'solved'
+  const hasResults = tableResults && tableResults.length > 0
+  const outcomes = spec.source?.kind === 'table' && spec.source.data === 'solved' && hasResults
     ? tableRows.map((_, i) => tableResults[i] ?? { success: false, values: {}, error: null }) : []
   const useArrays = spec.source?.kind === 'arrays'
   const series = useArrays
@@ -330,10 +451,18 @@ function buildXyFigureFromSpec(spec: PlotSpec, inputs: FigureInputs, xVar: strin
   // table column displays) to the default axis labels, unless disabled.
   const showUnits = spec.format.showUnits !== false
   const unitOf = (name: string): string => {
-    const v = variables.find((x) => x.name.toLowerCase() === name.toLowerCase())
+    const matchName = (n: string) => {
+      const a = n.toLowerCase().replaceAll('$', '.')
+      const b = name.toLowerCase().replaceAll('$', '.')
+      return a === b
+    }
+    const v = variables.find((x) => matchName(x.name))
     // Solved scalars carry their unit; ODE/code-table columns are not scalars,
     // so fall back to the table's per-column SI units.
-    return v?.units ?? inputs.tableUnits?.[name] ?? ''
+    if (v?.units) return v.units
+    if (!inputs.tableUnits) return ''
+    const unitKey = Object.keys(inputs.tableUnits).find(matchName)
+    return unitKey ? inputs.tableUnits[unitKey] : ''
   }
   const withUnit = (label: string, unit: string) =>
     showUnits && unit ? `${label} [${unit}]` : label
@@ -367,6 +496,7 @@ export default function PlotCard({
   rightSection,
   hideHeader = false,
   exportTrigger = null,
+  onSelectRow,
 }: Readonly<Props>) {
   const { diagram, psychart, loading, error } = useDiagramData(spec)
   const [exporting, setExporting] = useState(false)
@@ -374,6 +504,14 @@ export default function PlotCard({
   const [publicationStyle, setPublicationStyle] = useState(true)
   const [viewResetKey, setViewResetKey] = useState(0)
   const [exportViewMode, setExportViewMode] = useState<'current' | 'full'>('current')
+
+  // Phase 10D: Persistent 1-cursor & 2-cursor inspection, deltas/slope, raw data stats, and accessible table
+  const [cursor1, setCursor1] = useState<PlotCursor | null>(null)
+  const [cursor2, setCursor2] = useState<PlotCursor | null>(null)
+  const [dualCursor, setDualCursor] = useState(false)
+  const [activeCursorTarget, setActiveCursorTarget] = useState<1 | 2>(1)
+  const [showDataTable, setShowDataTable] = useState(false)
+  const [showStats, setShowStats] = useState(false)
 
   const circuitWarning = useMemo(() => {
     if (spec.kind !== 'property') return null
@@ -420,6 +558,137 @@ export default function PlotCard({
       }),
     [spec, states, cyclePath, tableRows, tableResults, variables, tableUnits, diagram, psychart, stateTableDefs, viewResetKey],
   )
+
+  const handlePointClick = (event: PlotPointClickEvent) => {
+    const newCursor: PlotCursor = {
+      traceIndex: event.traceIndex,
+      traceName: event.traceName || `Trace ${event.traceIndex + 1}`,
+      pointIndex: event.pointIndex,
+      x: event.x,
+      y: event.y,
+      sampleId: event.sampleId,
+    }
+    if (dualCursor && activeCursorTarget === 2) {
+      setCursor2(newCursor)
+    } else {
+      setCursor1(newCursor)
+      if (dualCursor && !cursor2) {
+        setActiveCursorTarget(2)
+      }
+    }
+  }
+
+  const stepSample = (direction: -1 | 1) => {
+    const target = (dualCursor && activeCursorTarget === 2 && cursor2) ? cursor2 : (cursor1 ?? { traceIndex: 0, pointIndex: 0, x: 0, y: 0, traceName: '' })
+    if (!figure) return
+    const trace = figure.data[target.traceIndex] as { x?: unknown[]; y?: unknown[]; customdata?: unknown[]; name?: string } | undefined
+    if (!trace || !Array.isArray(trace.x) || trace.x.length === 0) return
+
+    const newIndex = Math.max(0, Math.min(trace.x.length - 1, target.pointIndex + direction))
+    const newX = trace.x[newIndex]
+    const newY = trace.y?.[newIndex]
+    const sampleId =
+      (Array.isArray(trace.customdata) ? trace.customdata[newIndex] : undefined) ??
+      (spec.source?.kind === 'table' ? tableRows[newIndex]?.id : undefined)
+
+    const updatedCursor: PlotCursor = {
+      traceIndex: target.traceIndex,
+      traceName: target.traceName || trace.name || `Trace ${target.traceIndex + 1}`,
+      pointIndex: newIndex,
+      x: typeof newX === 'number' ? newX : Number(newX),
+      y: typeof newY === 'number' ? newY : Number(newY),
+      sampleId: typeof sampleId === 'string' ? sampleId : undefined,
+    }
+
+    if (dualCursor && activeCursorTarget === 2) {
+      setCursor2(updatedCursor)
+    } else {
+      setCursor1(updatedCursor)
+    }
+  }
+
+  const deltaX = cursor1 && cursor2 ? cursor2.x - cursor1.x : null
+  const deltaY = cursor1 && cursor2 ? cursor2.y - cursor1.y : null
+  let slope: number | null = null
+  if (deltaX !== null && deltaY !== null && deltaX !== 0) {
+    slope = deltaY / deltaX
+  }
+
+  let slopeText = '—'
+  if (slope !== null) {
+    slopeText = formatPlotValue(slope)
+  } else if (deltaX === 0) {
+    slopeText = 'vertical'
+  }
+
+  const activeTraceIndex = cursor1 ? cursor1.traceIndex : 0
+  const activeTrace = figure?.data[activeTraceIndex] as { name?: string; x?: unknown[]; y?: unknown[]; customdata?: unknown[] } | undefined
+  const activeStats = useMemo(() => computeTraceStats(activeTrace), [activeTrace])
+
+  // Overlay persistent cursors on the figure layout
+  const displayedFigure = useMemo(() => {
+    if (!figure) return null
+    if (!cursor1 && !cursor2) return figure
+    const shapes = [...(figure.layout.shapes ?? [])]
+    const annotations = [...(figure.layout.annotations ?? [])]
+
+    if (cursor1 && Number.isFinite(cursor1.x) && Number.isFinite(cursor1.y)) {
+      shapes.push({
+        type: 'line',
+        x0: cursor1.x,
+        x1: cursor1.x,
+        y0: 0,
+        y1: 1,
+        yref: 'paper',
+        line: { color: '#339af0', width: 1.5, dash: 'dash' },
+      })
+      annotations.push({
+        x: cursor1.x,
+        y: cursor1.y,
+        text: 'C1',
+        showarrow: true,
+        arrowhead: 2,
+        ax: 0,
+        ay: -25,
+        bgcolor: '#1971c2',
+        bordercolor: '#339af0',
+        font: { color: '#ffffff', size: 10 },
+      })
+    }
+
+    if (cursor2 && Number.isFinite(cursor2.x) && Number.isFinite(cursor2.y)) {
+      shapes.push({
+        type: 'line',
+        x0: cursor2.x,
+        x1: cursor2.x,
+        y0: 0,
+        y1: 1,
+        yref: 'paper',
+        line: { color: '#ff922b', width: 1.5, dash: 'dot' },
+      })
+      annotations.push({
+        x: cursor2.x,
+        y: cursor2.y,
+        text: 'C2',
+        showarrow: true,
+        arrowhead: 2,
+        ax: 0,
+        ay: -25,
+        bgcolor: '#e8590c',
+        bordercolor: '#ff922b',
+        font: { color: '#ffffff', size: 10 },
+      })
+    }
+
+    return {
+      ...figure,
+      layout: {
+        ...figure.layout,
+        shapes,
+        annotations,
+      },
+    }
+  }, [figure, cursor1, cursor2])
 
   async function onExport(format: (typeof EXPORT_FORMATS)[number]['value']) {
     const theme: PlotTheme = publicationStyle ? 'light' : 'dark'
@@ -536,18 +805,245 @@ export default function PlotCard({
           </Text>
         </Group>
       )}
-      {!loading && !error && figure === null && (
+      {!loading && !error && displayedFigure === null && (
         <Text size="sm" c="dimmed">
           {spec.kind === 'xy'
             ? 'Choose an explicit data source and the required channels in Configure. Missing or ambiguous sources are never replaced by the active table.'
             : 'No data yet.'}
         </Text>
       )}
-      {figure !== null && (
-        <div style={{ flex: 1, minHeight: 0 }}>
-          {/* Fill the tile exactly — no 380px floor that would overflow a short
-              window — and let the ResizeObserver in PlotlyChart keep it fitted. */}
-          <PlotlyChart figure={figure} minHeight={0} />
+      {displayedFigure !== null && (
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ flex: 1, minHeight: 220, position: 'relative' }}>
+            {/* Fill the tile exactly and let the ResizeObserver in PlotlyChart keep it fitted. */}
+            <PlotlyChart figure={displayedFigure} minHeight={0} onPointClick={handlePointClick} />
+          </div>
+
+          {/* Inspection & Measurement Bar */}
+          <Paper
+            p="xs"
+            mt={4}
+            withBorder
+            style={{ backgroundColor: 'var(--mantine-color-body)', fontSize: 12, flexShrink: 0 }}
+            role="region"
+            aria-label="Plot inspection and cursor measurement"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowLeft') {
+                e.preventDefault()
+                stepSample(-1)
+              } else if (e.key === 'ArrowRight') {
+                e.preventDefault()
+                stepSample(1)
+              }
+            }}
+          >
+            <Group justify="space-between" wrap="wrap" gap="xs">
+              <Group gap="xs" wrap="wrap" align="center">
+                <Group gap={4} wrap="nowrap">
+                  <Button
+                    size="compact-xs"
+                    variant={!dualCursor ? 'filled' : 'default'}
+                    color="blue"
+                    onClick={() => {
+                      setDualCursor(false)
+                      setCursor2(null)
+                      setActiveCursorTarget(1)
+                    }}
+                  >
+                    1-Cursor
+                  </Button>
+                  <Button
+                    size="compact-xs"
+                    variant={dualCursor ? 'filled' : 'default'}
+                    color="orange"
+                    onClick={() => {
+                      setDualCursor(true)
+                      setActiveCursorTarget(2)
+                    }}
+                  >
+                    2-Cursor (Δ)
+                  </Button>
+                </Group>
+
+                {cursor1 ? (
+                  <Badge
+                    color="blue"
+                    variant={activeCursorTarget === 1 && dualCursor ? 'filled' : 'light'}
+                    style={{ cursor: dualCursor ? 'pointer' : 'default' }}
+                    onClick={() => dualCursor && setActiveCursorTarget(1)}
+                    title={dualCursor ? 'Click to select Cursor 1 for sample stepping' : undefined}
+                  >
+                    C1: Pt #{cursor1.pointIndex + 1} | X: {formatPlotValue(cursor1.x)} | Y: {formatPlotValue(cursor1.y)}
+                  </Badge>
+                ) : (
+                  <Text size="xs" c="dimmed">Click plot point to inspect</Text>
+                )}
+
+                {dualCursor && (
+                  cursor2 ? (
+                    <Badge
+                      color="orange"
+                      variant={activeCursorTarget === 2 ? 'filled' : 'light'}
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => setActiveCursorTarget(2)}
+                      title="Click to select Cursor 2 for sample stepping"
+                    >
+                      C2: Pt #{cursor2.pointIndex + 1} | X: {formatPlotValue(cursor2.x)} | Y: {formatPlotValue(cursor2.y)}
+                    </Badge>
+                  ) : (
+                    <Text size="xs" c="dimmed">Click 2nd point for C2</Text>
+                  )
+                )}
+
+                {dualCursor && cursor1 && cursor2 && (
+                  <Badge color="grape" variant="outline">
+                    ΔX: {formatPlotValue(deltaX)} | ΔY: {formatPlotValue(deltaY)} | Slope: {slopeText}
+                  </Badge>
+                )}
+
+                {(cursor1 || cursor2) && (
+                  <Group gap={4} wrap="nowrap">
+                    <Tooltip label="Step to previous sample (ArrowLeft)">
+                      <ActionIcon size="xs" variant="default" aria-label="Previous sample" onClick={() => stepSample(-1)}>
+                        <IconChevronLeft size={12} />
+                      </ActionIcon>
+                    </Tooltip>
+                    <Tooltip label="Step to next sample (ArrowRight)">
+                      <ActionIcon size="xs" variant="default" aria-label="Next sample" onClick={() => stepSample(1)}>
+                        <IconChevronRight size={12} />
+                      </ActionIcon>
+                    </Tooltip>
+                  </Group>
+                )}
+
+                {/* Link to table row */}
+                {cursor1?.sampleId && onSelectRow && (
+                  <Button
+                    size="compact-xs"
+                    variant="subtle"
+                    leftSection={<IconArrowRight size={12} />}
+                    onClick={() => onSelectRow(spec.source?.kind === 'table' ? spec.source.tableId : undefined, cursor1.sampleId!)}
+                    title="Highlight and inspect this row in the table"
+                  >
+                    Row {cursor1.sampleId} in table
+                  </Button>
+                )}
+              </Group>
+
+              <Group gap="xs" wrap="nowrap">
+                <Button
+                  size="compact-xs"
+                  variant={showStats ? 'filled' : 'default'}
+                  leftSection={<IconChartBar size={12} />}
+                  onClick={() => setShowStats((s) => !s)}
+                >
+                  Stats
+                </Button>
+                <Button
+                  size="compact-xs"
+                  variant="default"
+                  leftSection={<IconTable size={12} />}
+                  onClick={() => setShowDataTable(true)}
+                >
+                  Raw data
+                </Button>
+                {(cursor1 || cursor2) && (
+                  <ActionIcon
+                    size="xs"
+                    variant="subtle"
+                    color="gray"
+                    aria-label="Clear cursors"
+                    title="Clear cursors"
+                    onClick={() => {
+                      setCursor1(null)
+                      setCursor2(null)
+                      setActiveCursorTarget(1)
+                    }}
+                  >
+                    <IconX size={12} />
+                  </ActionIcon>
+                )}
+              </Group>
+            </Group>
+
+            {/* Statistics drawer */}
+            {showStats && activeStats && (
+              <Paper p="xs" mt="xs" withBorder style={{ backgroundColor: 'var(--mantine-color-default-hover)' }}>
+                <Group justify="space-between" mb={4}>
+                  <Text size="xs" fw={600}>
+                    Raw Data Statistics — {activeStats.traceName}
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    Scope: {activeStats.count} total samples ({activeStats.valid} valid, {activeStats.missing} missing/NaN)
+                  </Text>
+                </Group>
+                <Group gap="md" wrap="wrap">
+                  <Text size="xs">
+                    <b>X Range:</b> [{formatPlotValue(activeStats.minX)}, {formatPlotValue(activeStats.maxX)}]
+                  </Text>
+                  <Text size="xs">
+                    <b>Y Range:</b> [{formatPlotValue(activeStats.minY)}, {formatPlotValue(activeStats.maxY)}]
+                  </Text>
+                  <Text size="xs">
+                    <b>Y Mean:</b> {formatPlotValue(activeStats.meanY)}
+                  </Text>
+                  <Text size="xs">
+                    <b>Y Sum:</b> {formatPlotValue(activeStats.sumY)}
+                  </Text>
+                </Group>
+              </Paper>
+            )}
+          </Paper>
+
+          {/* Accessible raw data table modal */}
+          <Modal
+            opened={showDataTable}
+            onClose={() => setShowDataTable(false)}
+            title={`Raw Data: ${spec.name}`}
+            size="lg"
+          >
+            {activeTrace && Array.isArray(activeTrace.x) ? (
+              <ScrollArea style={{ maxHeight: 400 }}>
+                <Table striped highlightOnHover withTableBorder role="table" aria-label={`Raw data for ${spec.name}`}>
+                  <Table.Thead>
+                    <Table.Tr>
+                      <Table.Th scope="col">#</Table.Th>
+                      <Table.Th scope="col">Sample / Row</Table.Th>
+                      <Table.Th scope="col">X ({spec.format.xLabel || spec.xy?.xVar || 'X'})</Table.Th>
+                      <Table.Th scope="col">Y ({spec.format.yLabel || spec.xy?.yVars?.join(', ') || 'Y'})</Table.Th>
+                      <Table.Th scope="col">Status</Table.Th>
+                    </Table.Tr>
+                  </Table.Thead>
+                  <Table.Tbody>
+                    {activeTrace.x.map((xVal: unknown, idx: number) => {
+                      const yVal = (activeTrace.y as unknown[])?.[idx]
+                      const isValid = typeof xVal === 'number' && Number.isFinite(xVal) && typeof yVal === 'number' && Number.isFinite(yVal)
+                      const sampleId = (Array.isArray(activeTrace.customdata) ? (activeTrace.customdata as unknown[])[idx] : undefined) ?? (spec.source?.kind === 'table' ? tableRows[idx]?.id : undefined)
+                      const sampleKey = typeof sampleId === 'string' && sampleId ? sampleId : `sample-${idx}`
+                      return (
+                        <Table.Tr key={sampleKey}>
+                          <Table.Td>{idx + 1}</Table.Td>
+                          <Table.Td>{typeof sampleId === 'string' ? sampleId : `pt-${idx + 1}`}</Table.Td>
+                          <Table.Td>{formatPlotValue(typeof xVal === 'number' ? xVal : Number(xVal))}</Table.Td>
+                          <Table.Td>{formatPlotValue(typeof yVal === 'number' ? yVal : Number(yVal))}</Table.Td>
+                          <Table.Td>
+                            {isValid ? (
+                              <Badge color="teal" size="xs">Valid</Badge>
+                            ) : (
+                              <Badge color="red" size="xs">Missing / NaN</Badge>
+                            )}
+                          </Table.Td>
+                        </Table.Tr>
+                      )
+                    })}
+                  </Table.Tbody>
+                </Table>
+              </ScrollArea>
+            ) : (
+              <Text size="sm" c="dimmed">No raw tabular series available for this plot.</Text>
+            )}
+          </Modal>
         </div>
       )}
     </>

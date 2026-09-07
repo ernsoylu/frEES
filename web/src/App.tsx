@@ -2161,6 +2161,53 @@ export default function App() {
     setTimeout(() => editorRef.current?.goToLine(lineNo), 50)
   }, [])
 
+  const handleGoToTableDeclaration = useCallback((tableName: string) => {
+    const lower = tableName.toLowerCase()
+    const regex = new RegExp(String.raw`^\s*(TABLE|PARAMETRIC)\s+${lower}\b`, 'i')
+    const lines = (textRef.current ?? '').split('\n')
+    const idx = lines.findIndex((l: string) => regex.test(l))
+    if (idx >= 0) {
+      goToLine(idx + 1)
+    }
+  }, [goToLine])
+
+  const handleReproduceRow = useCallback((table: ParamTableSpec, rowIndex: number) => {
+    const row = table.rows[rowIndex]
+    if (!row) return
+    const nextRepl: Record<string, VariableResult> = { ...replVars }
+    let pinnedCount = 0
+    for (const v of table.vars) {
+      const val = (row.values[v] ?? '').trim()
+      if (val !== '') {
+        const num = Number(val)
+        if (Number.isFinite(num)) {
+          nextRepl[v.toLowerCase()] = {
+            name: v,
+            value: num,
+            units: table.columnUnits?.[v] || '',
+          }
+          pinnedCount++
+        }
+      }
+    }
+    if (pinnedCount > 0) {
+      setReplVars(nextRepl)
+      dockRef.current?.openInstance('terminal', 'terminal', 'Terminal')
+      setLoadNotice(`Pinned ${pinnedCount} input variable(s) from ${table.name} (run ${rowIndex + 1}) into calculation session.`)
+    }
+  }, [replVars])
+
+  const [highlightedRowId, setHighlightedRowId] = useState<string | null>(null)
+
+  const handleSelectTableRow = useCallback((tableId: string | undefined, rowId: string) => {
+    if (tableId) {
+      setActiveTableId(tableId)
+    }
+    setHighlightedRowId(rowId)
+    setActiveTab('tables')
+    dockRef.current?.openInstance(TABLES_WORKBOOK_WINDOW_ID, 'table', 'Tables')
+  }, [])
+
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       // Shortcuts act on the active section: equations vs parametric table.
@@ -2841,6 +2888,7 @@ export default function App() {
           tableUnits={activeParam?.columnUnits}
           activePlotId={pl.id}
           onActivePlotIdChange={setActivePlotId}
+          onSelectRow={handleSelectTableRow}
         />
         </Suspense>
       </div>
@@ -2898,6 +2946,11 @@ export default function App() {
               setActiveTableId(id)
               setAlterColumn(name)
             }}
+            onPlotColumns={(x, ys, tableId) => handlePlotColumns(x, ys, tableId)}
+            onGoToDeclaration={handleGoToTableDeclaration}
+            onReproduceRow={handleReproduceRow}
+            onRetryFailedRows={(id) => void checkThenSolveTable(id)}
+            highlightedRowId={highlightedRowId}
           />
         </Suspense>
       </div>
