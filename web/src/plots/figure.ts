@@ -284,7 +284,7 @@ function baseLayout(
   const background = theme === 'dark' ? 'rgba(0,0,0,0)' : '#ffffff'
   const revPart = revision !== undefined ? `_${revision}` : ''
   return {
-    title: format.title ? { text: format.title } : undefined,
+    ...(format.title ? { title: { text: format.title } } : {}),
     uirevision: `${xLog}_${yLog}_${format.xUnit ?? ''}_${format.yUnit ?? ''}${revPart}`,
     paper_bgcolor: background,
     plot_bgcolor: background,
@@ -317,7 +317,7 @@ function controlAxesLayout(
   const colors = THEMES[theme]
   const background = theme === 'dark' ? 'rgba(0,0,0,0)' : '#ffffff'
   const layout: PlotlyLayout = {
-    title: format.title ? { text: format.title } : undefined,
+    ...(format.title ? { title: { text: format.title } } : {}),
     uirevision: revision !== undefined ? `control_${revision}` : 'control',
     paper_bgcolor: background,
     plot_bgcolor: background,
@@ -510,7 +510,7 @@ export function buildPropertyFigure(
     revision,
   )
   layout.title ??= { text: `${diagram.fluid}` }
-  return { data: traces, layout }
+  return cleanPlotlyFigure({ data: traces, layout })
 }
 
 export function buildPsychroFigure(
@@ -565,7 +565,7 @@ export function buildPsychroFigure(
   layout.title ??= {
     text: `Psychrometric chart — ${(chart.pressure / 1000).toFixed(2)} kPa`,
   }
-  return { data: traces, layout }
+  return cleanPlotlyFigure({ data: traces, layout })
 }
 
 export interface XYSeries {
@@ -577,6 +577,34 @@ export interface XYSeries {
   size?: number[]
   /** Which Y axis the series belongs to; 'y2' is the secondary right axis. */
   axis?: 'y' | 'y2'
+}
+
+/**
+ * Recursively strips keys whose value is undefined from an object or array.
+ * This prevents Plotly.js from throwing when inspecting nested properties
+ * (e.g. `innerStr in outer` when `outer[innerStr]` is undefined).
+ */
+export function pruneUndefined<T>(obj: T): T {
+  if (obj === null || typeof obj !== 'object') {
+    return obj
+  }
+  if (Array.isArray(obj)) {
+    if (obj.length > 0 && typeof obj[0] !== 'object' && obj[0] !== undefined) {
+      return obj
+    }
+    return obj.map(pruneUndefined) as unknown as T
+  }
+  const clean: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+    if (value !== undefined) {
+      clean[key] = pruneUndefined(value)
+    }
+  }
+  return clean as T
+}
+
+export function cleanPlotlyFigure(figure: PlotlyFigure): PlotlyFigure {
+  return pruneUndefined(figure)
 }
 
 function scaleSizes(values: number[]): number[] {
@@ -621,24 +649,26 @@ export function buildXYFigure(
     }
   } else if (chartType === 'histogram') {
     series.forEach((s) => {
+      const color = format.lineColors?.[s.name]
       traces.push({
         type: 'histogram',
         x: s.y,
         name: displayVar(s.name),
         uid: s.name,
         opacity: 0.75,
-        marker: { color: format.lineColors?.[s.name] || undefined },
+        ...(color ? { marker: { color } } : {}),
       })
     })
   } else if (chartType === 'bar') {
     series.forEach((s) => {
+      const color = format.lineColors?.[s.name]
       traces.push({
         type: 'bar',
         name: displayVar(s.name),
         uid: s.name,
         x: s.x,
         y: s.y,
-        marker: { color: format.lineColors?.[s.name] || undefined },
+        ...(color ? { marker: { color } } : {}),
         ...(s.axis === 'y2' ? { yaxis: 'y2' } : {}),
       } as PlotlyTrace)
     })
@@ -646,6 +676,7 @@ export function buildXYFigure(
     series.forEach((s) => {
       const markerSize = s.size && s.size.length > 0 ? scaleSizes(s.size) : 10
       const style = format.traceStyles?.[s.name]
+      const color = format.lineColors?.[s.name]
       traces.push({
         type: 'scatter',
         mode: 'markers',
@@ -655,8 +686,8 @@ export function buildXYFigure(
         y: s.y,
         marker: {
           size: markerSize,
-          color: format.lineColors?.[s.name] || undefined,
-          symbol: style?.markerSymbol || undefined,
+          ...(color ? { color } : {}),
+          ...(style?.markerSymbol ? { symbol: style.markerSymbol } : {}),
         },
         ...(s.axis === 'y2' ? { yaxis: 'y2' } : {}),
       } as PlotlyTrace)
@@ -686,6 +717,9 @@ export function buildXYFigure(
       const hasExplicitMarker = Boolean(style?.markerSymbol)
       const mode = isDense && !hasExplicitMarker ? 'lines' : 'lines+markers'
       const renderSeries = isDense ? decimateMonotonicSeries(s.x, s.y, s.sampleIds) : s
+      const color = format.lineColors?.[s.name]
+      const dash = style?.dash
+      const line = color || dash ? { ...(color ? { color } : {}), ...(dash ? { dash } : {}) } : undefined
 
       traces.push({
         type: 'scatter',
@@ -696,11 +730,8 @@ export function buildXYFigure(
         uid: s.name,
         x: renderSeries.x,
         y: renderSeries.y,
-        line: {
-          color: format.lineColors?.[s.name] || undefined,
-          dash: style?.dash || undefined,
-        },
-        marker: style?.markerSymbol ? { symbol: style.markerSymbol } : undefined,
+        ...(line ? { line } : {}),
+        ...(style?.markerSymbol ? { marker: { symbol: style.markerSymbol } } : {}),
         ...(s.axis === 'y2' ? { yaxis: 'y2' } : {}),
       } as PlotlyTrace)
     })
@@ -794,7 +825,7 @@ export function buildXYFigure(
     }
   }
 
-  return { data: traces, layout }
+  return cleanPlotlyFigure({ data: traces, layout })
 }
 
 export function buildBodeFigure(
@@ -833,7 +864,7 @@ export function buildBodeFigure(
   ]
 
   const layout: PlotlyLayout = {
-    title: format.title ? { text: format.title } : undefined,
+    ...(format.title ? { title: { text: format.title } } : {}),
     uirevision: revision !== undefined ? `bode_${revision}` : 'bode',
     paper_bgcolor: background,
     plot_bgcolor: background,
@@ -866,7 +897,7 @@ export function buildBodeFigure(
     showlegend: false,
   }
 
-  return { data: traces, layout }
+  return cleanPlotlyFigure({ data: traces, layout })
 }
 
 /** Open-loop gain (dB) along a constant closed-loop magnitude (M) contour. */
@@ -973,7 +1004,7 @@ export function buildNicholsFigure(
     legend: false,
   }, revision)
 
-  return { data: traces, layout }
+  return cleanPlotlyFigure({ data: traces, layout })
 }
 
 export function buildNyquistFigure(
@@ -1012,7 +1043,7 @@ export function buildNyquistFigure(
     squareAspect: true,
   }, revision)
 
-  return { data: traces, layout }
+  return cleanPlotlyFigure({ data: traces, layout })
 }
 
 export function buildPoleZeroFigure(
@@ -1064,7 +1095,7 @@ export function buildPoleZeroFigure(
     squareAspect: true,
   }, revision)
 
-  return { data: traces, layout }
+  return cleanPlotlyFigure({ data: traces, layout })
 }
 
 export function buildRootLocusFigure(
@@ -1148,6 +1179,6 @@ export function buildRootLocusFigure(
     squareAspect: true,
   }, revision)
 
-  return { data: traces, layout }
+  return cleanPlotlyFigure({ data: traces, layout })
 }
 

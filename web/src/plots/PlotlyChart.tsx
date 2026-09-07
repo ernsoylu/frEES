@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Alert, Button, Stack, Text } from '@mantine/core'
 import type { PlotlyFigure } from 'plotly.js/lib/core'
+import { cleanPlotlyFigure } from './figure'
 
 /**
  * Renders a pre-built Plotly figure. Plotly is loaded on demand so the
@@ -62,7 +63,8 @@ export default function PlotlyChart({
 
         const { default: Plotly } = await import('./plotlyBundle')
         if (cancelled || el === null || seq !== renderSeq.current) return
-        await Plotly.react(el, figure.data, figure.layout, {
+        const sanitized = cleanPlotlyFigure(figure)
+        await Plotly.react(el, sanitized.data, sanitized.layout, {
           responsive: true,
           displaylogo: false,
         })

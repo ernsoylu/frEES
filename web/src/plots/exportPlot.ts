@@ -1,4 +1,5 @@
 import type { PlotlyFigure } from 'plotly.js/lib/core'
+import { cleanPlotlyFigure } from './figure'
 
 /**
  * Plot file export. SVG/PNG/JPG come straight from Plotly (raster at 4x
@@ -57,10 +58,10 @@ export function prepareFigureForExport(
       }
     }
   }
-  return {
+  return cleanPlotlyFigure({
     data: figure.data,
     layout,
-  }
+  })
 }
 
 async function figureToSvg(
