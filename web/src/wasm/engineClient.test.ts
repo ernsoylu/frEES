@@ -169,3 +169,400 @@ describe('engineClient solve progress', () => {
     await expect(p).resolves.toEqual({ success: true })
   })
 })
+
+describe('engineClient worker pool for independent sweeps (Phase 7)', () => {
+  it('detects parametric accessors with exact parity to Rust engine tests', async () => {
+    const { mentionsParametricAccessor } = await client()
+
+    // Hits from crates/frees-core/src/analysis/parametric.rs
+    const positiveCases = [
+      'r = TableRun#()',
+      'r = TableRun()',
+      'v = TableValue(1, 2)',
+      "s = tablesum('p')",
+      "s = TABLESTDDEV('p')",
+      "a = TableAvg ('p')",
+      "a = TableAvg\t('p')",
+      "x = 1 + TableMin('p')",
+      "{ note: TableMax('p') }",
+      "— TableSum('p')",
+    ]
+    for (const text of positiveCases) {
+      expect(mentionsParametricAccessor(text), `Expected hit for: ${text}`).toBe(true)
+    }
+
+    // Misses from crates/frees-core/src/analysis/parametric.rs
+    const negativeCases = [
+      'P = t * 3',
+      "x = MyTableSum('p')",
+      "x = TableSummary('p')",
+      'TableSum = 3',
+      'x = TableSum',
+      '',
+      'µ = 1 [kg]',
+    ]
+    for (const text of negativeCases) {
+      expect(mentionsParametricAccessor(text), `Expected miss for: ${text}`).toBe(false)
+    }
+  })
+
+  it('bounds and clamps worker pool concurrency', async () => {
+    const {
+      getWorkerPoolConcurrency,
+      setWorkerPoolConcurrency,
+      resetWorkerPoolConcurrency,
+      MAX_WORKER_POOL_SIZE,
+    } = await client()
+
+    expect(MAX_WORKER_POOL_SIZE).toBe(4)
+    setWorkerPoolConcurrency(1)
+    expect(getWorkerPoolConcurrency()).toBe(1)
+    setWorkerPoolConcurrency(3)
+    expect(getWorkerPoolConcurrency()).toBe(3)
+    setWorkerPoolConcurrency(100) // clamped to MAX_WORKER_POOL_SIZE
+    expect(getWorkerPoolConcurrency()).toBe(4)
+    setWorkerPoolConcurrency(0) // clamped to min 1
+    expect(getWorkerPoolConcurrency()).toBe(1)
+    resetWorkerPoolConcurrency()
+  })
+
+  it('keeps accessor-dependent sweeps serial on a single worker even when concurrency is high', async () => {
+    const { wasmSolveTable, setWorkerPoolConcurrency } = await client()
+    setWorkerPoolConcurrency(4)
+
+    const source = "avg = TableAvg('y')\ny = 2 * x\n"
+    const req = JSON.stringify({
+      table: {
+        variables: ['x', 'y'],
+        rows: [{ x: 1 }, { x: 2 }, { x: 3 }, { x: 4 }],
+      },
+    })
+
+    const p = wasmSolveTable(source, req)
+    expect(FakeWorker.instances.length).toBe(1)
+    const w = FakeWorker.instances[0]
+    expect(w.posted).toHaveLength(1)
+    expect(w.posted[0].method).toBe('solveTable')
+
+    const responsePayload = JSON.stringify({
+      results: [
+        { success: true, values: { x: 1, y: 2, avg: 5 }, error: null },
+        { success: true, values: { x: 2, y: 4, avg: 5 }, error: null },
+        { success: true, values: { x: 3, y: 6, avg: 5 }, error: null },
+        { success: true, values: { x: 4, y: 8, avg: 5 }, error: null },
+      ],
+      stats: {
+        converged: true,
+        passes: 2,
+        termination: 'completed',
+        accessor: true,
+        runs: 4,
+        solved: 4,
+        failed: 0,
+        notRun: 0,
+        equations: 2,
+        unknowns: 2,
+        iterations: 8,
+        elapsedMillis: 15,
+        maxResidual: 0,
+      },
+      variables: [{ name: 'y', value: 8 }],
+    })
+    w.onmessage?.({ data: { id: w.posted[0].id, ok: true, result: responsePayload } })
+
+    const result = JSON.parse(await p)
+    expect(result.stats.accessor).toBe(true)
+    expect(result.results).toHaveLength(4)
+  })
+
+  it('chunks independent sweeps across multiple pool workers and merges results in order', async () => {
+    const { wasmSolveTable, setWorkerPoolConcurrency } = await client()
+    setWorkerPoolConcurrency(2)
+
+    const source = 'y = 2 * x\n'
+    const req = JSON.stringify({
+      table: {
+        variables: ['x', 'y'],
+        rows: [{ x: 1 }, { x: 2 }, { x: 3 }, { x: 4 }],
+      },
+    })
+
+    const progressReports: number[] = []
+    const p = wasmSolveTable(source, req, (f) => progressReports.push(f))
+
+    // Must spawn 2 workers for 2 chunks (2 rows each)
+    expect(FakeWorker.instances.length).toBe(2)
+    const [w0, w1] = FakeWorker.instances
+    expect(w0.posted).toHaveLength(1)
+    expect(w1.posted).toHaveLength(1)
+
+    // Verify chunk payloads
+    const req0 = JSON.parse(w0.posted[0].args[1])
+    const req1 = JSON.parse(w1.posted[0].args[1])
+    expect(req0.table.rows).toEqual([{ x: 1 }, { x: 2 }])
+    expect(req1.table.rows).toEqual([{ x: 3 }, { x: 4 }])
+
+    // Progress aggregation test
+    w0.onmessage?.({ data: { id: w0.posted[0].id, progress: 0.5 } })
+    expect(progressReports).toContain(0.25) // 0.5 * 2/4 = 0.25
+    w1.onmessage?.({ data: { id: w1.posted[0].id, progress: 1.0 } })
+    expect(progressReports).toContain(0.75) // 0.25 + 1.0 * 2/4 = 0.75
+
+    // Resolve workers
+    const chunk0Res = JSON.stringify({
+      results: [
+        { success: true, values: { x: 1, y: 2 }, error: null },
+        { success: true, values: { x: 2, y: 4 }, error: null },
+      ],
+      stats: {
+        converged: true,
+        passes: 1,
+        termination: 'completed',
+        accessor: false,
+        runs: 2,
+        solved: 2,
+        failed: 0,
+        notRun: 0,
+        equations: 2,
+        unknowns: 2,
+        iterations: 4,
+        elapsedMillis: 5,
+        maxResidual: 1e-12,
+      },
+      variables: [{ name: 'y', value: 4 }],
+    })
+    const chunk1Res = JSON.stringify({
+      results: [
+        { success: true, values: { x: 3, y: 6 }, error: null },
+        { success: true, values: { x: 4, y: 8 }, error: null },
+      ],
+      stats: {
+        converged: true,
+        passes: 1,
+        termination: 'completed',
+        accessor: false,
+        runs: 2,
+        solved: 2,
+        failed: 0,
+        notRun: 0,
+        equations: 2,
+        unknowns: 2,
+        iterations: 4,
+        elapsedMillis: 6,
+        maxResidual: 2e-12,
+      },
+      variables: [{ name: 'y', value: 8 }],
+    })
+
+    w0.onmessage?.({ data: { id: w0.posted[0].id, ok: true, result: chunk0Res } })
+    w1.onmessage?.({ data: { id: w1.posted[0].id, ok: true, result: chunk1Res } })
+
+    const res = JSON.parse(await p)
+    expect(res.results).toHaveLength(4)
+    expect(res.results.map((r: { values: { y: number } }) => r.values.y)).toEqual([2, 4, 6, 8])
+    expect(res.stats.runs).toBe(4)
+    expect(res.stats.solved).toBe(4)
+    expect(res.stats.failed).toBe(0)
+    expect(res.stats.iterations).toBe(8)
+    expect(res.stats.maxResidual).toBe(2e-12)
+    // Variables must come from the last successful chunk (row 4)
+    expect(res.variables).toEqual([{ name: 'y', value: 8 }])
+  })
+
+  it('wasmStop terminates all workers in the pool during an in-flight sweep', async () => {
+    const { wasmSolveTable, setWorkerPoolConcurrency, wasmStop } = await client()
+    setWorkerPoolConcurrency(2)
+
+    const source = 'y = 2 * x\n'
+    const req = JSON.stringify({
+      table: {
+        variables: ['x', 'y'],
+        rows: [{ x: 1 }, { x: 2 }, { x: 3 }, { x: 4 }],
+      },
+    })
+
+    const p = wasmSolveTable(source, req)
+    expect(FakeWorker.instances.length).toBe(2)
+    const [w0, w1] = FakeWorker.instances
+
+    wasmStop()
+
+    expect(w0.terminated).toBe(true)
+    expect(w1.terminated).toBe(true)
+    await expect(p).rejects.toThrow('Operation stopped')
+  })
+
+  it('a fatal error in any pool worker terminates all workers and rejects in flight', async () => {
+    const { wasmSolveTable, setWorkerPoolConcurrency } = await client()
+    setWorkerPoolConcurrency(2)
+
+    const source = 'y = 2 * x\n'
+    const req = JSON.stringify({
+      table: {
+        variables: ['x', 'y'],
+        rows: [{ x: 1 }, { x: 2 }, { x: 3 }, { x: 4 }],
+      },
+    })
+
+    const p = wasmSolveTable(source, req)
+    expect(FakeWorker.instances.length).toBe(2)
+    const [w0, w1] = FakeWorker.instances
+
+    w1.onerror?.({ message: 'Wasm worker crash' })
+
+    expect(w0.terminated).toBe(true)
+    expect(w1.terminated).toBe(true)
+    await expect(p).rejects.toThrow('Wasm worker crash')
+  })
+
+  it('retireExtraWorkers terminates workers 1..N-1 while keeping worker 0 alive', async () => {
+    const { wasmSolveTable, setWorkerPoolConcurrency, retireExtraWorkers } = await client()
+    setWorkerPoolConcurrency(2)
+
+    const source = 'y = 2 * x\n'
+    const req = JSON.stringify({
+      table: {
+        variables: ['x', 'y'],
+        rows: [{ x: 1 }, { x: 2 }, { x: 3 }, { x: 4 }],
+      },
+    })
+
+    const p = wasmSolveTable(source, req)
+    const [w0, w1] = FakeWorker.instances
+    const chunkRes = JSON.stringify({
+      results: [{ success: true, values: { x: 1, y: 2 }, error: null }],
+      stats: { solved: 1, runs: 1, iterations: 1, converged: true, termination: 'completed' },
+      variables: [],
+    })
+    w0.onmessage?.({ data: { id: w0.posted[0].id, ok: true, result: chunkRes } })
+    w1.onmessage?.({ data: { id: w1.posted[0].id, ok: true, result: chunkRes } })
+    await p
+
+    retireExtraWorkers()
+    expect(w0.terminated).toBe(false)
+    expect(w1.terminated).toBe(true)
+  })
+
+  it('produces identical row results, stats, and variable lists across worker counts (1 vs 2 vs 4)', async () => {
+    const { mergeSolveTableResponses } = await client()
+
+    // 8-row workload with 7 solved rows and 1 failed row (Row 5 fails: 1/0)
+    const perRowData = [
+      { i: 1, x: 1, y: 2, success: true, error: null },
+      { i: 2, x: 2, y: 4, success: true, error: null },
+      { i: 3, x: 3, y: 6, success: true, error: null },
+      { i: 4, x: 4, y: 8, success: true, error: null },
+      { i: 5, x: 5, y: 0, success: false, error: 'division by zero' },
+      { i: 6, x: 6, y: 12, success: true, error: null },
+      { i: 7, x: 7, y: 14, success: true, error: null },
+      { i: 8, x: 8, y: 16, success: true, error: null },
+    ]
+
+    // Simulate what the Rust engine emits for any slice of rows
+    const simulateEngineChunk = (slice: typeof perRowData) => {
+      const results = slice.map((r) => ({
+        success: r.success,
+        values: (r.success ? { x: r.x, y: r.y } : {}) as Record<string, number>,
+        error: r.error,
+      }))
+      const solved = slice.filter((r) => r.success).length
+      const failed = slice.length - solved
+      const lastSolved = slice.filter((r) => r.success).slice(-1)[0]
+      return {
+        results,
+        stats: {
+          converged: true,
+          passes: 1,
+          termination: 'completed',
+          accessor: false,
+          runs: slice.length,
+          solved,
+          failed,
+          notRun: 0,
+          equations: lastSolved ? 2 : 0,
+          unknowns: lastSolved ? 2 : 0,
+          iterations: solved * 2,
+          elapsedMillis: 10,
+          maxResidual: lastSolved ? 1e-12 : 0,
+        },
+        variables: lastSolved ? [{ name: 'y', value: lastSolved.y }] : [],
+      }
+    }
+
+    // 1 Worker execution (single chunk of 8 rows)
+    const out1Worker = mergeSolveTableResponses([simulateEngineChunk(perRowData)], 8, 20)
+
+    // 2 Workers execution (2 chunks of 4 rows)
+    const out2Workers = mergeSolveTableResponses(
+      [simulateEngineChunk(perRowData.slice(0, 4)), simulateEngineChunk(perRowData.slice(4, 8))],
+      8,
+      12,
+    )
+
+    // 4 Workers execution (4 chunks of 2 rows)
+    const out4Workers = mergeSolveTableResponses(
+      [
+        simulateEngineChunk(perRowData.slice(0, 2)),
+        simulateEngineChunk(perRowData.slice(2, 4)),
+        simulateEngineChunk(perRowData.slice(4, 6)),
+        simulateEngineChunk(perRowData.slice(6, 8)),
+      ],
+      8,
+      8,
+    )
+
+    // Verify exact equality of numerical results and row order across worker counts
+    expect(out2Workers.results).toEqual(out1Worker.results)
+    expect(out4Workers.results).toEqual(out1Worker.results)
+
+    // Verify exact equality of variable list (last successful row: Row 8 with y=16)
+    expect(out1Worker.variables).toEqual([{ name: 'y', value: 16 }])
+    expect(out2Workers.variables).toEqual(out1Worker.variables)
+    expect(out4Workers.variables).toEqual(out1Worker.variables)
+
+    // Verify stats equivalence (runs, solved, failed, equations, unknowns, iterations, maxResidual)
+    for (const out of [out2Workers, out4Workers]) {
+      expect(out.stats?.runs).toBe(out1Worker.stats?.runs)
+      expect(out.stats?.solved).toBe(out1Worker.stats?.solved)
+      expect(out.stats?.failed).toBe(out1Worker.stats?.failed)
+      expect(out.stats?.equations).toBe(out1Worker.stats?.equations)
+      expect(out.stats?.unknowns).toBe(out1Worker.stats?.unknowns)
+      expect(out.stats?.iterations).toBe(out1Worker.stats?.iterations)
+      expect(out.stats?.maxResidual).toBe(out1Worker.stats?.maxResidual)
+      expect(out.stats?.converged).toBe(out1Worker.stats?.converged)
+      expect(out.stats?.termination).toBe(out1Worker.stats?.termination)
+      expect(out.stats?.accessor).toBe(false)
+    }
+  })
+
+  it('forwards top-level chunk errors directly', async () => {
+    const { wasmSolveTable, setWorkerPoolConcurrency } = await client()
+    setWorkerPoolConcurrency(2)
+
+    const source = 'nonsense document\n'
+    const req = JSON.stringify({
+      table: {
+        variables: ['x', 'y'],
+        rows: [{ x: 1 }, { x: 2 }],
+      },
+    })
+
+    const p = wasmSolveTable(source, req)
+    const [w0, w1] = FakeWorker.instances
+
+    const errPayload = JSON.stringify({
+      results: [],
+      stats: null,
+      variables: [],
+      error: 'Syntax error: unexpected token',
+    })
+    w0.onmessage?.({ data: { id: w0.posted[0].id, ok: true, result: errPayload } })
+    w1.onmessage?.({ data: { id: w1.posted[0].id, ok: true, result: errPayload } })
+
+    const res = JSON.parse(await p)
+    expect(res.error).toBe('Syntax error: unexpected token')
+    expect(res.results).toEqual([])
+  })
+})
+
+

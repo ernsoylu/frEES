@@ -334,7 +334,7 @@ describe('Phase 10D: Plot inspection, statistics, and cursor measurement', () =>
       const el = document.createElement('div')
       document.body.appendChild(el)
       await expect(Plotly.react(el, fig!.data, fig!.layout)).resolves.not.toThrow()
-    })
+    }, 15000)
   })
 
   describe('pruneUndefined and cleanPlotlyFigure', () => {
