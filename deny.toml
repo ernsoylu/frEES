@@ -2,11 +2,9 @@
 # https://embarkstudios.github.io/cargo-deny/
 
 [advisories]
-version = 2
 ignore = []
 
 [licenses]
-version = 2
 confidence-threshold = 0.8
 allow = [
     "MIT",
@@ -23,12 +21,10 @@ allow = [
 ignore = true
 
 [bans]
-version = 2
 multiple-versions = "warn"
 deny = []
 
 [sources]
-version = 2
 unknown-registry = "deny"
 unknown-git = "warn"
 allow-git = [
