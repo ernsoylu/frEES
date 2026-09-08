@@ -31,7 +31,6 @@ graph TD
     subgraph "Phase 2: Robustness, Performance & Quality (2–4 Weeks)"
         P2_ZC["Zero-Copy WASM Boundary (Float64Array)"]
         P2_Fuzz["Fuzz Testing (cargo-fuzz on Parser)"]
-        P2_Crates["Publish rustprop & frees-core to crates.io"]
         P2_Cross["macOS Runner & WebKit/Firefox E2E Matrix"]
         P2_Pareto["Interactive Pareto Point-Click Inspection"]
         P2_Pilot["R15 Usability Pilot Validation"]
@@ -46,7 +45,7 @@ graph TD
         P3_Book["The frees Book (mdBook) & Example Gallery"]
     end
 
-    P1_Sec --> P2_Crates
+    P1_Sec --> P2_Fuzz
     P1_Off --> P2_Cross
     P2_ZC --> P3_Codegen
     P2_Fuzz --> P3_LSP
@@ -87,15 +86,12 @@ Focus: Eliminating data transfer bottlenecks, preventing parser crashes, expandi
 - [ ] **2.2 Parser & Lexer Fuzz Testing (`cargo-fuzz`)**
   - Establish a `fuzz/` crate using `libFuzzer` targeting `frees_core::parser::parse_document` and expression evaluators.
   - Assert that randomized, malformed, or adversarial syntax inputs yield structured `Err(ParseError)` variants rather than triggering panic traps that kill the browser Web Worker.
-- [ ] **2.3 Crates.io Publishing for Dependencies & Core Engine**
-  - Publish `rustprop` to crates.io and update `Cargo.toml` from a git tag dependency to a versioned registry dependency with cryptographic checksums.
-  - Publish `frees-core` and `frees-cli` to crates.io for embedding in external Rust applications.
-- [x] **2.4 Cross-Platform & Cross-Browser CI Matrix**
+- [x] **2.3 Cross-Platform & Cross-Browser CI Matrix**
   - Add a macOS runner leg in CI to validate floating-point formatting and `libm` consistency across operating systems.
   - Expand Playwright test suites to run across a Chromium, Firefox, and WebKit (Safari) browser matrix to verify WebAssembly instantiation and IndexedDB storage resilience.
-- [x] **2.5 Interactive Pareto Point-Click Inspection**
+- [x] **2.4 Interactive Pareto Point-Click Inspection**
   - Enhance `web/src/MinMaxModal.tsx` so clicking any point on the 2D Pareto front scatter plot highlights the corresponding decision variables and allows instant loading of the operating point into the active document.
-- [ ] **2.6 R15 Usability Pilot Validation**
+- [ ] **2.5 R15 Usability Pilot Validation**
   - Execute the structured R15 usability pilot with 5 engineering participants to validate core modeling tasks (scalar solve within 5 minutes, component chain within 10 minutes, missing boundary recovery within 3 minutes) prior to adding complex UI extensions.
 
 ---
@@ -125,8 +121,9 @@ Focus: Expanding beyond the web tab into IDE ecosystems, standalone code generat
 
 ---
 
-## 3. Long-Term Research & Strategic Candidates
+## 3. Long-Term Research, Strategic & Optional Candidates
 
+- **Crates.io Publishing for Dependencies & Core Engine**: Publish `rustprop` to crates.io and update `Cargo.toml` from a git tag dependency to a versioned registry dependency with cryptographic checksums once upstream release cadence stabilizes. Publish `frees-core` and `frees-cli` to crates.io for embedding in external Rust applications.
 - **SharedArrayBuffer Multi-Threading**: Research cross-origin isolation (`COOP`/`COEP`) headers for zero-copy multi-threaded sweeps, with seamless fallback for standard static hosting environments.
 - **Neural & Domain-Bounded Surrogate Property Models**: Train bounded surrogate evaluators for fast property estimation during Newton line-search steps, with exact Helmholtz verification at convergence.
 - **Standards Interoperability (FMI / FMU 2.0/3.0)**: Package dynamic systems as Functional Mock-up Units for co-simulation in industrial engineering workflows.
