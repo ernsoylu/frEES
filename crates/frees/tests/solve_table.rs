@@ -319,6 +319,49 @@ fn curve_fit_refuses_a_non_positive_sigma_and_reports_no_false_confidence() {
 }
 
 #[test]
+fn curve_fit_returns_confidence_and_prediction_bands() {
+    // Closed-form OLS bands on the shared line data, at x = 0:
+    // CI [0.574448241, 1.505551759], PI [0.279757162, 1.800242838].
+    let request = serde_json::json!({
+        "model": "y = a * x + b",
+        "yVariable": "y",
+        "xVariable": "x",
+        "parameters": ["a", "b"],
+        "xData": [0.0, 1.0, 2.0, 3.0, 4.0],
+        "yData": [1.1, 2.9, 5.2, 6.8, 9.1],
+    });
+    let out: Value = serde_json::from_str(&frees::curve_fit(&request.to_string())).unwrap();
+    assert_eq!(out["confidence"], 0.95);
+    let ci_lo = out["confidenceBandLo"].as_array().unwrap();
+    let pi_lo = out["predictionBandLo"].as_array().unwrap();
+    assert!(
+        (ci_lo[0].as_f64().unwrap() - 0.574_448_241_330).abs() < 1e-7,
+        "{out}"
+    );
+    assert!(
+        (pi_lo[0].as_f64().unwrap() - 0.279_757_161_602).abs() < 1e-7,
+        "{out}"
+    );
+    assert!(pi_lo[0].as_f64().unwrap() < ci_lo[0].as_f64().unwrap());
+
+    // An unidentifiable fit sends nulls, not a band around a phantom curve.
+    let request = serde_json::json!({
+        "model": "y = a + b",
+        "yVariable": "y",
+        "xVariable": "x",
+        "parameters": ["a", "b"],
+        "xData": [0.0, 1.0, 2.0, 3.0],
+        "yData": [5.0, 5.0, 5.0, 5.0],
+    });
+    let out: Value = serde_json::from_str(&frees::curve_fit(&request.to_string())).unwrap();
+    assert_eq!(
+        out["confidenceBandLo"],
+        serde_json::json!([null, null, null, null]),
+        "{out}"
+    );
+}
+
+#[test]
 fn curve_fit_honours_box_constraints_and_robust_losses() {
     // y = 2x + 1 with a gross outlier at x = 5. Least squares is dragged to
     // a = 2.539394; Cauchy is not.

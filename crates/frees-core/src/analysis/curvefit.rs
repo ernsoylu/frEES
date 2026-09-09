@@ -202,6 +202,9 @@ pub struct CurveFitRequest<'a> {
     /// `1.4826 · median|r − median r|`, floored away from zero. Ignored for
     /// [`Loss::Linear`].
     pub f_scale: Option<f64>,
+    /// Two-sided confidence level for the reported bands, e.g. `0.95`. Zero or
+    /// out of `(0, 1)` — which includes the [`Default`] `0.0` — means 0.95.
+    pub confidence: f64,
 }
 
 /// The outcome of a curve-fit run. Port of `CurveFitter.FitResult`, plus the
@@ -253,6 +256,17 @@ pub struct FitResult {
     /// error beside a `true` here was computed as though the parameter were
     /// free, so it overstates how well the data pins it down.
     pub at_bound: Vec<bool>,
+    /// The confidence level the bands below were computed at.
+    pub confidence: f64,
+    /// Confidence band on the *fitted curve* at each data point: how well the
+    /// mean response is known. `NaN` wherever the standard errors are.
+    pub confidence_band_lo: Vec<f64>,
+    pub confidence_band_hi: Vec<f64>,
+    /// Prediction band at each data point: where a *new* measurement would
+    /// fall. Always wider than the confidence band — it carries the
+    /// measurement's own scatter as well as the curve's uncertainty.
+    pub prediction_band_lo: Vec<f64>,
+    pub prediction_band_hi: Vec<f64>,
 }
 
 /// Fits `request.model` to the observed data. Port of `CurveFitter.fit`, plus
@@ -457,6 +471,19 @@ pub fn fit(request: &CurveFitRequest<'_>) -> Result<FitResult> {
         base_weights.is_some(),
     );
 
+    let confidence = if request.confidence > 0.0 && request.confidence < 1.0 {
+        request.confidence
+    } else {
+        0.95
+    };
+    let bands = prediction_bands(
+        &final_jacobian,
+        &fitted_values,
+        &uncertainty,
+        request.sigma,
+        confidence,
+    );
+
     let at_bound = bounds.as_ref().map_or_else(
         || vec![false; p],
         |box_| {
@@ -482,7 +509,91 @@ pub fn fit(request: &CurveFitRequest<'_>) -> Result<FitResult> {
         unidentifiable: uncertainty.unidentifiable,
         reduced_chi_square: uncertainty.reduced_chi_square,
         at_bound,
+        confidence,
+        confidence_band_lo: bands.confidence_lo,
+        confidence_band_hi: bands.confidence_hi,
+        prediction_band_lo: bands.prediction_lo,
+        prediction_band_hi: bands.prediction_hi,
     })
+}
+
+/// The four band vectors, one entry per data point.
+struct Bands {
+    confidence_lo: Vec<f64>,
+    confidence_hi: Vec<f64>,
+    prediction_lo: Vec<f64>,
+    prediction_hi: Vec<f64>,
+}
+
+/// Confidence and prediction bands on the fitted curve, evaluated at the data's
+/// own predictors.
+///
+/// The curve's variance at a point is `jᵀ Σ j` with `j = ∂f/∂p` there — the
+/// delta method, and local-linear for exactly the same reason the covariance
+/// is. The half-width is `t(1 − α/2, dof) · se`. The prediction band adds the
+/// measurement's own variance to the curve's: `σᵢ²` where σ was given, and the
+/// estimated residual variance otherwise.
+///
+/// All `NaN` when the covariance was unavailable — a band drawn around an
+/// unidentifiable fit would be a picture of a number that does not exist.
+fn prediction_bands(
+    jacobian: &Mat,
+    fitted_values: &[f64],
+    uncertainty: &Uncertainty,
+    sigma: Option<&[f64]>,
+    confidence: f64,
+) -> Bands {
+    let n = fitted_values.len();
+    let nan_bands = || Bands {
+        confidence_lo: vec![f64::NAN; n],
+        confidence_hi: vec![f64::NAN; n],
+        prediction_lo: vec![f64::NAN; n],
+        prediction_hi: vec![f64::NAN; n],
+    };
+    if uncertainty.covariance.is_empty() || uncertainty.dof == 0 {
+        return nan_bands();
+    }
+    let Ok(t_crit) =
+        crate::eval::student_t_inv(1.0 - (1.0 - confidence) / 2.0, uncertainty.dof as f64)
+    else {
+        return nan_bands();
+    };
+
+    let p = uncertainty.covariance.len();
+    // The residual variance a new measurement carries. With σ it is that point's
+    // own; without, the one estimated from the residuals — which is precisely
+    // the `scale` the covariance was multiplied by, recovered from it.
+    let estimated_variance = uncertainty.residual_variance;
+
+    let mut bands = Bands {
+        confidence_lo: Vec::with_capacity(n),
+        confidence_hi: Vec::with_capacity(n),
+        prediction_lo: Vec::with_capacity(n),
+        prediction_hi: Vec::with_capacity(n),
+    };
+    for i in 0..n {
+        // The Jacobian rows are σ-weighted when σ was given; the band is wanted
+        // in the observation's own units, so that weighting comes back off.
+        let unweight = sigma.map_or(1.0, |s| s[i]);
+        let mut variance = 0.0;
+        for j in 0..p {
+            for k in 0..p {
+                variance += jacobian[i][j]
+                    * unweight
+                    * uncertainty.covariance[j][k]
+                    * jacobian[i][k]
+                    * unweight;
+            }
+        }
+        let se_fit = variance.max(0.0).sqrt();
+        let point_variance = sigma.map_or(estimated_variance, |s| s[i] * s[i]);
+        let se_new = (variance.max(0.0) + point_variance).sqrt();
+        bands.confidence_lo.push(fitted_values[i] - t_crit * se_fit);
+        bands.confidence_hi.push(fitted_values[i] + t_crit * se_fit);
+        bands.prediction_lo.push(fitted_values[i] - t_crit * se_new);
+        bands.prediction_hi.push(fitted_values[i] + t_crit * se_new);
+    }
+    bands
 }
 
 /// Have the parameters stopped moving between IRLS passes?
@@ -549,6 +660,10 @@ fn box_constraints(
 /// What [`parameter_uncertainty`] reads off the Jacobian at the optimum.
 struct Uncertainty {
     dof: usize,
+    /// The residual variance a new observation carries: `SSres / dof` for an
+    /// unweighted fit, and `1` for a weighted one, where the σ that scaled the
+    /// residuals already carries it.
+    residual_variance: f64,
     std_errors: Vec<f64>,
     covariance: Mat,
     rank: usize,
@@ -580,8 +695,18 @@ fn parameter_uncertainty(
     weighted: bool,
 ) -> Uncertainty {
     let dof = n.saturating_sub(p);
+    // Unweighted: the scatter has to be estimated. Weighted: sigma already
+    // carries it and the residuals are dimensionless, so it is 1.
+    let residual_variance = if weighted {
+        1.0
+    } else if dof > 0 {
+        residual_sum / dof as f64
+    } else {
+        f64::NAN
+    };
     let unavailable = |rank: usize, condition_number: f64, unidentifiable: bool| Uncertainty {
         dof,
+        residual_variance,
         std_errors: vec![f64::NAN; p],
         covariance: Vec::new(),
         rank,
@@ -639,6 +764,7 @@ fn parameter_uncertainty(
 
     Uncertainty {
         dof,
+        residual_variance,
         std_errors,
         covariance,
         rank,
@@ -2057,5 +2183,101 @@ mod tests {
         })
         .expect("fit");
         close(r.fitted_parameters[0], 2.539_393_939_393_94, 1e-4);
+    }
+
+    // -- Phase 4.2: confidence and prediction bands -------------------------
+
+    #[test]
+    fn bands_match_the_textbook_simple_regression_formulas() {
+        // For OLS `y = a·x + b`, se_fit(x) = sigmahat·sqrt(1/n + (x-xbar)²/Sxx)
+        // and se_pred adds a 1 under the root. On LINE_X/LINE_Y that is
+        // sigmahat = 0.188856206, and t(0.975, 3) = 3.1824463052837064 from
+        // the closed-form df = 3 CDF, F(t) = ½ + (1/π)[(t/√3)/(1+t²/3) +
+        // atan(t/√3)], solved by bisection — not from a quadrature of the
+        // density, which is what got these numbers wrong the first time.
+        let r = line_fit(None);
+        assert_eq!(r.confidence, 0.95);
+        close(r.confidence_band_lo[0], 0.574_448_241_330, 1e-7);
+        close(r.confidence_band_hi[0], 1.505_551_758_670, 1e-7);
+        close(r.prediction_band_lo[0], 0.279_757_161_602, 1e-7);
+        close(r.prediction_band_hi[0], 1.800_242_838_398, 1e-7);
+        // The narrowest point of both bands is the centroid of the predictors.
+        close(r.confidence_band_lo[2], 4.751_213_566_810, 1e-7);
+        close(r.confidence_band_hi[2], 5.288_786_433_190, 1e-7);
+        // Prediction is wider than confidence everywhere, and both bracket the
+        // fitted curve.
+        for i in 0..5 {
+            assert!(
+                r.prediction_band_lo[i] < r.confidence_band_lo[i],
+                "point {i}"
+            );
+            assert!(
+                r.prediction_band_hi[i] > r.confidence_band_hi[i],
+                "point {i}"
+            );
+            assert!(r.confidence_band_lo[i] < r.fitted_values[i], "point {i}");
+            assert!(r.confidence_band_hi[i] > r.fitted_values[i], "point {i}");
+        }
+    }
+
+    #[test]
+    fn a_tighter_confidence_level_gives_a_narrower_band() {
+        let params = ["a".to_string(), "b".to_string()];
+        let x_vars = ["x".to_string()];
+        let columns = vec![LINE_X.to_vec()];
+        let at = |confidence: f64| {
+            fit(&CurveFitRequest {
+                model: "y = a * x + b",
+                y_variable: "y",
+                x_variables: &x_vars,
+                parameters: &params,
+                x_data: &columns,
+                y_data: &LINE_Y,
+                confidence,
+                ..Default::default()
+            })
+            .expect("fit")
+        };
+        let wide = at(0.99);
+        let narrow = at(0.80);
+        assert!(narrow.confidence_band_hi[0] < wide.confidence_band_hi[0]);
+        assert!(narrow.confidence_band_lo[0] > wide.confidence_band_lo[0]);
+        // Out of range falls back to 0.95 rather than producing nonsense.
+        assert_eq!(at(0.0).confidence, 0.95);
+        assert_eq!(at(1.5).confidence, 0.95);
+    }
+
+    #[test]
+    fn a_weighted_prediction_band_carries_the_points_own_sigma() {
+        // The last point is quoted at sigma = 5, the rest at 0.1, so its
+        // prediction band must be far wider than theirs.
+        let sigma = [0.1, 0.1, 0.1, 0.1, 5.0];
+        let r = line_fit(Some(&sigma));
+        let width = |i: usize| r.prediction_band_hi[i] - r.prediction_band_lo[i];
+        assert!(width(4) > 10.0 * width(0), "{} vs {}", width(4), width(0));
+        // The confidence band on the curve itself is not so lopsided.
+        let curve = |i: usize| r.confidence_band_hi[i] - r.confidence_band_lo[i];
+        assert!(curve(4) < width(4) / 2.0);
+    }
+
+    #[test]
+    fn an_unidentifiable_fit_reports_no_bands() {
+        let x: Vec<f64> = (0..10).map(f64::from).collect();
+        let y = vec![5.0; 10];
+        let params = ["a".to_string(), "b".to_string()];
+        let x_vars = ["x".to_string()];
+        let columns = vec![x];
+        let r = fit(&CurveFitRequest {
+            model: "y = a + b",
+            y_variable: "y",
+            x_variables: &x_vars,
+            parameters: &params,
+            x_data: &columns,
+            y_data: &y,
+            ..Default::default()
+        })
+        .expect("fit");
+        assert!(r.confidence_band_lo.iter().all(|v| v.is_nan()));
+        assert!(r.prediction_band_hi.iter().all(|v| v.is_nan()));
     }
 }

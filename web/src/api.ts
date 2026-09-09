@@ -598,6 +598,8 @@ export interface CurveFitParams {
   loss?: 'linear' | 'soft_l1' | 'huber' | 'cauchy'
   /** Residual scale a robust loss measures outliers against; omit to estimate. */
   fScale?: number
+  /** Two-sided confidence level for the reported bands; omitted means 0.95. */
+  confidence?: number
 }
 
 export interface CurveFitResponse {
@@ -627,6 +629,15 @@ export interface CurveFitResponse {
   /** Per parameter: is the optimum sitting on one of its bounds? A standard
    *  error beside a `true` was computed as though the parameter were free. */
   atBound: boolean[]
+  /** The confidence level the bands were computed at. */
+  confidence: number
+  /** Confidence band on the fitted curve at each data point; `null` where the
+   *  fit cannot support one. */
+  confidenceBandLo: (number | null)[]
+  confidenceBandHi: (number | null)[]
+  /** Prediction band — where a new measurement would fall. Always wider. */
+  predictionBandLo: (number | null)[]
+  predictionBandHi: (number | null)[]
 }
 
 export const CURVE_FIT_FAILURE: Omit<CurveFitResponse, 'error'> = {
@@ -646,6 +657,11 @@ export const CURVE_FIT_FAILURE: Omit<CurveFitResponse, 'error'> = {
   unidentifiable: false,
   reducedChiSquare: null,
   atBound: [],
+  confidence: 0.95,
+  confidenceBandLo: [],
+  confidenceBandHi: [],
+  predictionBandLo: [],
+  predictionBandHi: [],
 }
 
 /** `POST /api/curve-fit` — served by the wasm `curve_fit` export (Wave B3).

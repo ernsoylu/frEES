@@ -796,6 +796,8 @@ struct CurveFitRequest {
     /// `"linear"` (default), `"soft_l1"`, `"huber"` or `"cauchy"`.
     loss: Option<String>,
     f_scale: Option<f64>,
+    /// Two-sided confidence level for the reported bands; omitted means 0.95.
+    confidence: Option<f64>,
 }
 
 /// Least-squares curve fit. Returns a `CurveFitResponse` JSON string.
@@ -821,6 +823,11 @@ pub fn curve_fit(request_json: &str) -> String {
             "unidentifiable": false,
             "reducedChiSquare": Value::Null,
             "atBound": [],
+            "confidence": 0.95,
+            "confidenceBandLo": [],
+            "confidenceBandHi": [],
+            "predictionBandLo": [],
+            "predictionBandHi": [],
         })
         .to_string(),
     }
@@ -898,6 +905,7 @@ fn curve_fit_inner(request_json: &str) -> Result<Value, String> {
             upper: request.upper_bounds.as_deref(),
             loss,
             f_scale: request.f_scale,
+            confidence: request.confidence.unwrap_or(0.95),
         })
         .map_err(|e| match e {
             // Parse → the shared syntax prefix; everything else → the Java's
@@ -934,6 +942,11 @@ fn curve_fit_inner(request_json: &str) -> Result<Value, String> {
         "unidentifiable": result.unidentifiable,
         "reducedChiSquare": finite_or_null_scalar(result.reduced_chi_square),
         "atBound": result.at_bound,
+        "confidence": result.confidence,
+        "confidenceBandLo": finite_or_null(&result.confidence_band_lo),
+        "confidenceBandHi": finite_or_null(&result.confidence_band_hi),
+        "predictionBandLo": finite_or_null(&result.prediction_band_lo),
+        "predictionBandHi": finite_or_null(&result.prediction_band_hi),
     }))
 }
 
