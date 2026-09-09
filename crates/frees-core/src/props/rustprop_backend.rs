@@ -291,6 +291,83 @@ mod tests {
         }
     }
 
+    /// The four fluids linked on 2026-09-09 (ammonia, nitrogen, methane,
+    /// n-propane) answer real states.
+    ///
+    /// These assertions are **physics, not captured output**. There is no
+    /// CoolProp oracle on this checkout — `tools/golden-dumper` needs the
+    /// sibling reference repo, which is absent — and quoting numbers this code
+    /// produced as though they were references would prove nothing. So the
+    /// checks are ones that fail if the data is wrong: the ideal-gas limit at
+    /// low density, `T(P, h(T, P))` round-tripping, and saturated liquid
+    /// denser and colder-enthalpy than saturated vapour. Exact-value goldens
+    /// belong with the next oracle run.
+    #[test]
+    fn the_newly_linked_fluids_answer_states_that_obey_the_physics() {
+        const R: f64 = 8.314_462_618_153_24;
+        for fluid in ["Ammonia", "Nitrogen", "Methane", "Propane"] {
+            let (t, p) = (300.0, 101_325.0);
+
+            // Ideal-gas limit. At 300 K and 1 atm every one of these is a dilute
+            // gas, so rho must sit within 2% of PM/(RT) — close enough to catch
+            // a wrong fluid's data, loose enough for the real compressibility.
+            let m = B.props_si("M", "T", t, "P", p, fluid).unwrap();
+            let rho = B.props_si("Dmass", "T", t, "P", p, fluid).unwrap();
+            let ideal = p * m / (R * t);
+            assert!(
+                ((rho - ideal) / ideal).abs() < 0.02,
+                "{fluid}: rho = {rho}, ideal gas = {ideal}"
+            );
+
+            // The (P, h) inverse is the one every solve path leans on.
+            let h = B.props_si("Hmass", "T", t, "P", p, fluid).unwrap();
+            let back = B.props_si("T", "P", p, "Hmass", h, fluid).unwrap();
+            assert!((back - t).abs() < 1e-6, "{fluid}: T round-trip gave {back}");
+
+            // Transport properties are a separate table and must answer too.
+            for output in ["viscosity", "conductivity"] {
+                let value = B.props_si(output, "T", t, "P", p, fluid).unwrap();
+                assert!(value.is_finite() && value > 0.0, "{fluid}: {output}");
+            }
+        }
+
+        // Saturation, at a pressure comfortably inside every one of their
+        // two-phase regions.
+        for (fluid, pressure) in [
+            ("Ammonia", 1.0e6),
+            ("Nitrogen", 1.0e6),
+            ("Methane", 1.0e6),
+            ("Propane", 1.0e6),
+        ] {
+            let rho_f = B.props_si("Dmass", "P", pressure, "Q", 0.0, fluid).unwrap();
+            let rho_g = B.props_si("Dmass", "P", pressure, "Q", 1.0, fluid).unwrap();
+            let h_f = B.props_si("Hmass", "P", pressure, "Q", 0.0, fluid).unwrap();
+            let h_g = B.props_si("Hmass", "P", pressure, "Q", 1.0, fluid).unwrap();
+            assert!(rho_f > rho_g, "{fluid}: rho_f {rho_f} <= rho_g {rho_g}");
+            assert!(h_g > h_f, "{fluid}: h_g {h_g} <= h_f {h_f}");
+        }
+    }
+
+    /// The refrigerant designations reach the same data, not a second copy of
+    /// it — `props/propfun.rs` already carried both aliases while the data
+    /// behind them was missing.
+    ///
+    /// `resolve_fluid` takes the lowercased spelling, which is the alphabet the
+    /// AST stores and therefore what the document path hands it.
+    #[test]
+    fn the_refrigerant_aliases_reach_the_same_fluids() {
+        for (alias, canonical) in [("r717", "Ammonia"), ("r290", "Propane")] {
+            let resolved = crate::props::propfun::resolve_fluid(alias).unwrap();
+            let via_alias = B
+                .props_si("Hmass", "T", 300.0, "P", 101_325.0, &resolved)
+                .unwrap();
+            let direct = B
+                .props_si("Hmass", "T", 300.0, "P", 101_325.0, canonical)
+                .unwrap();
+            assert_eq!(via_alias, direct, "{alias} -> {resolved} vs {canonical}");
+        }
+    }
+
     #[test]
     fn glycol_cp_and_viscosity_answer() {
         let fluid = "INCOMP::MEG[0.50]";

@@ -2585,10 +2585,40 @@ END\n\
     #[test]
     fn a_property_diagram_for_an_untabulated_fluid_is_an_error_body() {
         let _guard = backend_guard();
-        let payload = parsed(&property_diagram("Ammonia", "T-s"));
+        // Argon, not Ammonia. This case named Ammonia until 2026-09-09, when
+        // the `ammonia` rustprop-data feature was linked and it stopped being
+        // untabulated — the assertion held only because the data was missing,
+        // so it had to move to a fluid the alias table knows and no linked
+        // feature backs.
+        let payload = parsed(&property_diagram("Argon", "T-s"));
         assert_key(&payload, "error", Value::is_string);
         let message = payload["error"].as_str().expect("string");
-        assert!(message.contains("Ammonia"), "{message}");
+        assert!(message.contains("Argon"), "{message}");
+    }
+
+    /// The four fluids linked on 2026-09-09 draw real domes, which is the
+    /// evidence a `served_fluids` picker entry would rest on. They are
+    /// deliberately *not* on that list yet — linking data and listing a fluid
+    /// are separate decisions (Waves G2/C1) — so this pins the capability, not
+    /// the picker.
+    #[test]
+    fn the_newly_linked_fluids_draw_domes_even_though_the_picker_hides_them() {
+        let _guard = backend_guard();
+        frees_core::props::tables::install_builtin_once();
+        for fluid in ["Ammonia", "Nitrogen", "Methane", "Propane"] {
+            let payload = parsed(&property_diagram(fluid, "T-s"));
+            assert!(payload.get("error").is_none(), "{fluid}: {payload}");
+            let ys: Vec<Option<f64>> =
+                serde_json::from_value(payload["dome"][0]["y"].clone()).expect("y array");
+            let finite = ys.iter().flatten().count();
+            assert!(finite > 100, "{fluid}: only {finite} finite dome points");
+        }
+        // ...and the picker does not offer them, which is the state to change
+        // deliberately rather than by accident.
+        let offered = frees_core::props::propfun::plot_fluids_available();
+        for fluid in ["Ammonia", "Nitrogen", "Methane", "Propane"] {
+            assert!(!offered.contains(&fluid), "{fluid} unexpectedly offered");
+        }
     }
 
     /// The linked tables are a *real* diagram source, not just a non-error:

@@ -95,6 +95,21 @@ env:
   # gate's own method: baseline 3 140 655 bytes, with CO2 3 166 815. 75.5 % of
   # the ceiling, 1 003 KiB headroom. `served_fluids` (the diagram picker) is
   # deliberately unchanged. Debt (2) untouched and unneeded.
+  #
+  # 2026-09-09: 3379.8 KiB raw / 1412.2 KiB gzipped. Two waves land here.
+  # Phase 4.2 (weighted fitting, bounds, robust losses, uncertainty and bands)
+  # cost +22.9 KiB raw over the Phase 4.1 statistics baseline of 3251.0. Then
+  # the four fluids Phase 3.3 was holding back — `ammonia`, `nitrogen`,
+  # `methane`, `n_propane` — cost +106.2 raw / +88.6 gzipped, measured per this
+  # gate's method: 3 352 179 bytes before, 3 460 943 after. 82.5 % of the
+  # ceiling, 716 KiB headroom.
+  #
+  # That measurement is why 3.3 (the lazy chunk seam) is deferred rather than
+  # built: four fluids at ~26 KiB each is not a budget problem, and the
+  # trigger/fetch/cache machinery was scoped to prevent exactly this spend.
+  # `install_from_bytes` stays compiled as the seam. Revisit under ~200 KiB of
+  # headroom. `served_fluids` (the diagram picker) is again deliberately
+  # unchanged — linking data and listing a fluid stay separate decisions.
   WASM_BUDGET_KB: 4096
 
 jobs:

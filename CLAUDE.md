@@ -24,7 +24,7 @@ Guidelines and reference architecture for AI coding assistants and developers wo
 - **Properties**: Pure-Rust CoolProp 8.0.0 implementation (`rustprop`) for high-accuracy Helmholtz equations of state, cubic EoS, incompressibles, and psychrometrics (`HAPropsSI`).
 - **Component Library**: 295+ standard acausal components spanning fluid networks, thermal systems, moist air HVAC, mechanics, and electrical circuits.
 - **Worker Pool**: Up to 4 Web Workers executing independent parametric sweep chunks in parallel with weighted progress, preserving deterministic row ordering.
-- **WASM Bundle Budget**: Strictly gated at $\le 4,096\text{ KiB}$ raw (current build: ~3,251 KiB raw / ~1,324 KiB gzipped, ~845 KiB headroom).
+- **WASM Bundle Budget**: Strictly gated at $\le 4,096\text{ KiB}$ raw (current build: ~3,380 KiB raw / ~1,412 KiB gzipped, ~716 KiB headroom).
 - **Test Suite Health**:
   - `cargo test --workspace -- --skip golden_corpus_parity`: passes across all workspace crates.
   - `cargo test --release --test parity`: 1,308/1,308 golden fixtures passing.

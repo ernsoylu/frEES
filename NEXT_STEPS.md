@@ -124,10 +124,11 @@ Items **3.1, 3.2, and 3.6 are deferred and excluded from active development**; t
 
 **Status audit, 2026-09-09.** None of 3.3, 3.4 or 3.5 is implemented. 3.4 is the one that is not greenfield — see its note.
 
-- [ ] **3.3 Pre-Expansion Lazy Chunk Seam for Thermodynamic Data**
-  - Implement dynamic chunk fetching for property tables and component libraries (`props/tables.rs::install_from_bytes`) on first mention.
-  - Safeguard the $\le 4,096\text{ KiB}$ WASM budget before adding new fluids (Ammonia, Propane, Nitrogen, Methane).
-  - Audit: the **seam exists and the fetching does not**. `install_from_bytes` is public, tested, and compiled into both builds, but nothing in `crates/frees` or `web/src` calls it at runtime — every table still arrives through `install_builtin_once`. The work left is the trigger (first mention of an uninstalled fluid), the fetch, and the cache, not the installer.
+- [ ] **3.3 Pre-Expansion Lazy Chunk Seam for Thermodynamic Data** — *premise expired; deferred behind a measured trigger*
+  - Original scope: implement dynamic chunk fetching for property tables and component libraries (`props/tables.rs::install_from_bytes`) on first mention, to safeguard the $\le 4,096\text{ KiB}$ WASM budget before adding new fluids (Ammonia, Propane, Nitrogen, Methane).
+  - Audit (2026-09-09): the **seam exists and the fetching does not** — `install_from_bytes` is public, tested and compiled into both builds, but nothing in `crates/frees` or `web/src` calls it at runtime. More importantly, the reason to build the fetching had evaporated: CO2 cost +25.5 KiB raw when Wave G2 linked it, and the module was sitting 822 KiB under the ceiling.
+  - Resolution: the four fluids were linked outright instead. **Measured cost: +106.2 KiB raw / +88.6 KiB gzipped for all four**, leaving 716 KiB of headroom. That is the whole thing the lazy chunking existed to avoid spending.
+  - Remaining trigger for this item: **headroom below ~200 KiB**. Until then, linking a fluid is one line in `crates/frees-core/Cargo.toml` and the trigger/fetch/cache machinery is unbuilt complexity. Revisit if a large component library, a mixture database, or a fluid an order of magnitude bigger than a Helmholtz EoS arrives.
 - [ ] **3.4 Sparse Matrix Factorization & Graph Reordering**
   - Implement Approximate Minimum Degree (AMD) and Column Approximate Minimum Degree (COLAMD) fill-reducing permutations.
   - Integrate pure-Rust sparse LU/QR factorizations (`faer` / `sprs`) with sparsity pattern reuse across Newton iterations for systems exceeding 5,000 equations.
