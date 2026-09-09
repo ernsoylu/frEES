@@ -1,0 +1,6 @@
+FUNCTION twice(x)
+  twice = 2*x
+END
+FOR i = 1 TO 3
+  y[i] = twice(i)
+END

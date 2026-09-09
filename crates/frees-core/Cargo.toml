@@ -52,6 +52,22 @@ rustprop-data = { git = "https://github.com/ernsoylu/RustProp", tag = "v0.1.0", 
     # what "the data was already linked" looks like. See the Wave C1 amendment
     # to docs/decisions/0009-rustprop-backend.md.
     "carbondioxide",
+    # 2026-09-09: the four fluids Phase 3.3 was holding back for a budget that
+    # never came under pressure. CO2 cost +25.5 KiB raw, and the module sits
+    # 822 KiB under the 4,096 KiB ceiling, so linking these outright is cheaper
+    # in every sense than the lazy-chunk machinery that was meant to protect
+    # the budget from them. Measured cost of all four together is in the
+    # ci.yml header's dated entry.
+    #
+    # The alias table in `props/propfun.rs` already resolves every one of them,
+    # R717 and R290 included; only the data was missing. Picker entries
+    # (`served_fluids`) were the separate decision the G2/C1 rule asks for, and
+    # were taken the same day by owner request once the diagram coverage had
+    # been measured: +72 bytes raw, against CO2's +142 in Wave C1.
+    "ammonia",
+    "nitrogen",
+    "methane",
+    "n_propane",
 ], optional = true }
 # rustprop-core carries the shared parameter types. The warm adapter
 # (`props/rustprop_warm.rs`) drives rustprop's LOW-LEVEL `PtFlash` API, and

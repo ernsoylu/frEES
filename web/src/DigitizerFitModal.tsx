@@ -18,7 +18,7 @@ import {
   Text,
   TextInput,
 } from '@mantine/core'
-import { curveFit, CurveFitResponse } from './api'
+import { curveFit, CURVE_FIT_FAILURE, CurveFitResponse } from './api'
 import {
   FIT_TEMPLATES,
   fittedModelInsertText,
@@ -128,17 +128,7 @@ export default function DigitizerFitModal({
       })
       setResult(response)
     } catch (err) {
-      setResult({
-        success: false,
-        error: String(err),
-        fittedParameters: [],
-        parameterNames: [],
-        rSquared: 0,
-        rmse: 0,
-        iterations: 0,
-        residuals: [],
-        fittedValues: [],
-      })
+      setResult({ ...CURVE_FIT_FAILURE, error: String(err) })
     } finally {
       setRunning(false)
     }
@@ -232,7 +222,9 @@ export default function DigitizerFitModal({
           </Text>
         )}
 
-        {result && <FitResultView result={result} />}
+        {result && (
+          <FitResultView result={result} xData={xData} yData={yData} xLabel={xVar} yLabel={yVar} />
+        )}
 
         {result?.success && onCreateFunctionTable && (
           <Stack gap={4}>

@@ -275,7 +275,7 @@ describe('solveTable (wasm engine)', () => {
   const tableMock = vi.mocked(wasmSolveTable)
 
   it('round-trips the SolveTableResponse the App writes onto the table spec', async () => {
-    tableMock.mockResolvedValueOnce(SOLVE_TABLE_OK)
+    tableMock.mockResolvedValueOnce(JSON.parse(SOLVE_TABLE_OK))
     const r = await solveTable(
       'y = 2 * x\n',
       DEFAULT_STOP_CRITERIA,
@@ -298,7 +298,7 @@ describe('solveTable (wasm engine)', () => {
   })
 
   it('maps a top-level boundary error onto every row', async () => {
-    tableMock.mockResolvedValueOnce(SOLVE_TABLE_CAP)
+    tableMock.mockResolvedValueOnce(JSON.parse(SOLVE_TABLE_CAP))
     const r = await solveTable('y = 2 * x\n', DEFAULT_STOP_CRITERIA, [], 'SI', ['x'], [
       { x: 1 },
       { x: 2 },

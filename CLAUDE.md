@@ -24,11 +24,11 @@ Guidelines and reference architecture for AI coding assistants and developers wo
 - **Properties**: Pure-Rust CoolProp 8.0.0 implementation (`rustprop`) for high-accuracy Helmholtz equations of state, cubic EoS, incompressibles, and psychrometrics (`HAPropsSI`).
 - **Component Library**: 295+ standard acausal components spanning fluid networks, thermal systems, moist air HVAC, mechanics, and electrical circuits.
 - **Worker Pool**: Up to 4 Web Workers executing independent parametric sweep chunks in parallel with weighted progress, preserving deterministic row ordering.
-- **WASM Bundle Budget**: Strictly gated at $\le 4,096\text{ KiB}$ raw (current build: ~3,283 KiB raw / ~1,344 KiB gzipped, > 800 KiB headroom).
+- **WASM Bundle Budget**: Strictly gated at $\le 4,096\text{ KiB}$ raw (current build: ~3,380 KiB raw / ~1,412 KiB gzipped, ~716 KiB headroom).
 - **Test Suite Health**:
   - `cargo test --workspace -- --skip golden_corpus_parity`: passes across all workspace crates.
   - `cargo test --release --test parity`: 1,308/1,308 golden fixtures passing.
-  - `vitest run` (Node 22): 53 test files, 597 tests passing.
+  - `vitest run` (Node 22): 55 test files, 620 tests passing.
   - `cargo clippy`: 0 warnings with `-D warnings` on native and `wasm32-unknown-unknown`.
   - `npm run lint`: 0 errors.
 
@@ -59,7 +59,7 @@ frees-wasm/
 ### Module Boundary Invariants
 
 - **`crates/frees-core` must remain target-agnostic**: Never add `wasm-bindgen`, `js-sys`, `web-sys`, or browser-specific dependencies to `frees-core`.
-- **`crates/frees` is the sole WASM bridge**: All communication passes through typed JSON strings (`solve`, `solveTable`, `check`, `propertyDiagram`, `psychrometricChart`, `replEvaluate`, `monteCarlo`, `optimize`, etc.).
+- **`crates/frees` is the sole WASM bridge**: Metadata and non-bulk results use JSON strings. Browser solves and sweeps carry bulk numeric tables in JS-owned `Float64Array`s transferred from workers; native JSON exports remain available.
 - **Worker pool isolation (`web/src/wasm/engineClient.ts`)**:
   - Lazily spawns Web Workers up to the configured limit (clamped between 1 and 4, automatically limited to 2 on devices with $\le 4\text{ GB}$ memory).
   - Correlates in-flight requests by monotonic request ID.

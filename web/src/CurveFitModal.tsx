@@ -2,8 +2,10 @@ import { useState, useEffect, useRef } from 'react'
 import {
   Badge,
   Button,
+  Collapse,
   Group,
   Modal,
+  NumberInput,
   Stack,
   Text,
   Textarea,
@@ -11,8 +13,16 @@ import {
   Select,
   SegmentedControl,
 } from '@mantine/core'
-import { curveFit, CurveFitResponse } from './api'
-import { FIT_TEMPLATES, fittedModelInsertText, MONO_INPUT } from './curveFitShared'
+import { curveFit, CURVE_FIT_FAILURE, CurveFitResponse } from './api'
+import {
+  FIT_TEMPLATES,
+  fittedModelInsertText,
+  LOSS_OPTIONS,
+  LossName,
+  MONO_INPUT,
+  parseNumberList,
+  validateSigma,
+} from './curveFitShared'
 import { FitResultView } from './FitResultView'
 import { TableSpec } from './tables'
 
@@ -28,26 +38,51 @@ function parseValueAndUnit(str: string): { value: number; unit?: string } | null
   }
 }
 
-/** Parses (x, y) string pairs into numeric arrays plus the first unit seen on each
- *  axis; rows that don't parse to numbers are skipped. */
+/** What a data source hands the fit: the two axes, the optional per-point
+ *  uncertainties, and the first unit seen on each axis. */
+interface FitData {
+  x: number[]
+  y: number[]
+  sigma?: number[]
+  xUnit?: string
+  yUnit?: string
+}
+
+/** Parses (x, y[, sigma]) string tuples into numeric arrays plus the first unit
+ *  seen on each axis; rows that don't parse to numbers are skipped. A row whose
+ *  sigma cell is missing or non-numeric drops out of the sigma vector, which
+ *  the caller then rejects as a partial column rather than guessing. */
 function collectXyPoints(
-  rawPairs: [string | undefined, string | undefined][],
-): { x: number[]; y: number[]; xUnit?: string; yUnit?: string } {
+  rawPairs: [string | undefined, string | undefined, (string | undefined)?][],
+): FitData {
   const x: number[] = []
   const y: number[] = []
+  const sigma: number[] = []
+  let sawSigmaColumn = false
   let xUnit: string | undefined
   let yUnit: string | undefined
-  for (const [xValRaw, yValRaw] of rawPairs) {
+  for (const [xValRaw, yValRaw, sigmaRaw] of rawPairs) {
     if (xValRaw === undefined || yValRaw === undefined) continue
     const parsedX = parseValueAndUnit(xValRaw)
     const parsedY = parseValueAndUnit(yValRaw)
     if (!parsedX || !parsedY) continue
     x.push(parsedX.value)
     y.push(parsedY.value)
+    if (sigmaRaw !== undefined) {
+      sawSigmaColumn = true
+      const parsedSigma = parseValueAndUnit(sigmaRaw)
+      if (parsedSigma) sigma.push(parsedSigma.value)
+    }
     if (xUnit === undefined && parsedX.unit) xUnit = parsedX.unit
     if (yUnit === undefined && parsedY.unit) yUnit = parsedY.unit
   }
-  return { x, y, xUnit, yUnit }
+  return {
+    x,
+    y,
+    sigma: sawSigmaColumn && sigma.length === x.length ? sigma : undefined,
+    xUnit,
+    yUnit,
+  }
 }
 
 function getDefaultParameterUnit(
@@ -120,9 +155,20 @@ export default function CurveFitModal({
   const [xVariable, setXVariable] = useState('x')
   const [parameters, setParameters] = useState('a, b, c')
   const [guesses, setGuesses] = useState('')
+  const [lowerBounds, setLowerBounds] = useState('')
+  const [upperBounds, setUpperBounds] = useState('')
+  const [loss, setLoss] = useState<LossName>('linear')
+  const [fScale, setFScale] = useState<number | ''>('')
+  const [confidence, setConfidence] = useState<number | ''>(0.95)
+  const [sigmaColumnName, setSigmaColumnName] = useState<string>('')
+  const [advancedOpen, setAdvancedOpen] = useState(false)
   const [running, setRunning] = useState(false)
   const [validation, setValidation] = useState<string | null>(null)
   const [result, setResult] = useState<CurveFitResponse | null>(null)
+  // The data the displayed result was actually fitted to. Editing the data box
+  // after a fit must not silently re-point the plot at numbers the fit never
+  // saw, so the plot reads this and not the live parse.
+  const [fitted, setFitted] = useState<FitData | null>(null)
 
   // Units states
   const [inferredXUnit, setInferredXUnit] = useState<string>('')
@@ -182,9 +228,10 @@ export default function CurveFitModal({
     }
   }
 
-  function parseData(): { x: number[]; y: number[]; xUnit?: string; yUnit?: string } | string {
+  function parseData(): FitData | string {
     const x: number[] = []
     const y: number[] = []
+    const sigma: number[] = []
     let xUnit: string | undefined
     let yUnit: string | undefined
 
@@ -196,7 +243,7 @@ export default function CurveFitModal({
       const regex = /(-?\d*\.?\d+(?:[eE][-+]?\d+)?)(?:\s*\[([^\]]*)\])?/g
       const matches = Array.from(line.matchAll(regex))
       if (matches.length < 2) {
-        return `Each data line needs exactly two numbers (x y), got: "${line}"`
+        return `Each data line needs at least two numbers (x y), got: "${line}"`
       }
 
       const xi = Number(matches[0][1])
@@ -209,35 +256,58 @@ export default function CurveFitModal({
       }
       x.push(xi)
       y.push(yi)
+      // A third number on the line is that point's uncertainty. Optional, but
+      // all-or-nothing: a sigma on some rows and not others is a mistake, not
+      // a default, so it is refused rather than silently filled in.
+      if (matches.length > 2) {
+        const si = Number(matches[2][1])
+        if (!Number.isFinite(si)) return `Not a numeric uncertainty: "${line}"`
+        sigma.push(si)
+      }
       if (xUnit === undefined && xUi) xUnit = xUi
       if (yUnit === undefined && yUi) yUnit = yUi
     }
     if (x.length < 2) return 'At least two data points are required.'
-    return { x, y, xUnit, yUnit }
+    if (sigma.length !== 0 && sigma.length !== x.length) {
+      return `Give an uncertainty on every data line or on none (got ${sigma.length} of ${x.length}).`
+    }
+    return { x, y, sigma: sigma.length > 0 ? sigma : undefined, xUnit, yUnit }
   }
 
-  function extractDataFromTable(): { x: number[]; y: number[]; xUnit?: string; yUnit?: string } | string {
+  function extractDataFromTable(): FitData | string {
     if (!selectedTableId) return 'No table selected.'
     const table = tables.find((t) => t.id === selectedTableId)
     if (!table) return 'Selected table not found.'
 
-    let pairs: [string | undefined, string | undefined][]
+    let pairs: [string | undefined, string | undefined, (string | undefined)?][]
     if (table.kind === 'parametric') {
       if (!xColumnName || !yColumnName) {
         return 'Please select both X and Y columns.'
       }
-      pairs = table.rows.map((row) => [row.values[xColumnName], row.values[yColumnName]])
+      pairs = table.rows.map((row) => [
+        row.values[xColumnName],
+        row.values[yColumnName],
+        sigmaColumnName ? row.values[sigmaColumnName] : undefined,
+      ])
     } else {
       const yColIndex = Number(yColumnName)
       if (Number.isNaN(yColIndex) || yColIndex < 0 || yColIndex >= table.columns.length) {
         return 'Please select a valid Y column.'
       }
-      pairs = table.rows.map((row) => [row.x, row.ys[yColIndex]])
+      const sigmaColIndex = sigmaColumnName === '' ? -1 : Number(sigmaColumnName)
+      pairs = table.rows.map((row) => [
+        row.x,
+        row.ys[yColIndex],
+        sigmaColIndex >= 0 ? row.ys[sigmaColIndex] : undefined,
+      ])
     }
 
     const result = collectXyPoints(pairs)
     if (result.x.length < 2) {
       return 'Selected table columns must contain at least two numeric data points.'
+    }
+    if (sigmaColumnName !== '' && !result.sigma) {
+      return 'The uncertainty column must be numeric on every row used by the fit.'
     }
     return result
   }
@@ -280,6 +350,7 @@ export default function CurveFitModal({
 
   async function run() {
     setResult(null)
+    setFitted(null)
     const paramList = parameters
       .split(',')
       .map((p) => p.trim())
@@ -297,14 +368,31 @@ export default function CurveFitModal({
       setValidation(parsed)
       return
     }
-    let initialGuess: number[] | undefined
-    if (guesses.trim() !== '') {
-      const values = guesses.split(',').map((g) => Number(g.trim()))
-      if (values.some((v) => !Number.isFinite(v)) || values.length !== paramList.length) {
-        setValidation('Initial guesses must be one number per parameter (comma-separated).')
-        return
-      }
-      initialGuess = values
+    const initialGuess = parseNumberList(guesses, paramList.length, 'Initial guesses')
+    if (typeof initialGuess === 'string') {
+      setValidation(initialGuess)
+      return
+    }
+    const lower = parseNumberList(lowerBounds, paramList.length, 'Lower bounds')
+    if (typeof lower === 'string') {
+      setValidation(lower)
+      return
+    }
+    const upper = parseNumberList(upperBounds, paramList.length, 'Upper bounds')
+    if (typeof upper === 'string') {
+      setValidation(upper)
+      return
+    }
+    // The engine takes bounds as a pair or not at all; catching the half-filled
+    // case here says which side is missing, which the engine cannot.
+    if (Boolean(lower) !== Boolean(upper)) {
+      setValidation(`Give both bounds or neither — the ${lower ? 'upper' : 'lower'} bounds are empty.`)
+      return
+    }
+    const sigmaProblem = validateSigma(parsed.sigma)
+    if (sigmaProblem) {
+      setValidation(sigmaProblem)
+      return
     }
     setValidation(null)
     if (running) return
@@ -318,20 +406,17 @@ export default function CurveFitModal({
         xData: parsed.x,
         yData: parsed.y,
         initialGuess,
+        sigma: parsed.sigma,
+        lowerBounds: lower,
+        upperBounds: upper,
+        loss,
+        fScale: typeof fScale === 'number' ? fScale : undefined,
+        confidence: typeof confidence === 'number' ? confidence : undefined,
       })
       setResult(response)
+      setFitted(parsed)
     } catch (err) {
-      setResult({
-        success: false,
-        error: String(err),
-        fittedParameters: [],
-        parameterNames: [],
-        rSquared: 0,
-        rmse: 0,
-        iterations: 0,
-        residuals: [],
-        fittedValues: [],
-      })
+      setResult({ ...CURVE_FIT_FAILURE, error: String(err) })
     } finally {
       setRunning(false)
     }
@@ -435,21 +520,28 @@ export default function CurveFitModal({
           <div style={{ flex: 1 }} />
         </Group>
 
-        {tables && tables.length > 0 && (
-          <Group justify="space-between" align="center" mt="xs">
-            <Text size="sm" fw={500}>Data points source</Text>
-            <SegmentedControl
-              value={dataMode}
-              onChange={(v) => {
-                setDataMode(v as 'manual' | 'table')
-                setValidation(null)
-              }}
-              data={[
-                { value: 'manual', label: 'Enter manually' },
-                { value: 'table', label: 'Select from table' },
-              ]}
-            />
-          </Group>
+        {/* Always offered, even with no tables in the project. Hiding the
+            control entirely made the table source undiscoverable — you had to
+            already know it existed to go and create a table first. */}
+        <Group justify="space-between" align="center" mt="xs">
+          <Text size="sm" fw={500}>Data points source</Text>
+          <SegmentedControl
+            value={dataMode}
+            onChange={(v) => {
+              setDataMode(v as 'manual' | 'table')
+              setValidation(null)
+            }}
+            data={[
+              { value: 'manual', label: 'Enter manually' },
+              { value: 'table', label: 'Select from table', disabled: tables.length === 0 },
+            ]}
+          />
+        </Group>
+        {tables.length === 0 && (
+          <Text size="xs" c="dimmed">
+            No tables in this project yet — add a parametric or function table and its
+            columns become selectable here.
+          </Text>
         )}
 
         {dataMode === 'manual' ? (
@@ -558,6 +650,114 @@ export default function CurveFitModal({
           styles={MONO_INPUT}
         />
 
+        <Group justify="space-between" align="center" mt="xs">
+          <Text size="sm" fw={500}>
+            Weighting, bounds &amp; robustness
+          </Text>
+          <Button
+            variant="subtle"
+            size="compact-sm"
+            onClick={() => setAdvancedOpen((o) => !o)}
+          >
+            {advancedOpen ? 'Hide' : 'Show'}
+          </Button>
+        </Group>
+
+        <Collapse expanded={advancedOpen}>
+          <Stack gap="sm">
+            <Text size="xs" c="dimmed">
+              All optional. Left alone, this is an ordinary unweighted least-squares fit
+              with no box constraints — exactly what it was before.
+            </Text>
+
+            {dataMode === 'manual' ? (
+              <Text size="xs" c="dimmed">
+                <b>Uncertainties:</b> add a third number on each data line to give that
+                point&apos;s standard deviation. Supply one on every line or on none. With
+                uncertainties the reported standard errors become absolute and reduced χ²
+                becomes meaningful; without them the errors are scaled by the observed
+                residual spread.
+              </Text>
+            ) : (
+              selectedTableId && (() => {
+                const table = tables.find((t) => t.id === selectedTableId)
+                if (!table) return null
+                const options =
+                  table.kind === 'parametric'
+                    ? table.vars.map((v) => ({ value: v, label: v }))
+                    : table.columns.map((col, idx) => ({
+                        value: String(idx),
+                        label: table.paramName ? `${table.paramName} = ${col}` : `Col ${idx + 1} (${col})`,
+                      }))
+                return (
+                  <Select
+                    label="Uncertainty column (optional)"
+                    description="Per-point standard deviations; all values must be positive"
+                    placeholder="None — unweighted fit"
+                    data={options}
+                    value={sigmaColumnName === '' ? null : sigmaColumnName}
+                    onChange={(v) => setSigmaColumnName(v ?? '')}
+                    clearable
+                  />
+                )
+              })()
+            )}
+
+            <Group grow>
+              <TextInput
+                label="Lower bounds (optional)"
+                description="Comma-separated, one per parameter"
+                value={lowerBounds}
+                onChange={(e) => setLowerBounds(e.currentTarget.value)}
+                spellCheck={false}
+                styles={MONO_INPUT}
+              />
+              <TextInput
+                label="Upper bounds (optional)"
+                description="Send both sides or neither"
+                value={upperBounds}
+                onChange={(e) => setUpperBounds(e.currentTarget.value)}
+                spellCheck={false}
+                styles={MONO_INPUT}
+              />
+            </Group>
+
+            <Group grow align="flex-start">
+              <Select
+                label="Loss function"
+                description="Robust losses down-weight outliers"
+                data={LOSS_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+                value={loss}
+                onChange={(v) => setLoss((v as LossName) ?? 'linear')}
+                allowDeselect={false}
+              />
+              <NumberInput
+                label="Outlier scale (optional)"
+                description={
+                  loss === 'linear'
+                    ? 'Only used by a robust loss'
+                    : 'Residual size treated as an outlier; blank estimates it'
+                }
+                value={fScale}
+                onChange={(v) => setFScale(typeof v === 'number' ? v : '')}
+                disabled={loss === 'linear'}
+                min={0}
+                step={0.1}
+              />
+              <NumberInput
+                label="Confidence level"
+                description="For the reported bands"
+                value={confidence}
+                onChange={(v) => setConfidence(typeof v === 'number' ? v : '')}
+                min={0.5}
+                max={0.999}
+                step={0.01}
+                decimalScale={3}
+              />
+            </Group>
+          </Stack>
+        </Collapse>
+
         {validation && (
           <Text c="red" size="sm">
             {validation}
@@ -569,6 +769,10 @@ export default function CurveFitModal({
             result={result}
             parameterUnits={parameterUnits}
             setParameterUnits={setParameterUnits}
+            xData={fitted?.x}
+            yData={fitted?.y}
+            xLabel={inferredXUnit ? `${xVariable} [${inferredXUnit}]` : xVariable}
+            yLabel={inferredYUnit ? `${yVariable} [${inferredYUnit}]` : yVariable}
           />
         )}
 

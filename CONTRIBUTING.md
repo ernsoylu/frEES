@@ -73,6 +73,9 @@ npm run build
 
 ---
 
+Parser/evaluator changes also run the [cargo-fuzz smoke targets](fuzz/README.md).
+The [R15 pilot protocol](R15_PILOT.md) records the human validation required by Phase 2.5.
+
 ## 4. Commit Message Guidelines
 
 We follow the [Conventional Commits](https://www.conventionalcommits.org/) specification to facilitate automated changelogs and semantic versioning via Release-Please:

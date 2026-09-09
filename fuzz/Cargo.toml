@@ -1,0 +1,30 @@
+[package]
+name = "frees-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+frees-core = { path = "../crates/frees-core", default-features = false }
+
+# Keep libFuzzer and nightly instrumentation out of native/WASM product builds.
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "parse_document"
+path = "fuzz_targets/parse_document.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "eval_expression"
+path = "fuzz_targets/eval_expression.rs"
+test = false
+doc = false
+bench = false

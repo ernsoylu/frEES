@@ -14,7 +14,7 @@
 //! envelope carries a top-level `"error"` beside empty `results`, which is the
 //! same string the Java's 400/422 body would carry.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -142,8 +142,8 @@ struct RowSide {
 /// `SolveTableRequest` body; returns a `SolveTableResponse` JSON string.
 #[wasm_bindgen]
 pub fn solve_table(source: &str, request_json: &str) -> String {
-    match solve_table_inner(source, request_json) {
-        Ok(value) => value.to_string(),
+    match solve_table_inner(source, request_json, false) {
+        Ok((value, _)) => value.to_string(),
         Err(message) => json!({
             "results": [],
             "stats": Value::Null,
@@ -154,7 +154,50 @@ pub fn solve_table(source: &str, request_json: &str) -> String {
     }
 }
 
-fn solve_table_inner(source: &str, request_json: &str) -> Result<Value, String> {
+/// Typed sweep boundary returning `{ envelope: string, matrix: Float64Array | null }`.
+/// Copies into JS-owned memory so transferring the buffer cannot detach WASM memory.
+#[wasm_bindgen]
+pub fn solve_table_zerocopy(source: &str, request_json: &str) -> Result<JsValue, JsValue> {
+    let obj = js_sys::Object::new();
+    match solve_table_inner(source, request_json, true) {
+        Ok((envelope, matrix)) => {
+            js_sys::Reflect::set(
+                &obj,
+                &JsValue::from_str("envelope"),
+                &JsValue::from_str(&envelope.to_string()),
+            )?;
+            if let Some(matrix) = matrix {
+                let js_arr = js_sys::Float64Array::new_with_length(matrix.len() as u32);
+                js_arr.copy_from(&matrix);
+                js_sys::Reflect::set(&obj, &JsValue::from_str("matrix"), &js_arr)?;
+            } else {
+                js_sys::Reflect::set(&obj, &JsValue::from_str("matrix"), &JsValue::NULL)?;
+            }
+        }
+        Err(message) => {
+            let err_envelope = json!({
+                "results": [],
+                "stats": Value::Null,
+                "variables": [],
+                "error": message,
+            })
+            .to_string();
+            js_sys::Reflect::set(
+                &obj,
+                &JsValue::from_str("envelope"),
+                &JsValue::from_str(&err_envelope),
+            )?;
+            js_sys::Reflect::set(&obj, &JsValue::from_str("matrix"), &JsValue::NULL)?;
+        }
+    }
+    Ok(obj.into())
+}
+
+fn solve_table_inner(
+    source: &str,
+    request_json: &str,
+    zero_copy: bool,
+) -> Result<(Value, Option<Vec<f64>>), String> {
     frees_core::props::tables::install_builtin_once();
 
     let request: SolveTableRequest = if request_json.trim().is_empty() {
@@ -344,9 +387,25 @@ fn solve_table_inner(source: &str, request_json: &str) -> Result<Value, String> 
     let mut unknowns = 0usize;
     let mut solved = 0usize;
     let mut last_var_rows: Option<&(Vec<VariableRow>, Vec<Option<f64>>)> = None;
+    let var_names = zero_copy.then(|| {
+        let mut names = table.vars.clone();
+        let extra: BTreeSet<_> = sides
+            .iter()
+            .flatten()
+            .flat_map(|side| side.values.keys())
+            .filter(|name| !table.vars.contains(name))
+            .cloned()
+            .collect();
+        names.extend(extra);
+        names
+    });
+    let mut matrix = var_names
+        .as_ref()
+        .map(|names| vec![f64::NAN; run_count * names.len()]);
     let results: Vec<Value> = sides
         .iter()
-        .map(|side| match side {
+        .enumerate()
+        .map(|(r, side)| match side {
             Some(side) => {
                 iterations += side.iterations;
                 if side.success {
@@ -357,11 +416,18 @@ fn solve_table_inner(source: &str, request_json: &str) -> Result<Value, String> 
                     if side.var_rows.is_some() {
                         last_var_rows = side.var_rows.as_ref();
                     }
+                    if let (Some(matrix), Some(names)) = (&mut matrix, &var_names) {
+                        for (c, name) in names.iter().enumerate() {
+                            if let Some(&value) = side.values.get(name) {
+                                matrix[r * names.len() + c] = value;
+                            }
+                        }
+                    }
                 }
                 json!({
                     "success": side.success,
                     "status": if side.success { "completed" } else { "failed" },
-                    "values": side.values,
+                    "values": if zero_copy { json!({}) } else { json!(side.values) },
                     "error": side.error,
                 })
             }
@@ -373,12 +439,13 @@ fn solve_table_inner(source: &str, request_json: &str) -> Result<Value, String> 
             }),
         })
         .collect();
+
     let last_variables = match last_var_rows {
         Some((rows, unc)) => variable_entries(rows, unc),
         None => Vec::new(),
     };
 
-    Ok(json!({
+    let mut envelope = json!({
         "results": results,
         "stats": {
             "converged": sweep.converged && !deadline_hit,
@@ -396,7 +463,17 @@ fn solve_table_inner(source: &str, request_json: &str) -> Result<Value, String> 
             "maxResidual": if max_residual.is_finite() { max_residual } else { 0.0 },
         },
         "variables": last_variables,
-    }))
+    });
+
+    if let Some(vars) = var_names {
+        if let Value::Object(ref mut map) = envelope {
+            map.insert("varNames".to_string(), json!(vars));
+            map.insert("numRows".to_string(), json!(run_count));
+            map.insert("numCols".to_string(), json!(vars.len()));
+        }
+    }
+
+    Ok((envelope, matrix))
 }
 
 // ---------------------------------------------------------------------------
@@ -700,11 +777,27 @@ fn clamp_positive(value: Option<i64>, fallback: usize, max: usize) -> usize {
 struct CurveFitRequest {
     model: String,
     y_variable: String,
+    /// The single-predictor name. Still the only field the existing UI sends.
     x_variable: String,
+    /// Phase 4.2 multiple predictors. When present it supersedes `xVariable`
+    /// and pairs with `xColumns`; the two shapes are never mixed.
+    x_variables: Option<Vec<String>>,
     parameters: Vec<String>,
     x_data: Vec<f64>,
+    x_columns: Option<Vec<Vec<f64>>>,
     y_data: Vec<f64>,
     initial_guess: Option<Vec<f64>>,
+    /// Phase 4.2 per-point measurement standard deviations.
+    sigma: Option<Vec<f64>>,
+    /// Phase 4.2 box constraints. The Java accepted these and did nothing with
+    /// them; they are honoured now, and both sides must be sent together.
+    lower_bounds: Option<Vec<f64>>,
+    upper_bounds: Option<Vec<f64>>,
+    /// `"linear"` (default), `"soft_l1"`, `"huber"` or `"cauchy"`.
+    loss: Option<String>,
+    f_scale: Option<f64>,
+    /// Two-sided confidence level for the reported bands; omitted means 0.95.
+    confidence: Option<f64>,
 }
 
 /// Least-squares curve fit. Returns a `CurveFitResponse` JSON string.
@@ -722,6 +815,19 @@ pub fn curve_fit(request_json: &str) -> String {
             "iterations": 0,
             "residuals": [],
             "fittedValues": [],
+            "residualDof": 0,
+            "parameterStdErrors": [],
+            "parameterCovariance": [],
+            "rank": 0,
+            "conditionNumber": Value::Null,
+            "unidentifiable": false,
+            "reducedChiSquare": Value::Null,
+            "atBound": [],
+            "confidence": 0.95,
+            "confidenceBandLo": [],
+            "confidenceBandHi": [],
+            "predictionBandLo": [],
+            "predictionBandHi": [],
         })
         .to_string(),
     }
@@ -736,7 +842,11 @@ fn curve_fit_inner(request_json: &str) -> Result<Value, String> {
     if request.model.trim().is_empty() {
         return Err("Model equation is required.".to_string());
     }
-    if request.x_variable.trim().is_empty() {
+    let x_variables: Vec<String> = match &request.x_variables {
+        Some(names) if !names.is_empty() => names.clone(),
+        _ => vec![request.x_variable.clone()],
+    };
+    if x_variables.iter().any(|name| name.trim().is_empty()) {
         return Err("Independent variable name is required.".to_string());
     }
     if request.y_variable.trim().is_empty() {
@@ -745,38 +855,70 @@ fn curve_fit_inner(request_json: &str) -> Result<Value, String> {
     if request.parameters.is_empty() {
         return Err("At least one parameter to fit is required.".to_string());
     }
-    if request.x_data.is_empty() || request.y_data.is_empty() {
+    let x_columns: Vec<Vec<f64>> = match &request.x_columns {
+        Some(columns) if !columns.is_empty() => columns.clone(),
+        _ => vec![request.x_data.clone()],
+    };
+    if x_columns.iter().all(Vec::is_empty) || request.y_data.is_empty() {
         return Err("Data points are required.".to_string());
     }
-    if request.x_data.len() != request.y_data.len() {
+    if x_columns.len() != x_variables.len() {
         return Err(format!(
-            "x and y data must have the same length (got {} and {}).",
-            request.x_data.len(),
-            request.y_data.len()
+            "Expected one data column per independent variable (got {} column(s) for {} variable(s)).",
+            x_columns.len(),
+            x_variables.len()
         ));
     }
-
-    let result = frees_core::analysis::curvefit::fit(
-        &request.model,
-        &request.y_variable,
-        &request.x_variable,
-        &request.parameters,
-        &request.x_data,
-        &request.y_data,
-        request.initial_guess.as_deref(),
-    )
-    .map_err(|e| match e {
-        // Parse → the shared syntax prefix; everything else → the Java's
-        // catch-all wrapper ("Curve fitting failed: " + message).
-        frees_core::diag::FreesError::Parse { .. } => {
-            let message = e.to_string_message();
-            format!(
-                "Syntax error: {}",
-                message.lines().next().unwrap_or(&message)
-            )
+    for column in &x_columns {
+        if column.len() != request.y_data.len() {
+            return Err(format!(
+                "x and y data must have the same length (got {} and {}).",
+                column.len(),
+                request.y_data.len()
+            ));
         }
-        other => format!("Curve fitting failed: {}", other.to_string_message()),
-    })?;
+    }
+
+    let loss = match request.loss.as_deref().unwrap_or("linear") {
+        "linear" => frees_core::analysis::curvefit::Loss::Linear,
+        "soft_l1" => frees_core::analysis::curvefit::Loss::SoftL1,
+        "huber" => frees_core::analysis::curvefit::Loss::Huber,
+        "cauchy" => frees_core::analysis::curvefit::Loss::Cauchy,
+        other => {
+            return Err(format!(
+                "Unknown loss '{other}'. Expected linear, soft_l1, huber or cauchy."
+            ))
+        }
+    };
+
+    let result =
+        frees_core::analysis::curvefit::fit(&frees_core::analysis::curvefit::CurveFitRequest {
+            model: &request.model,
+            y_variable: &request.y_variable,
+            x_variables: &x_variables,
+            parameters: &request.parameters,
+            x_data: &x_columns,
+            y_data: &request.y_data,
+            initial_guess: request.initial_guess.as_deref(),
+            sigma: request.sigma.as_deref(),
+            lower: request.lower_bounds.as_deref(),
+            upper: request.upper_bounds.as_deref(),
+            loss,
+            f_scale: request.f_scale,
+            confidence: request.confidence.unwrap_or(0.95),
+        })
+        .map_err(|e| match e {
+            // Parse → the shared syntax prefix; everything else → the Java's
+            // catch-all wrapper ("Curve fitting failed: " + message).
+            frees_core::diag::FreesError::Parse { .. } => {
+                let message = e.to_string_message();
+                format!(
+                    "Syntax error: {}",
+                    message.lines().next().unwrap_or(&message)
+                )
+            }
+            other => format!("Curve fitting failed: {}", other.to_string_message()),
+        })?;
 
     Ok(json!({
         "success": true,
@@ -788,7 +930,40 @@ fn curve_fit_inner(request_json: &str) -> Result<Value, String> {
         "iterations": result.iterations,
         "residuals": result.residuals,
         "fittedValues": result.fitted_values,
+        "residualDof": result.residual_dof,
+        "parameterStdErrors": finite_or_null(&result.parameter_std_errors),
+        "parameterCovariance": result
+            .parameter_covariance
+            .iter()
+            .map(|row| finite_or_null(row))
+            .collect::<Vec<_>>(),
+        "rank": result.rank,
+        "conditionNumber": finite_or_null_scalar(result.condition_number),
+        "unidentifiable": result.unidentifiable,
+        "reducedChiSquare": finite_or_null_scalar(result.reduced_chi_square),
+        "atBound": result.at_bound,
+        "confidence": result.confidence,
+        "confidenceBandLo": finite_or_null(&result.confidence_band_lo),
+        "confidenceBandHi": finite_or_null(&result.confidence_band_hi),
+        "predictionBandLo": finite_or_null(&result.prediction_band_lo),
+        "predictionBandHi": finite_or_null(&result.prediction_band_hi),
     }))
+}
+
+/// JSON has no `NaN` and no `Infinity`. An unavailable standard error or an
+/// infinite condition number crosses the boundary as `null`, which the UI can
+/// render as "not available" — `serde_json` would otherwise emit `null` for the
+/// NaN silently and `0.0` for nothing at all.
+fn finite_or_null(values: &[f64]) -> Vec<Value> {
+    values.iter().map(|v| finite_or_null_scalar(*v)).collect()
+}
+
+fn finite_or_null_scalar(value: f64) -> Value {
+    if value.is_finite() {
+        json!(value)
+    } else {
+        Value::Null
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1637,4 +1812,32 @@ fn read_matrix(values: &BTreeMap<String, f64>, name: &str) -> Vec<Vec<f64>> {
         out[i][j] = value;
     }
     out
+}
+
+#[cfg(test)]
+mod typed_boundary_tests {
+    use super::*;
+
+    #[test]
+    fn typed_sweep_preserves_json_values_and_failed_rows() {
+        let request = r#"{"table":{"variables":["x","y"],"rows":[{"x":2},{"x":-1},{"x":4}]}}"#;
+        let source = "y = sqrt(x)\nz = 2 * y";
+        let (legacy, _) = solve_table_inner(source, request, false).unwrap();
+        let (typed, matrix) = solve_table_inner(source, request, true).unwrap();
+        let matrix = matrix.unwrap();
+        let names = typed["varNames"].as_array().unwrap();
+        assert_eq!(matrix.len(), 3 * names.len());
+        assert_eq!(typed["results"][1]["success"], false);
+        for (r, row) in legacy["results"].as_array().unwrap().iter().enumerate() {
+            assert_eq!(typed["results"][r]["success"], row["success"]);
+            assert_eq!(typed["results"][r]["values"], json!({}));
+            for (c, name) in names.iter().enumerate() {
+                let actual = matrix[r * names.len() + c];
+                match row["values"][name.as_str().unwrap()].as_f64() {
+                    Some(expected) => assert_eq!(actual, expected),
+                    None => assert!(actual.is_nan()),
+                }
+            }
+        }
+    }
 }

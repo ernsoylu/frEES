@@ -46,7 +46,7 @@ mod repl;
 // fit (/api/measurements/parameter-fit).
 pub use analysis::{
     curve_fit, extract_plant, monte_carlo, optimize, optimize_multi, parameter_fit, pid_tune,
-    solve_table,
+    solve_table, solve_table_zerocopy,
 };
 
 /// Install the panic hook so a wasm trap arrives in the console as a readable
@@ -575,8 +575,11 @@ fn now_ms() -> f64 {
 /// honoured: `variableInfo`, `stopCriteria`; `""`/`"{}"` mean defaults).
 /// Returns a `SolveResponse` JSON string — success or failure, never a JS
 /// exception.
-#[wasm_bindgen]
-pub fn solve(source: &str, request_json: &str) -> String {
+fn solve_internal(
+    source: &str,
+    request_json: &str,
+    zero_copy_ode: bool,
+) -> (String, Vec<Vec<f64>>) {
     let request = match parse_request(request_json) {
         Ok(request) => request,
         // A malformed request never reached the engine, so the failure carries
@@ -584,7 +587,7 @@ pub fn solve(source: &str, request_json: &str) -> String {
         // builder on one signature.
         Err(message) => {
             let failure = frees_core::SolveFailure::from(FreesError::evaluation(message.clone()));
-            return solve_failure(message, None, &failure, 0.0);
+            return (solve_failure(message, None, &failure, 0.0), Vec::new());
         }
     };
     let settings = settings_of(&request);
@@ -644,30 +647,64 @@ pub fn solve(source: &str, request_json: &str) -> String {
                 now_ms() - started,
                 system,
                 &explicit_units,
+                zero_copy_ode,
             )
         }
-        Err(failure) => match &failure.error {
-            FreesError::Parse { .. } => {
-                // The Java 400: "Syntax error:" + message + the 1-based line.
-                let line = failure.span().map(|span| span.line_col(source).0);
-                solve_failure(
-                    format!("Syntax error: {}", failure.to_string_message()),
-                    line,
+        Err(failure) => {
+            let res = match &failure.error {
+                FreesError::Parse { .. } => {
+                    // The Java 400: "Syntax error:" + message + the 1-based line.
+                    let line = failure.span().map(|span| span.line_col(source).0);
+                    solve_failure(
+                        format!("Syntax error: {}", failure.to_string_message()),
+                        line,
+                        &failure,
+                        now_ms() - started,
+                    )
+                }
+                // The Java 422 envelope, from the structured failure the engine
+                // now carries (`SolveFailure` mirrors `SolverException`'s
+                // `FailureState` + `partialResult`) — no message parsing.
+                _ => solve_failure(
+                    failure.to_string_message(),
+                    None,
                     &failure,
                     now_ms() - started,
-                )
-            }
-            // The Java 422 envelope, from the structured failure the engine
-            // now carries (`SolveFailure` mirrors `SolverException`'s
-            // `FailureState` + `partialResult`) — no message parsing.
-            _ => solve_failure(
-                failure.to_string_message(),
-                None,
-                &failure,
-                now_ms() - started,
-            ),
-        },
+                ),
+            };
+            (res, Vec::new())
+        }
     }
+}
+
+/// Solve a frees document. `request_json` is the `SolveRequest` body (subset
+/// honoured: `variableInfo`, `stopCriteria`; `""`/`"{}"` mean defaults).
+/// Returns a `SolveResponse` JSON string — success or failure, never a JS
+/// exception.
+#[wasm_bindgen]
+pub fn solve(source: &str, request_json: &str) -> String {
+    solve_internal(source, request_json, false).0
+}
+
+/// Typed solve boundary: copy once into JS-owned arrays for transfer across workers.
+/// Returns a JS Object `{ envelope: string, odeBuffers: Float64Array[] }`.
+#[wasm_bindgen]
+pub fn solve_zerocopy(source: &str, request_json: &str) -> Result<JsValue, JsValue> {
+    let (envelope, ode_buffers) = solve_internal(source, request_json, true);
+    let obj = js_sys::Object::new();
+    js_sys::Reflect::set(
+        &obj,
+        &JsValue::from_str("envelope"),
+        &JsValue::from_str(&envelope),
+    )?;
+    let js_buffers = js_sys::Array::new();
+    for buf in &ode_buffers {
+        let arr = js_sys::Float64Array::new_with_length(buf.len() as u32);
+        arr.copy_from(buf);
+        js_buffers.push(&arr);
+    }
+    js_sys::Reflect::set(&obj, &JsValue::from_str("odeBuffers"), &js_buffers)?;
+    Ok(obj.into())
 }
 
 /// `variables[]` — `{name, value, units}` per solved unknown: the display
@@ -907,7 +944,8 @@ fn solve_success(
     elapsed_ms: f64,
     system: UnitSystem,
     explicit_units: &BTreeMap<String, String>,
-) -> String {
+    zero_copy_ode: bool,
+) -> (String, Vec<Vec<f64>>) {
     let solution = &solutions[0];
     let (rows, row_uncertainties) = variable_rows(solution, system, explicit_units);
     let variables = variable_entries(&rows, &row_uncertainties);
@@ -961,40 +999,45 @@ fn solve_success(
         })
         .collect();
 
-    json!({
-        "success": true,
-        "variables": variables,
-        "blocks": blocks,
-        "residuals": residuals,
-        "stats": stats,
-        "solutions": solution_entries,
-        "unitWarnings": solution.unit_warnings,
-        "error": null,
-        "errorLine": null,
-        "failedBlockIndex": null,
-        // Empty unless the request asked to fill missing properties — the Java
-        // `resolveFillMissing` short-circuits to `List.of()` otherwise.
-        "cyclePath": cycle_path,
-        // One entry per top-level COMPONENT instance; empty for a document with
-        // no component layer.
-        "components": components,
-        // One entry per solved DYNAMIC block — the Java `Result.odeTables`,
-        // shaped as `OdeTableDto` so the Tables window renders it through the
-        // same path as a parametric table and the Plots window can graph it.
-        "odeTables": ode_tables(solution),
-        // One entry per `PLOT '…' … END` block — the Java
-        // `SolveController`'s `plotsOf(parsed.plots())`. `App.tsx` maps each
-        // through `plotDefToSpec`, so this is what makes a declared plot
-        // render.
-        "definedPlots": plot_defs(&solution.plots),
-        "connections": connection_defs(&solution.component_connections),
-        // Tornado breakdown: per dependent variable, its propagated sigma and
-        // each source's signed contribution, largest sigma first — the Java
-        // `SolveController.uncertaintyBreakdownOf`. Empty when the document
-        // declares no uncertainty.
-        "uncertaintyBreakdown": uncertainty_breakdown(solution),
-    })
-    .to_string()
+    let (ode_tables_json, ode_buffers) = ode_tables(solution, zero_copy_ode);
+
+    (
+        json!({
+            "success": true,
+            "variables": variables,
+            "blocks": blocks,
+            "residuals": residuals,
+            "stats": stats,
+            "solutions": solution_entries,
+            "unitWarnings": solution.unit_warnings,
+            "error": null,
+            "errorLine": null,
+            "failedBlockIndex": null,
+            // Empty unless the request asked to fill missing properties — the Java
+            // `resolveFillMissing` short-circuits to `List.of()` otherwise.
+            "cyclePath": cycle_path,
+            // One entry per top-level COMPONENT instance; empty for a document with
+            // no component layer.
+            "components": components,
+            // One entry per solved DYNAMIC block — the Java `Result.odeTables`,
+            // shaped as `OdeTableDto` so the Tables window renders it through the
+            // same path as a parametric table and the Plots window can graph it.
+            "odeTables": ode_tables_json,
+            // One entry per `PLOT '…' … END` block — the Java
+            // `SolveController`'s `plotsOf(parsed.plots())`. `App.tsx` maps each
+            // through `plotDefToSpec`, so this is what makes a declared plot
+            // render.
+            "definedPlots": plot_defs(&solution.plots),
+            "connections": connection_defs(&solution.component_connections),
+            // Tornado breakdown: per dependent variable, its propagated sigma and
+            // each source's signed contribution, largest sigma first — the Java
+            // `SolveController.uncertaintyBreakdownOf`. Empty when the document
+            // declares no uncertainty.
+            "uncertaintyBreakdown": uncertainty_breakdown(solution),
+        })
+        .to_string(),
+        ode_buffers,
+    )
 }
 
 /// `uncertaintyBreakdown[]` — port of `SolveController.uncertaintyBreakdownOf`.
@@ -1080,8 +1123,9 @@ fn connection_defs(conns: &[frees_core::components::expander::Connection]) -> Ve
 /// A non-finite cell becomes `null` rather than a JSON literal — `NaN` is not
 /// representable in JSON and the DTO types the cell as `number | null`. Same
 /// rule the residual list already applies.
-fn ode_tables(solution: &Solution) -> Vec<Value> {
-    solution
+fn ode_tables(solution: &Solution, zero_copy: bool) -> (Vec<Value>, Vec<Vec<f64>>) {
+    let mut flat_buffers = Vec::new();
+    let tables = solution
         .ode_tables
         .iter()
         .map(|table| {
@@ -1096,11 +1140,19 @@ fn ode_tables(solution: &Solution) -> Vec<Value> {
                         .unwrap_or("")
                 })
                 .collect();
-            json!({
-                "name": table.name,
-                "vars": table.columns,
-                "units": units,
-                "rows": table
+            let rows_val = if zero_copy {
+                let num_rows = table.rows.len();
+                let num_cols = table.columns.len();
+                let mut flat = Vec::with_capacity(num_rows * num_cols);
+                for row in &table.rows {
+                    for &val in row {
+                        flat.push(val);
+                    }
+                }
+                flat_buffers.push(flat);
+                json!([])
+            } else {
+                json!(table
                     .rows
                     .iter()
                     .map(|row| {
@@ -1112,7 +1164,15 @@ fn ode_tables(solution: &Solution) -> Vec<Value> {
                             })
                             .collect::<Vec<_>>()
                     })
-                    .collect::<Vec<_>>(),
+                    .collect::<Vec<_>>())
+            };
+            json!({
+                "name": table.name,
+                "vars": table.columns,
+                "units": units,
+                "numRows": table.rows.len(),
+                "numCols": table.columns.len(),
+                "rows": rows_val,
                 "events": table
                     .events
                     .iter()
@@ -1123,7 +1183,8 @@ fn ode_tables(solution: &Solution) -> Vec<Value> {
                 "endTime": table.end_time,
             })
         })
-        .collect()
+        .collect();
+    (tables, flat_buffers)
 }
 
 /// The `SolveResponse.failure` envelope. When the failure carries partial
@@ -1472,10 +1533,10 @@ fn signature_of(name: &str, arity: frees_core::eval::Arity) -> String {
 /// Java list back verbatim.
 ///
 /// Since D9 the subset is rustprop's `served_fluids` — Water, R134a, R1234yf,
-/// `Air`, `CO2` and the two glycol families — and `backend` below reports
-/// rustprop rather than the table list. Only the five with a `plot_fluids()`
-/// entry reach this export; the glycol families are served for property calls
-/// but have no dome to draw.
+/// `Air`, `CO2`, `Ammonia`, `Nitrogen`, `Methane`, `Propane` and the two glycol
+/// families — and `backend` below reports rustprop rather than the table list.
+/// Only the nine with a `plot_fluids()` entry reach this export; the glycol
+/// families are served for property calls but have no dome to draw.
 ///
 /// `CO2` joined on **2026-08-24 (Wave C1), by owner request**. Its per-fluid
 /// data had been linked since Wave G2 — that is what makes
@@ -1487,6 +1548,15 @@ fn signature_of(name: &str, arity: frees_core::eval::Arity) -> String {
 /// (the 220 K isotherm) and one divergence was needed to get the isobars (the
 /// cold-anchor walk, ledger item 38) — both are written up in
 /// `props/diagrams.rs`, and the amendment in D9 has the numbers.
+///
+/// `Ammonia`, `Methane`, `Nitrogen` and `Propane` joined on **2026-09-09, by
+/// owner request**, on the same two-step rule: the `rustprop-data` features
+/// were linked first (+106.2 KiB raw for all four), the diagrams were then
+/// measured rather than assumed, and only then did the picker change (+72
+/// bytes raw). All four draw a complete 400-point dome on every
+/// `diagrams::Kind`, a full nine-line quality set and seven isobars on T-s —
+/// strictly better coverage than CO2, whose cold-anchor problem holds it to
+/// three. The table is in `the_newly_served_fluids_draw_every_diagram_kind`.
 ///
 /// `Air` is on that list again as of Wave-2 (2026-08-18). D9 had dropped it
 /// with the `air.fraux` transport grid it was the only backing for, because
@@ -1697,6 +1767,29 @@ mod tests {
             .iter()
             .find(|v| v["name"] == name)
             .unwrap_or_else(|| panic!("no variable {name:?} in {response}"))
+    }
+
+    #[test]
+    fn typed_ode_matches_json_trajectory() {
+        let source = "y_final = FinalValue('y')\nDYNAMIC relax(method = ode45, time = 0 .. 1, points = 5)\n der(y) = -y / 2\n y(0) = 1\nEND";
+        let legacy = parsed(&solve(source, "{}"));
+        let (envelope, buffers) = super::solve_internal(source, "{}", true);
+        let typed = parsed(&envelope);
+        assert_eq!(typed["success"], true);
+        assert_eq!(buffers.len(), 1);
+        assert_eq!(typed["odeTables"][0]["rows"], serde_json::json!([]));
+        let expected: Vec<f64> = legacy["odeTables"][0]["rows"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .flat_map(|row| row.as_array().unwrap())
+            .map(|cell| cell.as_f64().unwrap())
+            .collect();
+        assert_eq!(buffers[0], expected);
+        assert_eq!(
+            typed["odeTables"][0]["vars"],
+            legacy["odeTables"][0]["vars"]
+        );
     }
 
     #[test]
@@ -2501,10 +2594,62 @@ END\n\
     #[test]
     fn a_property_diagram_for_an_untabulated_fluid_is_an_error_body() {
         let _guard = backend_guard();
-        let payload = parsed(&property_diagram("Ammonia", "T-s"));
+        // Argon, not Ammonia. This case named Ammonia until 2026-09-09, when
+        // the `ammonia` rustprop-data feature was linked and it stopped being
+        // untabulated — the assertion held only because the data was missing,
+        // so it had to move to a fluid the alias table knows and no linked
+        // feature backs.
+        let payload = parsed(&property_diagram("Argon", "T-s"));
         assert_key(&payload, "error", Value::is_string);
         let message = payload["error"].as_str().expect("string");
-        assert!(message.contains("Ammonia"), "{message}");
+        assert!(message.contains("Argon"), "{message}");
+    }
+
+    /// The four fluids linked on 2026-09-09 are on the picker, and this is the
+    /// coverage the decision rested on: measured against Water (the reference
+    /// the diagram generator was built for) and CO2 (the most recent addition),
+    /// on every `Kind`.
+    ///
+    /// | fluid    | dome | quality | isobars (T-s) | isentropes (P-h) |
+    /// |----------|------|---------|---------------|------------------|
+    /// | Water    | 400  | 9       | 7             | 7                |
+    /// | CO2      | 400  | 9       | **3**         | 7                |
+    /// | Ammonia  | 400  | 9       | 7             | 7                |
+    /// | Nitrogen | 400  | 9       | 7             | 7                |
+    /// | Methane  | 400  | 9       | 7             | 7                |
+    /// | Propane  | 400  | 9       | 7             | 7                |
+    ///
+    /// CO2's 3 is the documented cold-anchor/solid-region problem (ledger item
+    /// 38). None of the four has it — they are strictly better behaved than a
+    /// fluid that has been on this list since Wave C1. Isotherm counts vary by
+    /// fluid (Nitrogen 4, Water 5, Ammonia 6, Methane and Propane 7, CO2 8)
+    /// because the anchors are fixed and each fluid's range admits a different
+    /// number of them; that is normal, not a gap. `P-T` carries no isolines for
+    /// any fluid, Water included — it is the saturation curve alone by design.
+    #[test]
+    fn the_newly_served_fluids_draw_every_diagram_kind() {
+        let _guard = backend_guard();
+        frees_core::props::tables::install_builtin_once();
+        let offered = frees_core::props::propfun::plot_fluids_available();
+        for fluid in ["Ammonia", "Nitrogen", "Methane", "Propane"] {
+            assert!(offered.contains(&fluid), "{fluid} missing from the picker");
+            for kind in ["T-s", "P-h", "P-v", "T-v", "h-s", "P-T"] {
+                let payload = parsed(&property_diagram(fluid, kind));
+                assert!(payload.get("error").is_none(), "{fluid} {kind}: {payload}");
+                let ys: Vec<Option<f64>> =
+                    serde_json::from_value(payload["dome"][0]["y"].clone()).expect("y array");
+                let finite = ys.iter().flatten().count();
+                let want = if kind == "P-T" { 200 } else { 400 };
+                assert_eq!(finite, want, "{fluid} {kind}: {finite} finite dome points");
+            }
+            // The two-phase interior: a full quality set and real isobars, the
+            // half CO2 cannot manage.
+            let payload = parsed(&property_diagram(fluid, "T-s"));
+            let isolines = payload["isolines"].as_array().expect("isolines");
+            let family = |name: &str| isolines.iter().filter(|c| c["family"] == name).count();
+            assert_eq!(family("quality"), 9, "{fluid}: quality lines");
+            assert_eq!(family("isobar"), 7, "{fluid}: isobars");
+        }
     }
 
     /// The linked tables are a *real* diagram source, not just a non-error:
@@ -2548,9 +2693,18 @@ END\n\
         // been linked since Wave G2 but the fluid was held off the picker until
         // full states were verified rather than assumed. Note the spelling: the
         // canonical name is `CO2`, not `CarbonDioxide` (a document alias).
+        //
+        // `Ammonia`, `Methane`, `Nitrogen` and `Propane` joined on 2026-09-09,
+        // the same way: linked first, measured, then listed by owner request.
+        // The coverage they were measured on is tabulated in
+        // `the_newly_served_fluids_draw_every_diagram_kind`. The order here is
+        // `plot_fluids()`'s, i.e. ASCII byte order over the canonical names.
         assert_eq!(
             names,
-            ["Air", "CO2", "R1234yf", "R134a", "Water"],
+            [
+                "Air", "Ammonia", "CO2", "Methane", "Nitrogen", "Propane", "R1234yf", "R134a",
+                "Water"
+            ],
             "{listed}"
         );
         assert_eq!(listed["available"], Value::Bool(true));

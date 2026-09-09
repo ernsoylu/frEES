@@ -248,6 +248,8 @@ export interface OdeTableDto {
   /** Per-column SI unit, aligned to `vars` (the ODE rows are SI). */
   units: string[]
   rows: (number | null)[][]
+  /** Transferred bulk numeric trajectory data in row-major order. */
+  matrix?: Float64Array
   events: { name: string; time: number }[]
   method: string
   stopped: boolean
@@ -577,11 +579,27 @@ export async function optimizeMulti(
 export interface CurveFitParams {
   model: string
   yVariable: string
+  /** Single-predictor name. Superseded by `xVariables` when that is sent. */
   xVariable: string
+  /** Phase 4.2 multiple predictors, paired with `xColumns`. */
+  xVariables?: string[]
   parameters: string[]
   xData: number[]
+  /** Phase 4.2 predictor columns, one per entry of `xVariables`. */
+  xColumns?: number[][]
   yData: number[]
   initialGuess?: number[]
+  /** Phase 4.2 per-point measurement standard deviations, all positive. */
+  sigma?: number[]
+  /** Phase 4.2 box constraints; send both sides or neither. */
+  lowerBounds?: number[]
+  upperBounds?: number[]
+  /** Robust loss. Omitted means `'linear'`, ordinary least squares. */
+  loss?: 'linear' | 'soft_l1' | 'huber' | 'cauchy'
+  /** Residual scale a robust loss measures outliers against; omit to estimate. */
+  fScale?: number
+  /** Two-sided confidence level for the reported bands; omitted means 0.95. */
+  confidence?: number
 }
 
 export interface CurveFitResponse {
@@ -594,9 +612,35 @@ export interface CurveFitResponse {
   iterations: number
   residuals: number[]
   fittedValues: number[]
+  /** `n − p`, floored at 0. */
+  residualDof: number
+  /** Per-parameter standard error; `null` where the fit cannot support one. */
+  parameterStdErrors: (number | null)[]
+  /** `p × p` covariance, row-major; empty when the standard errors are. */
+  parameterCovariance: (number | null)[][]
+  /** Numerical rank of the Jacobian at the optimum. */
+  rank: number
+  /** `null` when the Jacobian is singular (an infinite condition number). */
+  conditionNumber: number | null
+  /** `rank < p`: the data does not separate every parameter. */
+  unidentifiable: boolean
+  /** `null` without `sigma` — unweighted residuals have no absolute scale. */
+  reducedChiSquare: number | null
+  /** Per parameter: is the optimum sitting on one of its bounds? A standard
+   *  error beside a `true` was computed as though the parameter were free. */
+  atBound: boolean[]
+  /** The confidence level the bands were computed at. */
+  confidence: number
+  /** Confidence band on the fitted curve at each data point; `null` where the
+   *  fit cannot support one. */
+  confidenceBandLo: (number | null)[]
+  confidenceBandHi: (number | null)[]
+  /** Prediction band — where a new measurement would fall. Always wider. */
+  predictionBandLo: (number | null)[]
+  predictionBandHi: (number | null)[]
 }
 
-const CURVE_FIT_FAILURE: Omit<CurveFitResponse, 'error'> = {
+export const CURVE_FIT_FAILURE: Omit<CurveFitResponse, 'error'> = {
   success: false,
   fittedParameters: [],
   parameterNames: [],
@@ -605,6 +649,19 @@ const CURVE_FIT_FAILURE: Omit<CurveFitResponse, 'error'> = {
   iterations: 0,
   residuals: [],
   fittedValues: [],
+  residualDof: 0,
+  parameterStdErrors: [],
+  parameterCovariance: [],
+  rank: 0,
+  conditionNumber: null,
+  unidentifiable: false,
+  reducedChiSquare: null,
+  atBound: [],
+  confidence: 0.95,
+  confidenceBandLo: [],
+  confidenceBandHi: [],
+  predictionBandLo: [],
+  predictionBandHi: [],
 }
 
 /** `POST /api/curve-fit` — served by the wasm `curve_fit` export (Wave B3).
@@ -918,6 +975,8 @@ export interface SolveTableResponse {
   results: TableRowResult[]
   stats: TableStats | null
   variables: VariableResult[]
+  matrix?: Float64Array | null
+  varNames?: string[]
 }
 
 /** `POST /api/solve/table` — the Tables workbook Solve, now served by the
@@ -948,7 +1007,7 @@ export async function solveTable(
     variables: [],
   })
   try {
-    const parsed = JSON.parse(await wasmSolveTable(text, request, onProgress)) as SolveTableResponse & {
+    const parsed = await wasmSolveTable(text, request, onProgress) as SolveTableResponse & {
       error?: string
     }
     if (parsed.error) {

@@ -95,9 +95,50 @@ env:
   # gate's own method: baseline 3 140 655 bytes, with CO2 3 166 815. 75.5 % of
   # the ceiling, 1 003 KiB headroom. `served_fluids` (the diagram picker) is
   # deliberately unchanged. Debt (2) untouched and unneeded.
+  #
+  # 2026-09-09: 3379.8 KiB raw / 1412.2 KiB gzipped. Two waves land here.
+  # Phase 4.2 (weighted fitting, bounds, robust losses, uncertainty and bands)
+  # cost +22.9 KiB raw over the Phase 4.1 statistics baseline of 3251.0. Then
+  # the four fluids Phase 3.3 was holding back — `ammonia`, `nitrogen`,
+  # `methane`, `n_propane` — cost +106.2 raw / +88.6 gzipped, measured per this
+  # gate's method: 3 352 179 bytes before, 3 460 943 after. 82.5 % of the
+  # ceiling, 716 KiB headroom.
+  #
+  # That measurement is why 3.3 (the lazy chunk seam) is deferred rather than
+  # built: four fluids at ~26 KiB each is not a budget problem, and the
+  # trigger/fetch/cache machinery was scoped to prevent exactly this spend.
+  # `install_from_bytes` stays compiled as the seam. Revisit under ~200 KiB of
+  # headroom. `served_fluids` (the diagram picker) then took the four on the
+  # same day by owner request, once their diagram coverage was measured rather
+  # than assumed: +72 bytes raw / +85 gzipped, against CO2's +142 in Wave C1.
+  # All four draw a full 400-point dome on every diagram kind with nine quality
+  # lines and seven isobars, which is better coverage than CO2 has ever had.
   WASM_BUDGET_KB: 4096
 
 jobs:
+  fuzz:
+    name: parser & evaluator fuzz smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+        with:
+          toolchain: nightly
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          workspaces: fuzz
+      - run: cargo install cargo-fuzz --version 0.13.2 --locked
+      - run: cargo fetch --manifest-path fuzz/Cargo.toml --locked
+      - run: cargo +nightly fuzz run parse_document -- -max_total_time=60 -max_len=4096 -timeout=10 -rss_limit_mb=2048
+      - run: cargo +nightly fuzz run eval_expression -- -max_total_time=60 -max_len=4096 -timeout=10 -rss_limit_mb=2048
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: failure()
+        with:
+          name: fuzz-failures
+          path: fuzz/artifacts/
+          if-no-files-found: ignore
+
   security:
     name: supply-chain & security audit
     runs-on: ubuntu-latest

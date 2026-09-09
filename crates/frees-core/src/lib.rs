@@ -31,6 +31,7 @@ pub mod components;
 pub mod control;
 pub mod curvetable;
 pub mod dae;
+pub mod descriptive;
 pub mod diag;
 pub mod differentiator;
 pub mod engine;

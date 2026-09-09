@@ -21,8 +21,8 @@
 //
 // `result` is the raw JSON string the wasm boundary emits (a REST-shaped
 // SolveResponse/CheckResponse/LanguageReference; a bare semver string for
-// 'version') — parsing happens on the client side, so the worker only ever
-// posts strings.
+// 'version'). Bulk numeric tables travel separately in transferable buffers;
+// envelope parsing happens on the client side.
 //
 // Failure discipline:
 // Document problems return {ok: true} with error data payloads from the wasm boundary.
@@ -44,8 +44,8 @@ import init, {
   optimize_multi,
   parameter_fit,
   pid_tune,
-  solve,
-  solve_table,
+  solve_zerocopy,
+  solve_table_zerocopy,
   version,
 } from './pkg/frees.js'
 
@@ -73,7 +73,13 @@ export interface EngineRequest {
 }
 
 export type EngineResponse =
-  | { id: number; ok: true; result: string }
+  | {
+      id: number
+      ok: true
+      result: string
+      matrix?: Float64Array | null
+      odeBuffers?: Float64Array[] | null
+    }
   | { id: number; ok: false; fatal?: boolean; error: string }
   /** An in-flight solve's overall completion, 0…1. Never terminal: the
    *  request still settles with an `ok` message afterwards. */
@@ -84,7 +90,7 @@ export type EngineResponse =
 // worker actually uses instead of dragging in the conflicting webworker lib.
 const ctx = self as unknown as {
   onmessage: ((event: MessageEvent<EngineRequest>) => void) | null
-  postMessage(message: EngineResponse): void
+  postMessage(message: EngineResponse, transfer?: Transferable[]): void
 }
 
 let inFlightId: number | null = null
@@ -118,13 +124,35 @@ const handle = async (event: MessageEvent<EngineRequest>) => {
     await ready
     inFlightId = method === 'solve' || method === 'solveTable' ? id : null
     let result: string
+    let matrix: Float64Array | null = null
+    let odeBuffers: Float64Array[] | null = null
+    const transferables: Transferable[] = []
+
     switch (method) {
-      case 'solve':
-        result = solve(args[0] ?? '', args[1] ?? '')
+      case 'solve': {
+        const out = solve_zerocopy(args[0] ?? '', args[1] ?? '')
+        result = (out?.envelope as string) ?? ''
+        const rawOde = out?.odeBuffers as Float64Array[] | undefined
+        if (Array.isArray(rawOde) && rawOde.length > 0) {
+          odeBuffers = rawOde
+          for (const b of rawOde) {
+            if (b && b.buffer) {
+              transferables.push(b.buffer)
+            }
+          }
+        }
         break
-      case 'solveTable':
-        result = solve_table(args[0] ?? '', args[1] ?? '')
+      }
+      case 'solveTable': {
+        const out = solve_table_zerocopy(args[0] ?? '', args[1] ?? '')
+        result = (out?.envelope as string) ?? ''
+        const rawMat = out?.matrix as Float64Array | null | undefined
+        if (rawMat && rawMat.buffer) {
+          matrix = rawMat
+          transferables.push(rawMat.buffer)
+        }
         break
+      }
       case 'monteCarlo':
         result = monte_carlo(args[0] ?? '', args[1] ?? '')
         break
@@ -174,7 +202,16 @@ const handle = async (event: MessageEvent<EngineRequest>) => {
       default:
         throw new Error(`Unknown engine method: ${String(method)}`)
     }
-    ctx.postMessage({ id, ok: true, result })
+    ctx.postMessage(
+      {
+        id,
+        ok: true,
+        result,
+        ...(matrix ? { matrix } : {}),
+        ...(odeBuffers ? { odeBuffers } : {}),
+      },
+      transferables,
+    )
   } catch (e) {
     const isFatal =
       readyFailed ||

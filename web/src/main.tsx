@@ -57,7 +57,7 @@ setupPwa()
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <MantineProvider theme={theme} defaultColorScheme="dark">
-      <Notifications position="top-right" />
+      <Notifications position="bottom-right" />
       <ErrorBoundary>
         <Suspense
           fallback={

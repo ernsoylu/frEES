@@ -19,9 +19,15 @@ import type { EngineRequest, EngineResponse } from './engine.worker'
 /** Called with the engine's overall completion (0…1) while a solve runs. */
 export type ProgressListener = (fraction: number) => void
 
+export interface WorkerResult {
+  result: string
+  matrix?: Float64Array | null
+  odeBuffers?: Float64Array[] | null
+}
+
 interface Pending {
   worker: Worker
-  resolve: (result: string) => void
+  resolve: (result: WorkerResult) => void
   reject: (reason: Error) => void
   onProgress?: ProgressListener
 }
@@ -129,7 +135,11 @@ function spawn(): Worker {
     }
     pending.delete(response.id)
     if (response.ok) {
-      entry.resolve(response.result)
+      entry.resolve({
+        result: response.result,
+        matrix: 'matrix' in response ? response.matrix : null,
+        odeBuffers: 'odeBuffers' in response ? response.odeBuffers : null,
+      })
     } else {
       if ('fatal' in response && response.fatal) {
         fail(new Error(response.error))
@@ -155,15 +165,15 @@ function getWorker(index: number): Worker {
   return pool[index]
 }
 
-/** Posts one request and resolves with the worker's raw JSON-string reply. */
+/** Posts one request and resolves with the worker's result payload and transferred buffers. */
 function call(
   method: EngineRequest['method'],
   args: string[],
   onProgress?: ProgressListener,
   workerIndex = 0,
-): Promise<string> {
+): Promise<WorkerResult> {
   const id = nextId++
-  return new Promise<string>((resolve, reject) => {
+  return new Promise<WorkerResult>((resolve, reject) => {
     const w = getWorker(workerIndex)
     pending.set(id, { worker: w, resolve, reject, onProgress })
     try {
@@ -212,6 +222,40 @@ export interface SolveTableResponseDto {
   stats?: TableStatsDto | null
   variables?: unknown[]
   error?: string
+  matrix?: Float64Array | null
+  varNames?: string[]
+}
+
+export function hydrateRowValues(dto: SolveTableResponseDto): void {
+  if (!dto.results || !dto.matrix || !dto.varNames || dto.varNames.length === 0) {
+    return
+  }
+  const matrix = dto.matrix
+  const varNames = dto.varNames
+  const numCols = varNames.length
+  for (let r = 0; r < dto.results.length; r++) {
+    const row = dto.results[r]
+    if (row && row.success && (!row.values || Object.keys(row.values).length === 0)) {
+      const vals: Record<string, number> = {}
+      const offset = r * numCols
+      for (let c = 0; c < numCols; c++) {
+        const val = matrix[offset + c]
+        if (Number.isFinite(val)) {
+          vals[varNames[c]] = val
+        }
+      }
+      row.values = vals
+    }
+  }
+}
+
+function parseSolveTableResult({ result, matrix }: WorkerResult): SolveTableResponseDto {
+  const parsed = JSON.parse(result) as SolveTableResponseDto
+  if (matrix) {
+    parsed.matrix = matrix
+    hydrateRowValues(parsed)
+  }
+  return parsed
 }
 
 /** Merges chunked solveTable responses into a single combined response matching the Rust engine's contract. */
@@ -278,7 +322,26 @@ export function mergeSolveTableResponses(
       ? 'completed'
       : 'pass-limit'
 
-  return {
+  // Failed chunks can omit computed columns; align by name and preserve missing cells.
+  const varNames = [...new Set(parsedChunks.flatMap((chunk) => chunk.varNames ?? []))]
+  const mergedMatrix = varNames.length
+    ? new Float64Array(totalRows * varNames.length).fill(NaN)
+    : null
+  let rowOffset = 0
+  for (const chunk of parsedChunks) {
+    if (mergedMatrix && chunk.matrix && chunk.varNames) {
+      const columns = chunk.varNames.map((name) => varNames.indexOf(name))
+      for (let r = 0; r < (chunk.results?.length ?? 0); r++) {
+        for (let c = 0; c < columns.length; c++) {
+          mergedMatrix[(rowOffset + r) * varNames.length + columns[c]] =
+            chunk.matrix[r * columns.length + c]
+        }
+      }
+    }
+    rowOffset += chunk.results?.length ?? 0
+  }
+
+  const mergedDto: SolveTableResponseDto = {
     results: allResults,
     stats: {
       converged: allConverged && !hasDeadline,
@@ -296,7 +359,12 @@ export function mergeSolveTableResponses(
       maxResidual,
     },
     variables: lastVariables,
+    ...(varNames.length ? { varNames } : {}),
   }
+
+  if (mergedMatrix) mergedDto.matrix = mergedMatrix
+
+  return mergedDto
 }
 
 /** Runs a solve in the engine worker; resolves to the parsed SolveResponse. */
@@ -305,20 +373,46 @@ export async function wasmSolve(
   requestJson: string,
   onProgress?: ProgressListener,
 ): Promise<SolveResponse> {
-  return JSON.parse(
-    await call('solve', [source, requestJson], onProgress),
-  ) as SolveResponse
+  const { result, odeBuffers } = await call('solve', [source, requestJson], onProgress)
+  const parsed = JSON.parse(result) as SolveResponse
+  if (parsed.odeTables && odeBuffers && odeBuffers.length > 0) {
+    for (let i = 0; i < parsed.odeTables.length; i++) {
+      const table = parsed.odeTables[i]
+      const buf = odeBuffers[i]
+      if (table && buf) {
+        table.matrix = buf
+        // Reconstruct rows for backward compatibility if rows is empty and buf is present
+        const numVars = table.vars?.length ?? 0
+        if (numVars > 0 && (!table.rows || table.rows.length === 0)) {
+          const numRows = Math.floor(buf.length / numVars)
+          const rows: (number | null)[][] = new Array(numRows)
+          for (let r = 0; r < numRows; r++) {
+            const offset = r * numVars
+            const row: (number | null)[] = new Array(numVars)
+            for (let c = 0; c < numVars; c++) {
+              const val = buf[offset + c]
+              row[c] = Number.isFinite(val) ? val : null
+            }
+            rows[r] = row
+          }
+          table.rows = rows
+        }
+      }
+    }
+  }
+  return parsed
 }
 
-/** Runs a Tables-workbook sweep in the engine worker(s); resolves to the raw JSON string. */
+/** Runs a Tables-workbook sweep in the engine worker(s); resolves to the parsed response with transferred data. */
 export async function wasmSolveTable(
   source: string,
   requestJson: string,
   onProgress?: ProgressListener,
-): Promise<string> {
+): Promise<SolveTableResponseDto> {
   const concurrency = getWorkerPoolConcurrency()
   if (concurrency <= 1 || mentionsParametricAccessor(source)) {
-    return call('solveTable', [source, requestJson], onProgress, 0)
+    const workerRes = await call('solveTable', [source, requestJson], onProgress, 0)
+    return parseSolveTableResult(workerRes)
   }
 
   let request: {
@@ -332,20 +426,23 @@ export async function wasmSolveTable(
   try {
     request = JSON.parse(requestJson)
   } catch {
-    return call('solveTable', [source, requestJson], onProgress, 0)
+    const workerRes = await call('solveTable', [source, requestJson], onProgress, 0)
+    return parseSolveTableResult(workerRes)
   }
 
   const rows = request?.table?.rows
   const variables = request?.table?.variables
   // Keep serial if invalid table, single row, cap exceeded (> 5000), or missing variables
   if (!rows || !Array.isArray(rows) || rows.length <= 1 || rows.length > 5000 || !variables) {
-    return call('solveTable', [source, requestJson], onProgress, 0)
+    const workerRes = await call('solveTable', [source, requestJson], onProgress, 0)
+    return parseSolveTableResult(workerRes)
   }
 
   const totalRows = rows.length
   const workerCount = Math.min(concurrency, totalRows)
   if (workerCount <= 1) {
-    return call('solveTable', [source, requestJson], onProgress, 0)
+    const workerRes = await call('solveTable', [source, requestJson], onProgress, 0)
+    return parseSolveTableResult(workerRes)
   }
 
   // Partition rows across workerCount chunks
@@ -390,13 +487,14 @@ export async function wasmSolveTable(
   const chunkOutputs = await Promise.all(chunkPromises)
   const elapsedMillis = Math.max(0, Date.now() - startTime)
 
-  const parsedChunks: SolveTableResponseDto[] = chunkOutputs.map((raw) => JSON.parse(raw))
+  const parsedChunks = chunkOutputs.map(parseSolveTableResult)
+
   const firstError = parsedChunks.find((c) => c.error)
   if (firstError) {
-    return JSON.stringify(firstError)
+    return firstError
   }
 
-  return JSON.stringify(mergeSolveTableResponses(parsedChunks, totalRows, elapsedMillis))
+  return mergeSolveTableResponses(parsedChunks, totalRows, elapsedMillis)
 }
 
 /** Runs a Monte Carlo propagation in the engine worker; resolves to the raw JSON string. */
@@ -404,29 +502,29 @@ export async function wasmMonteCarlo(
   source: string,
   requestJson: string,
 ): Promise<string> {
-  return call('monteCarlo', [source, requestJson])
+  return (await call('monteCarlo', [source, requestJson])).result
 }
 
 /** The four OptimizeController surfaces; raw JSON strings out. */
 export async function wasmOptimize(source: string, requestJson: string): Promise<string> {
-  return call('optimize', [source, requestJson])
+  return (await call('optimize', [source, requestJson])).result
 }
 export async function wasmOptimizeMulti(source: string, requestJson: string): Promise<string> {
-  return call('optimizeMulti', [source, requestJson])
+  return (await call('optimizeMulti', [source, requestJson])).result
 }
 export async function wasmCurveFit(requestJson: string): Promise<string> {
-  return call('curveFit', [requestJson])
+  return (await call('curveFit', [requestJson])).result
 }
 export async function wasmParameterFit(requestJson: string): Promise<string> {
-  return call('parameterFit', [requestJson])
+  return (await call('parameterFit', [requestJson])).result
 }
 
 /** The two ControlController surfaces; raw JSON strings out. */
 export async function wasmPidTune(requestJson: string): Promise<string> {
-  return call('pidTune', [requestJson])
+  return (await call('pidTune', [requestJson])).result
 }
 export async function wasmExtractPlant(requestJson: string): Promise<string> {
-  return call('extractPlant', [requestJson])
+  return (await call('extractPlant', [requestJson])).result
 }
 
 /** Runs a check in the engine worker; resolves to the parsed CheckResponse. */
@@ -434,7 +532,7 @@ export async function wasmCheck(
   source: string,
   requestJson: string,
 ): Promise<CheckResponse> {
-  return JSON.parse(await call('check', [source, requestJson])) as CheckResponse
+  return JSON.parse((await call('check', [source, requestJson])).result) as CheckResponse
 }
 
 /** POST /api/repl/evaluate. */
@@ -443,7 +541,7 @@ export async function wasmReplEvaluate(
   unitSystem: string,
 ): Promise<ReplResponse> {
   return JSON.parse(
-    await call('replEvaluate', [JSON.stringify({ expression, unitSystem })]),
+    (await call('replEvaluate', [JSON.stringify({ expression, unitSystem })])).result,
   ) as ReplResponse
 }
 
@@ -454,12 +552,12 @@ export async function wasmReplClear(name?: string): Promise<void> {
 
 /** The engine's language reference. */
 export async function wasmReference(): Promise<LanguageReference> {
-  return JSON.parse(await call('reference', [])) as LanguageReference
+  return JSON.parse((await call('reference', [])).result) as LanguageReference
 }
 
 /** The engine crate's semver. */
-export function wasmVersion(): Promise<string> {
-  return call('version', [])
+export async function wasmVersion(): Promise<string> {
+  return (await call('version', [])).result
 }
 
 /** GET /api/plot/fluids. */
@@ -468,7 +566,7 @@ export async function wasmFluids(): Promise<{
   fluids: string[]
   backend: string
 }> {
-  return JSON.parse(await call('fluids', [])) as {
+  return JSON.parse((await call('fluids', [])).result) as {
     available: boolean
     fluids: string[]
     backend: string
@@ -487,7 +585,7 @@ export async function wasmPropertyDiagram(
   kind: string,
 ): Promise<DiagramResponse> {
   return unwrapPlot<DiagramResponse>(
-    await call('propertyDiagram', [fluid, kind]),
+    (await call('propertyDiagram', [fluid, kind])).result,
   )
 }
 
@@ -498,6 +596,6 @@ export async function wasmPsychrometricChart(
   tMax: number,
 ): Promise<PsychartResponse> {
   return unwrapPlot<PsychartResponse>(
-    await call('psychrometricChart', [JSON.stringify({ pressure, tMin, tMax })]),
+    (await call('psychrometricChart', [JSON.stringify({ pressure, tMin, tMax })])).result,
   )
 }
