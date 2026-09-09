@@ -250,6 +250,93 @@ fn curve_fit_validation_speaks_the_java_messages() {
 }
 
 #[test]
+fn curve_fit_reports_the_uncertainty_block_through_the_boundary() {
+    // The closed-form OLS case from `curvefit.rs`: a = 1.99, b = 1.04,
+    // SE(a) = 0.05972158, SE(b) = 0.14628739, dof = 3, rank = 2.
+    let request = serde_json::json!({
+        "model": "y = a * x + b",
+        "yVariable": "y",
+        "xVariable": "x",
+        "parameters": ["a", "b"],
+        "xData": [0.0, 1.0, 2.0, 3.0, 4.0],
+        "yData": [1.1, 2.9, 5.2, 6.8, 9.1],
+    });
+    let out: Value = serde_json::from_str(&frees::curve_fit(&request.to_string())).unwrap();
+    assert_eq!(out["success"], true, "{out}");
+    assert_eq!(out["residualDof"], 3);
+    assert_eq!(out["rank"], 2);
+    assert_eq!(out["unidentifiable"], false);
+    let errors = out["parameterStdErrors"].as_array().unwrap();
+    assert!((errors[0].as_f64().unwrap() - 0.059_721_576_223_896_5).abs() < 1e-9);
+    assert!((errors[1].as_f64().unwrap() - 0.146_287_388_383_278).abs() < 1e-9);
+    assert_eq!(out["parameterCovariance"].as_array().unwrap().len(), 2);
+    // No sigma was sent, so there is no absolute scale to report against.
+    assert_eq!(out["reducedChiSquare"], Value::Null);
+
+    // With sigma the covariance turns absolute and chi-square/dof appears.
+    let mut weighted = request.clone();
+    weighted["sigma"] = serde_json::json!([0.1, 0.1, 0.1, 0.1, 0.1]);
+    let out: Value = serde_json::from_str(&frees::curve_fit(&weighted.to_string())).unwrap();
+    let errors = out["parameterStdErrors"].as_array().unwrap();
+    assert!((errors[0].as_f64().unwrap() - 0.1 / 10.0f64.sqrt()).abs() < 1e-9);
+    assert!((out["reducedChiSquare"].as_f64().unwrap() - 0.107 / 0.01 / 3.0).abs() < 1e-6);
+}
+
+#[test]
+fn curve_fit_refuses_a_non_positive_sigma_and_reports_no_false_confidence() {
+    let request = serde_json::json!({
+        "model": "y = a * x",
+        "yVariable": "y",
+        "xVariable": "x",
+        "parameters": ["a"],
+        "xData": [1.0, 2.0],
+        "yData": [1.0, 2.0],
+        "sigma": [0.1, 0.0],
+    });
+    let out: Value = serde_json::from_str(&frees::curve_fit(&request.to_string())).unwrap();
+    assert_eq!(out["success"], false, "{out}");
+    assert!(
+        out["error"]
+            .as_str()
+            .unwrap()
+            .contains("finite and positive"),
+        "{out}"
+    );
+    // An unidentifiable fit reports null errors, never a plausible-looking one.
+    let request = serde_json::json!({
+        "model": "y = a + b",
+        "yVariable": "y",
+        "xVariable": "x",
+        "parameters": ["a", "b"],
+        "xData": [0.0, 1.0, 2.0, 3.0],
+        "yData": [5.0, 5.0, 5.0, 5.0],
+    });
+    let out: Value = serde_json::from_str(&frees::curve_fit(&request.to_string())).unwrap();
+    assert_eq!(out["unidentifiable"], true, "{out}");
+    assert_eq!(out["parameterStdErrors"], serde_json::json!([null, null]));
+    assert_eq!(out["conditionNumber"], Value::Null);
+    assert_eq!(out["parameterCovariance"], serde_json::json!([]));
+}
+
+#[test]
+fn curve_fit_accepts_two_predictor_columns() {
+    // y = 2*x1 - 3*x2 exactly.
+    let request = serde_json::json!({
+        "model": "y = a * x1 + b * x2",
+        "yVariable": "y",
+        "xVariables": ["x1", "x2"],
+        "parameters": ["a", "b"],
+        "xColumns": [[1.0, 2.0, 3.0, 4.0, 5.0], [1.0, 0.0, 2.0, 1.0, 3.0]],
+        "yData": [-1.0, 4.0, 0.0, 5.0, 1.0],
+    });
+    let out: Value = serde_json::from_str(&frees::curve_fit(&request.to_string())).unwrap();
+    assert_eq!(out["success"], true, "{out}");
+    let fitted = out["fittedParameters"].as_array().unwrap();
+    assert!((fitted[0].as_f64().unwrap() - 2.0).abs() < 1e-6, "{out}");
+    assert!((fitted[1].as_f64().unwrap() + 3.0).abs() < 1e-6, "{out}");
+}
+
+#[test]
 fn optimize_finds_a_univariate_minimum_in_display_shape() {
     // f = (x - 3)^2 + 1: minimum at x = 3, f = 1.
     let out: Value = serde_json::from_str(&frees::optimize(

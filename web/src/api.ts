@@ -579,11 +579,18 @@ export async function optimizeMulti(
 export interface CurveFitParams {
   model: string
   yVariable: string
+  /** Single-predictor name. Superseded by `xVariables` when that is sent. */
   xVariable: string
+  /** Phase 4.2 multiple predictors, paired with `xColumns`. */
+  xVariables?: string[]
   parameters: string[]
   xData: number[]
+  /** Phase 4.2 predictor columns, one per entry of `xVariables`. */
+  xColumns?: number[][]
   yData: number[]
   initialGuess?: number[]
+  /** Phase 4.2 per-point measurement standard deviations, all positive. */
+  sigma?: number[]
 }
 
 export interface CurveFitResponse {
@@ -596,9 +603,23 @@ export interface CurveFitResponse {
   iterations: number
   residuals: number[]
   fittedValues: number[]
+  /** `n − p`, floored at 0. */
+  residualDof: number
+  /** Per-parameter standard error; `null` where the fit cannot support one. */
+  parameterStdErrors: (number | null)[]
+  /** `p × p` covariance, row-major; empty when the standard errors are. */
+  parameterCovariance: (number | null)[][]
+  /** Numerical rank of the Jacobian at the optimum. */
+  rank: number
+  /** `null` when the Jacobian is singular (an infinite condition number). */
+  conditionNumber: number | null
+  /** `rank < p`: the data does not separate every parameter. */
+  unidentifiable: boolean
+  /** `null` without `sigma` — unweighted residuals have no absolute scale. */
+  reducedChiSquare: number | null
 }
 
-const CURVE_FIT_FAILURE: Omit<CurveFitResponse, 'error'> = {
+export const CURVE_FIT_FAILURE: Omit<CurveFitResponse, 'error'> = {
   success: false,
   fittedParameters: [],
   parameterNames: [],
@@ -607,6 +628,13 @@ const CURVE_FIT_FAILURE: Omit<CurveFitResponse, 'error'> = {
   iterations: 0,
   residuals: [],
   fittedValues: [],
+  residualDof: 0,
+  parameterStdErrors: [],
+  parameterCovariance: [],
+  rank: 0,
+  conditionNumber: null,
+  unidentifiable: false,
+  reducedChiSquare: null,
 }
 
 /** `POST /api/curve-fit` — served by the wasm `curve_fit` export (Wave B3).

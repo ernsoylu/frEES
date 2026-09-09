@@ -11,7 +11,7 @@ import {
   Select,
   SegmentedControl,
 } from '@mantine/core'
-import { curveFit, CurveFitResponse } from './api'
+import { curveFit, CURVE_FIT_FAILURE, CurveFitResponse } from './api'
 import { FIT_TEMPLATES, fittedModelInsertText, MONO_INPUT } from './curveFitShared'
 import { FitResultView } from './FitResultView'
 import { TableSpec } from './tables'
@@ -321,17 +321,7 @@ export default function CurveFitModal({
       })
       setResult(response)
     } catch (err) {
-      setResult({
-        success: false,
-        error: String(err),
-        fittedParameters: [],
-        parameterNames: [],
-        rSquared: 0,
-        rmse: 0,
-        iterations: 0,
-        residuals: [],
-        fittedValues: [],
-      })
+      setResult({ ...CURVE_FIT_FAILURE, error: String(err) })
     } finally {
       setRunning(false)
     }

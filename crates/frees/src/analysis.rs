@@ -777,11 +777,18 @@ fn clamp_positive(value: Option<i64>, fallback: usize, max: usize) -> usize {
 struct CurveFitRequest {
     model: String,
     y_variable: String,
+    /// The single-predictor name. Still the only field the existing UI sends.
     x_variable: String,
+    /// Phase 4.2 multiple predictors. When present it supersedes `xVariable`
+    /// and pairs with `xColumns`; the two shapes are never mixed.
+    x_variables: Option<Vec<String>>,
     parameters: Vec<String>,
     x_data: Vec<f64>,
+    x_columns: Option<Vec<Vec<f64>>>,
     y_data: Vec<f64>,
     initial_guess: Option<Vec<f64>>,
+    /// Phase 4.2 per-point measurement standard deviations.
+    sigma: Option<Vec<f64>>,
 }
 
 /// Least-squares curve fit. Returns a `CurveFitResponse` JSON string.
@@ -799,6 +806,13 @@ pub fn curve_fit(request_json: &str) -> String {
             "iterations": 0,
             "residuals": [],
             "fittedValues": [],
+            "residualDof": 0,
+            "parameterStdErrors": [],
+            "parameterCovariance": [],
+            "rank": 0,
+            "conditionNumber": Value::Null,
+            "unidentifiable": false,
+            "reducedChiSquare": Value::Null,
         })
         .to_string(),
     }
@@ -813,7 +827,11 @@ fn curve_fit_inner(request_json: &str) -> Result<Value, String> {
     if request.model.trim().is_empty() {
         return Err("Model equation is required.".to_string());
     }
-    if request.x_variable.trim().is_empty() {
+    let x_variables: Vec<String> = match &request.x_variables {
+        Some(names) if !names.is_empty() => names.clone(),
+        _ => vec![request.x_variable.clone()],
+    };
+    if x_variables.iter().any(|name| name.trim().is_empty()) {
         return Err("Independent variable name is required.".to_string());
     }
     if request.y_variable.trim().is_empty() {
@@ -822,38 +840,53 @@ fn curve_fit_inner(request_json: &str) -> Result<Value, String> {
     if request.parameters.is_empty() {
         return Err("At least one parameter to fit is required.".to_string());
     }
-    if request.x_data.is_empty() || request.y_data.is_empty() {
+    let x_columns: Vec<Vec<f64>> = match &request.x_columns {
+        Some(columns) if !columns.is_empty() => columns.clone(),
+        _ => vec![request.x_data.clone()],
+    };
+    if x_columns.iter().all(Vec::is_empty) || request.y_data.is_empty() {
         return Err("Data points are required.".to_string());
     }
-    if request.x_data.len() != request.y_data.len() {
+    if x_columns.len() != x_variables.len() {
         return Err(format!(
-            "x and y data must have the same length (got {} and {}).",
-            request.x_data.len(),
-            request.y_data.len()
+            "Expected one data column per independent variable (got {} column(s) for {} variable(s)).",
+            x_columns.len(),
+            x_variables.len()
         ));
     }
-
-    let result = frees_core::analysis::curvefit::fit(
-        &request.model,
-        &request.y_variable,
-        &request.x_variable,
-        &request.parameters,
-        &request.x_data,
-        &request.y_data,
-        request.initial_guess.as_deref(),
-    )
-    .map_err(|e| match e {
-        // Parse → the shared syntax prefix; everything else → the Java's
-        // catch-all wrapper ("Curve fitting failed: " + message).
-        frees_core::diag::FreesError::Parse { .. } => {
-            let message = e.to_string_message();
-            format!(
-                "Syntax error: {}",
-                message.lines().next().unwrap_or(&message)
-            )
+    for column in &x_columns {
+        if column.len() != request.y_data.len() {
+            return Err(format!(
+                "x and y data must have the same length (got {} and {}).",
+                column.len(),
+                request.y_data.len()
+            ));
         }
-        other => format!("Curve fitting failed: {}", other.to_string_message()),
-    })?;
+    }
+
+    let result =
+        frees_core::analysis::curvefit::fit(&frees_core::analysis::curvefit::CurveFitRequest {
+            model: &request.model,
+            y_variable: &request.y_variable,
+            x_variables: &x_variables,
+            parameters: &request.parameters,
+            x_data: &x_columns,
+            y_data: &request.y_data,
+            initial_guess: request.initial_guess.as_deref(),
+            sigma: request.sigma.as_deref(),
+        })
+        .map_err(|e| match e {
+            // Parse → the shared syntax prefix; everything else → the Java's
+            // catch-all wrapper ("Curve fitting failed: " + message).
+            frees_core::diag::FreesError::Parse { .. } => {
+                let message = e.to_string_message();
+                format!(
+                    "Syntax error: {}",
+                    message.lines().next().unwrap_or(&message)
+                )
+            }
+            other => format!("Curve fitting failed: {}", other.to_string_message()),
+        })?;
 
     Ok(json!({
         "success": true,
@@ -865,7 +898,34 @@ fn curve_fit_inner(request_json: &str) -> Result<Value, String> {
         "iterations": result.iterations,
         "residuals": result.residuals,
         "fittedValues": result.fitted_values,
+        "residualDof": result.residual_dof,
+        "parameterStdErrors": finite_or_null(&result.parameter_std_errors),
+        "parameterCovariance": result
+            .parameter_covariance
+            .iter()
+            .map(|row| finite_or_null(row))
+            .collect::<Vec<_>>(),
+        "rank": result.rank,
+        "conditionNumber": finite_or_null_scalar(result.condition_number),
+        "unidentifiable": result.unidentifiable,
+        "reducedChiSquare": finite_or_null_scalar(result.reduced_chi_square),
     }))
+}
+
+/// JSON has no `NaN` and no `Infinity`. An unavailable standard error or an
+/// infinite condition number crosses the boundary as `null`, which the UI can
+/// render as "not available" — `serde_json` would otherwise emit `null` for the
+/// NaN silently and `0.0` for nothing at all.
+fn finite_or_null(values: &[f64]) -> Vec<Value> {
+    values.iter().map(|v| finite_or_null_scalar(*v)).collect()
+}
+
+fn finite_or_null_scalar(value: f64) -> Value {
+    if value.is_finite() {
+        json!(value)
+    } else {
+        Value::Null
+    }
 }
 
 // ---------------------------------------------------------------------------

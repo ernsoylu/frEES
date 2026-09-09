@@ -860,6 +860,25 @@ fn nsga_ii_with_zero_generations_returns_the_initial_front() {
     assert_eq!(result.evaluations, 8);
 }
 
+/// A single-predictor `x`/`y` curve-fit request, the shape every case here uses.
+fn curve_fit_request<'a>(
+    model: &'a str,
+    params: &'a [String],
+    x_vars: &'a [String],
+    x: &'a [Vec<f64>],
+    y: &'a [f64],
+) -> curvefit::CurveFitRequest<'a> {
+    curvefit::CurveFitRequest {
+        model,
+        y_variable: "y",
+        x_variables: x_vars,
+        parameters: params,
+        x_data: x,
+        y_data: y,
+        ..Default::default()
+    }
+}
+
 #[test]
 fn levenberg_marquardt_on_a_singular_jacobian_is_an_error_not_a_hang() {
     // `a + b` is unidentifiable: the two columns of the Jacobian are identical,
@@ -868,15 +887,16 @@ fn levenberg_marquardt_on_a_singular_jacobian_is_an_error_not_a_hang() {
     // the wrong answer, and iterating forever would be worse.
     let x: Vec<f64> = (0..10).map(f64::from).collect();
     let y: Vec<f64> = x.iter().map(|_| 5.0).collect();
-    let result = curvefit::fit(
+    let params = ["a".to_string(), "b".to_string()];
+    let x_vars = ["x".to_string()];
+    let columns = vec![x.clone()];
+    let result = curvefit::fit(&curve_fit_request(
         "y = a + b",
-        "y",
-        "x",
-        &["a".into(), "b".into()],
-        &x,
+        &params,
+        &x_vars,
+        &columns,
         &y,
-        None,
-    );
+    ));
     match result {
         Err(e) => assert!(!e.to_string_message().is_empty()),
         Ok(fit) => {
@@ -904,8 +924,10 @@ fn levenberg_marquardt_rejects_degenerate_data_rather_than_indexing_off_the_end(
         ("y = a*x", ok_x.clone(), vec![1.0, 2.0, 3.0], vec![]),
         ("", ok_x.clone(), vec![1.0, 2.0, 3.0], vec!["a".to_string()]),
     ] {
+        let x_vars = ["x".to_string()];
+        let columns = vec![x.clone()];
         assert!(
-            curvefit::fit(model, "y", "x", &params, &x, &y, None).is_err(),
+            curvefit::fit(&curve_fit_request(model, &params, &x_vars, &columns, &y)).is_err(),
             "model {model:?} with {} x and {} y was accepted",
             x.len(),
             y.len()
@@ -921,15 +943,16 @@ fn levenberg_marquardt_survives_non_finite_observations() {
         y[3] = bad;
         // Either a refusal or a finite answer — never a panic and never a NaN
         // presented as a fitted parameter.
-        if let Ok(fit) = curvefit::fit(
+        let params = ["a".to_string(), "b".to_string()];
+        let x_vars = ["x".to_string()];
+        let columns = vec![x.clone()];
+        if let Ok(fit) = curvefit::fit(&curve_fit_request(
             "y = a*x + b",
-            "y",
-            "x",
-            &["a".into(), "b".into()],
-            &x,
+            &params,
+            &x_vars,
+            &columns,
             &y,
-            None,
-        ) {
+        )) {
             assert!(
                 fit.fitted_parameters.iter().all(|p| p.is_finite()),
                 "{bad}: {:?}",
