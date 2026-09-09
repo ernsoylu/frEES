@@ -46,7 +46,7 @@ mod repl;
 // fit (/api/measurements/parameter-fit).
 pub use analysis::{
     curve_fit, extract_plant, monte_carlo, optimize, optimize_multi, parameter_fit, pid_tune,
-    solve_table,
+    solve_table, solve_table_zerocopy,
 };
 
 /// Install the panic hook so a wasm trap arrives in the console as a readable
@@ -575,8 +575,11 @@ fn now_ms() -> f64 {
 /// honoured: `variableInfo`, `stopCriteria`; `""`/`"{}"` mean defaults).
 /// Returns a `SolveResponse` JSON string — success or failure, never a JS
 /// exception.
-#[wasm_bindgen]
-pub fn solve(source: &str, request_json: &str) -> String {
+fn solve_internal(
+    source: &str,
+    request_json: &str,
+    zero_copy_ode: bool,
+) -> (String, Vec<Vec<f64>>) {
     let request = match parse_request(request_json) {
         Ok(request) => request,
         // A malformed request never reached the engine, so the failure carries
@@ -584,7 +587,7 @@ pub fn solve(source: &str, request_json: &str) -> String {
         // builder on one signature.
         Err(message) => {
             let failure = frees_core::SolveFailure::from(FreesError::evaluation(message.clone()));
-            return solve_failure(message, None, &failure, 0.0);
+            return (solve_failure(message, None, &failure, 0.0), Vec::new());
         }
     };
     let settings = settings_of(&request);
@@ -644,30 +647,64 @@ pub fn solve(source: &str, request_json: &str) -> String {
                 now_ms() - started,
                 system,
                 &explicit_units,
+                zero_copy_ode,
             )
         }
-        Err(failure) => match &failure.error {
-            FreesError::Parse { .. } => {
-                // The Java 400: "Syntax error:" + message + the 1-based line.
-                let line = failure.span().map(|span| span.line_col(source).0);
-                solve_failure(
-                    format!("Syntax error: {}", failure.to_string_message()),
-                    line,
+        Err(failure) => {
+            let res = match &failure.error {
+                FreesError::Parse { .. } => {
+                    // The Java 400: "Syntax error:" + message + the 1-based line.
+                    let line = failure.span().map(|span| span.line_col(source).0);
+                    solve_failure(
+                        format!("Syntax error: {}", failure.to_string_message()),
+                        line,
+                        &failure,
+                        now_ms() - started,
+                    )
+                }
+                // The Java 422 envelope, from the structured failure the engine
+                // now carries (`SolveFailure` mirrors `SolverException`'s
+                // `FailureState` + `partialResult`) — no message parsing.
+                _ => solve_failure(
+                    failure.to_string_message(),
+                    None,
                     &failure,
                     now_ms() - started,
-                )
-            }
-            // The Java 422 envelope, from the structured failure the engine
-            // now carries (`SolveFailure` mirrors `SolverException`'s
-            // `FailureState` + `partialResult`) — no message parsing.
-            _ => solve_failure(
-                failure.to_string_message(),
-                None,
-                &failure,
-                now_ms() - started,
-            ),
-        },
+                ),
+            };
+            (res, Vec::new())
+        }
     }
+}
+
+/// Solve a frees document. `request_json` is the `SolveRequest` body (subset
+/// honoured: `variableInfo`, `stopCriteria`; `""`/`"{}"` mean defaults).
+/// Returns a `SolveResponse` JSON string — success or failure, never a JS
+/// exception.
+#[wasm_bindgen]
+pub fn solve(source: &str, request_json: &str) -> String {
+    solve_internal(source, request_json, false).0
+}
+
+/// Typed solve boundary: copy once into JS-owned arrays for transfer across workers.
+/// Returns a JS Object `{ envelope: string, odeBuffers: Float64Array[] }`.
+#[wasm_bindgen]
+pub fn solve_zerocopy(source: &str, request_json: &str) -> Result<JsValue, JsValue> {
+    let (envelope, ode_buffers) = solve_internal(source, request_json, true);
+    let obj = js_sys::Object::new();
+    js_sys::Reflect::set(
+        &obj,
+        &JsValue::from_str("envelope"),
+        &JsValue::from_str(&envelope),
+    )?;
+    let js_buffers = js_sys::Array::new();
+    for buf in &ode_buffers {
+        let arr = js_sys::Float64Array::new_with_length(buf.len() as u32);
+        arr.copy_from(buf);
+        js_buffers.push(&arr);
+    }
+    js_sys::Reflect::set(&obj, &JsValue::from_str("odeBuffers"), &js_buffers)?;
+    Ok(obj.into())
 }
 
 /// `variables[]` — `{name, value, units}` per solved unknown: the display
@@ -907,7 +944,8 @@ fn solve_success(
     elapsed_ms: f64,
     system: UnitSystem,
     explicit_units: &BTreeMap<String, String>,
-) -> String {
+    zero_copy_ode: bool,
+) -> (String, Vec<Vec<f64>>) {
     let solution = &solutions[0];
     let (rows, row_uncertainties) = variable_rows(solution, system, explicit_units);
     let variables = variable_entries(&rows, &row_uncertainties);
@@ -961,40 +999,45 @@ fn solve_success(
         })
         .collect();
 
-    json!({
-        "success": true,
-        "variables": variables,
-        "blocks": blocks,
-        "residuals": residuals,
-        "stats": stats,
-        "solutions": solution_entries,
-        "unitWarnings": solution.unit_warnings,
-        "error": null,
-        "errorLine": null,
-        "failedBlockIndex": null,
-        // Empty unless the request asked to fill missing properties — the Java
-        // `resolveFillMissing` short-circuits to `List.of()` otherwise.
-        "cyclePath": cycle_path,
-        // One entry per top-level COMPONENT instance; empty for a document with
-        // no component layer.
-        "components": components,
-        // One entry per solved DYNAMIC block — the Java `Result.odeTables`,
-        // shaped as `OdeTableDto` so the Tables window renders it through the
-        // same path as a parametric table and the Plots window can graph it.
-        "odeTables": ode_tables(solution),
-        // One entry per `PLOT '…' … END` block — the Java
-        // `SolveController`'s `plotsOf(parsed.plots())`. `App.tsx` maps each
-        // through `plotDefToSpec`, so this is what makes a declared plot
-        // render.
-        "definedPlots": plot_defs(&solution.plots),
-        "connections": connection_defs(&solution.component_connections),
-        // Tornado breakdown: per dependent variable, its propagated sigma and
-        // each source's signed contribution, largest sigma first — the Java
-        // `SolveController.uncertaintyBreakdownOf`. Empty when the document
-        // declares no uncertainty.
-        "uncertaintyBreakdown": uncertainty_breakdown(solution),
-    })
-    .to_string()
+    let (ode_tables_json, ode_buffers) = ode_tables(solution, zero_copy_ode);
+
+    (
+        json!({
+            "success": true,
+            "variables": variables,
+            "blocks": blocks,
+            "residuals": residuals,
+            "stats": stats,
+            "solutions": solution_entries,
+            "unitWarnings": solution.unit_warnings,
+            "error": null,
+            "errorLine": null,
+            "failedBlockIndex": null,
+            // Empty unless the request asked to fill missing properties — the Java
+            // `resolveFillMissing` short-circuits to `List.of()` otherwise.
+            "cyclePath": cycle_path,
+            // One entry per top-level COMPONENT instance; empty for a document with
+            // no component layer.
+            "components": components,
+            // One entry per solved DYNAMIC block — the Java `Result.odeTables`,
+            // shaped as `OdeTableDto` so the Tables window renders it through the
+            // same path as a parametric table and the Plots window can graph it.
+            "odeTables": ode_tables_json,
+            // One entry per `PLOT '…' … END` block — the Java
+            // `SolveController`'s `plotsOf(parsed.plots())`. `App.tsx` maps each
+            // through `plotDefToSpec`, so this is what makes a declared plot
+            // render.
+            "definedPlots": plot_defs(&solution.plots),
+            "connections": connection_defs(&solution.component_connections),
+            // Tornado breakdown: per dependent variable, its propagated sigma and
+            // each source's signed contribution, largest sigma first — the Java
+            // `SolveController.uncertaintyBreakdownOf`. Empty when the document
+            // declares no uncertainty.
+            "uncertaintyBreakdown": uncertainty_breakdown(solution),
+        })
+        .to_string(),
+        ode_buffers,
+    )
 }
 
 /// `uncertaintyBreakdown[]` — port of `SolveController.uncertaintyBreakdownOf`.
@@ -1080,8 +1123,9 @@ fn connection_defs(conns: &[frees_core::components::expander::Connection]) -> Ve
 /// A non-finite cell becomes `null` rather than a JSON literal — `NaN` is not
 /// representable in JSON and the DTO types the cell as `number | null`. Same
 /// rule the residual list already applies.
-fn ode_tables(solution: &Solution) -> Vec<Value> {
-    solution
+fn ode_tables(solution: &Solution, zero_copy: bool) -> (Vec<Value>, Vec<Vec<f64>>) {
+    let mut flat_buffers = Vec::new();
+    let tables = solution
         .ode_tables
         .iter()
         .map(|table| {
@@ -1096,11 +1140,19 @@ fn ode_tables(solution: &Solution) -> Vec<Value> {
                         .unwrap_or("")
                 })
                 .collect();
-            json!({
-                "name": table.name,
-                "vars": table.columns,
-                "units": units,
-                "rows": table
+            let rows_val = if zero_copy {
+                let num_rows = table.rows.len();
+                let num_cols = table.columns.len();
+                let mut flat = Vec::with_capacity(num_rows * num_cols);
+                for row in &table.rows {
+                    for &val in row {
+                        flat.push(val);
+                    }
+                }
+                flat_buffers.push(flat);
+                json!([])
+            } else {
+                json!(table
                     .rows
                     .iter()
                     .map(|row| {
@@ -1112,7 +1164,15 @@ fn ode_tables(solution: &Solution) -> Vec<Value> {
                             })
                             .collect::<Vec<_>>()
                     })
-                    .collect::<Vec<_>>(),
+                    .collect::<Vec<_>>())
+            };
+            json!({
+                "name": table.name,
+                "vars": table.columns,
+                "units": units,
+                "numRows": table.rows.len(),
+                "numCols": table.columns.len(),
+                "rows": rows_val,
                 "events": table
                     .events
                     .iter()
@@ -1123,7 +1183,8 @@ fn ode_tables(solution: &Solution) -> Vec<Value> {
                 "endTime": table.end_time,
             })
         })
-        .collect()
+        .collect();
+    (tables, flat_buffers)
 }
 
 /// The `SolveResponse.failure` envelope. When the failure carries partial
@@ -1697,6 +1758,29 @@ mod tests {
             .iter()
             .find(|v| v["name"] == name)
             .unwrap_or_else(|| panic!("no variable {name:?} in {response}"))
+    }
+
+    #[test]
+    fn typed_ode_matches_json_trajectory() {
+        let source = "y_final = FinalValue('y')\nDYNAMIC relax(method = ode45, time = 0 .. 1, points = 5)\n der(y) = -y / 2\n y(0) = 1\nEND";
+        let legacy = parsed(&solve(source, "{}"));
+        let (envelope, buffers) = super::solve_internal(source, "{}", true);
+        let typed = parsed(&envelope);
+        assert_eq!(typed["success"], true);
+        assert_eq!(buffers.len(), 1);
+        assert_eq!(typed["odeTables"][0]["rows"], serde_json::json!([]));
+        let expected: Vec<f64> = legacy["odeTables"][0]["rows"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .flat_map(|row| row.as_array().unwrap())
+            .map(|cell| cell.as_f64().unwrap())
+            .collect();
+        assert_eq!(buffers[0], expected);
+        assert_eq!(
+            typed["odeTables"][0]["vars"],
+            legacy["odeTables"][0]["vars"]
+        );
     }
 
     #[test]

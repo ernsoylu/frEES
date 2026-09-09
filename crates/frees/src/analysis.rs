@@ -14,7 +14,7 @@
 //! envelope carries a top-level `"error"` beside empty `results`, which is the
 //! same string the Java's 400/422 body would carry.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -142,8 +142,8 @@ struct RowSide {
 /// `SolveTableRequest` body; returns a `SolveTableResponse` JSON string.
 #[wasm_bindgen]
 pub fn solve_table(source: &str, request_json: &str) -> String {
-    match solve_table_inner(source, request_json) {
-        Ok(value) => value.to_string(),
+    match solve_table_inner(source, request_json, false) {
+        Ok((value, _)) => value.to_string(),
         Err(message) => json!({
             "results": [],
             "stats": Value::Null,
@@ -154,7 +154,50 @@ pub fn solve_table(source: &str, request_json: &str) -> String {
     }
 }
 
-fn solve_table_inner(source: &str, request_json: &str) -> Result<Value, String> {
+/// Typed sweep boundary returning `{ envelope: string, matrix: Float64Array | null }`.
+/// Copies into JS-owned memory so transferring the buffer cannot detach WASM memory.
+#[wasm_bindgen]
+pub fn solve_table_zerocopy(source: &str, request_json: &str) -> Result<JsValue, JsValue> {
+    let obj = js_sys::Object::new();
+    match solve_table_inner(source, request_json, true) {
+        Ok((envelope, matrix)) => {
+            js_sys::Reflect::set(
+                &obj,
+                &JsValue::from_str("envelope"),
+                &JsValue::from_str(&envelope.to_string()),
+            )?;
+            if let Some(matrix) = matrix {
+                let js_arr = js_sys::Float64Array::new_with_length(matrix.len() as u32);
+                js_arr.copy_from(&matrix);
+                js_sys::Reflect::set(&obj, &JsValue::from_str("matrix"), &js_arr)?;
+            } else {
+                js_sys::Reflect::set(&obj, &JsValue::from_str("matrix"), &JsValue::NULL)?;
+            }
+        }
+        Err(message) => {
+            let err_envelope = json!({
+                "results": [],
+                "stats": Value::Null,
+                "variables": [],
+                "error": message,
+            })
+            .to_string();
+            js_sys::Reflect::set(
+                &obj,
+                &JsValue::from_str("envelope"),
+                &JsValue::from_str(&err_envelope),
+            )?;
+            js_sys::Reflect::set(&obj, &JsValue::from_str("matrix"), &JsValue::NULL)?;
+        }
+    }
+    Ok(obj.into())
+}
+
+fn solve_table_inner(
+    source: &str,
+    request_json: &str,
+    zero_copy: bool,
+) -> Result<(Value, Option<Vec<f64>>), String> {
     frees_core::props::tables::install_builtin_once();
 
     let request: SolveTableRequest = if request_json.trim().is_empty() {
@@ -344,9 +387,25 @@ fn solve_table_inner(source: &str, request_json: &str) -> Result<Value, String> 
     let mut unknowns = 0usize;
     let mut solved = 0usize;
     let mut last_var_rows: Option<&(Vec<VariableRow>, Vec<Option<f64>>)> = None;
+    let var_names = zero_copy.then(|| {
+        let mut names = table.vars.clone();
+        let extra: BTreeSet<_> = sides
+            .iter()
+            .flatten()
+            .flat_map(|side| side.values.keys())
+            .filter(|name| !table.vars.contains(name))
+            .cloned()
+            .collect();
+        names.extend(extra);
+        names
+    });
+    let mut matrix = var_names
+        .as_ref()
+        .map(|names| vec![f64::NAN; run_count * names.len()]);
     let results: Vec<Value> = sides
         .iter()
-        .map(|side| match side {
+        .enumerate()
+        .map(|(r, side)| match side {
             Some(side) => {
                 iterations += side.iterations;
                 if side.success {
@@ -357,11 +416,18 @@ fn solve_table_inner(source: &str, request_json: &str) -> Result<Value, String> 
                     if side.var_rows.is_some() {
                         last_var_rows = side.var_rows.as_ref();
                     }
+                    if let (Some(matrix), Some(names)) = (&mut matrix, &var_names) {
+                        for (c, name) in names.iter().enumerate() {
+                            if let Some(&value) = side.values.get(name) {
+                                matrix[r * names.len() + c] = value;
+                            }
+                        }
+                    }
                 }
                 json!({
                     "success": side.success,
                     "status": if side.success { "completed" } else { "failed" },
-                    "values": side.values,
+                    "values": if zero_copy { json!({}) } else { json!(side.values) },
                     "error": side.error,
                 })
             }
@@ -373,12 +439,13 @@ fn solve_table_inner(source: &str, request_json: &str) -> Result<Value, String> 
             }),
         })
         .collect();
+
     let last_variables = match last_var_rows {
         Some((rows, unc)) => variable_entries(rows, unc),
         None => Vec::new(),
     };
 
-    Ok(json!({
+    let mut envelope = json!({
         "results": results,
         "stats": {
             "converged": sweep.converged && !deadline_hit,
@@ -396,7 +463,17 @@ fn solve_table_inner(source: &str, request_json: &str) -> Result<Value, String> 
             "maxResidual": if max_residual.is_finite() { max_residual } else { 0.0 },
         },
         "variables": last_variables,
-    }))
+    });
+
+    if let Some(vars) = var_names {
+        if let Value::Object(ref mut map) = envelope {
+            map.insert("varNames".to_string(), json!(vars));
+            map.insert("numRows".to_string(), json!(run_count));
+            map.insert("numCols".to_string(), json!(vars.len()));
+        }
+    }
+
+    Ok((envelope, matrix))
 }
 
 // ---------------------------------------------------------------------------
@@ -1637,4 +1714,32 @@ fn read_matrix(values: &BTreeMap<String, f64>, name: &str) -> Vec<Vec<f64>> {
         out[i][j] = value;
     }
     out
+}
+
+#[cfg(test)]
+mod typed_boundary_tests {
+    use super::*;
+
+    #[test]
+    fn typed_sweep_preserves_json_values_and_failed_rows() {
+        let request = r#"{"table":{"variables":["x","y"],"rows":[{"x":2},{"x":-1},{"x":4}]}}"#;
+        let source = "y = sqrt(x)\nz = 2 * y";
+        let (legacy, _) = solve_table_inner(source, request, false).unwrap();
+        let (typed, matrix) = solve_table_inner(source, request, true).unwrap();
+        let matrix = matrix.unwrap();
+        let names = typed["varNames"].as_array().unwrap();
+        assert_eq!(matrix.len(), 3 * names.len());
+        assert_eq!(typed["results"][1]["success"], false);
+        for (r, row) in legacy["results"].as_array().unwrap().iter().enumerate() {
+            assert_eq!(typed["results"][r]["success"], row["success"]);
+            assert_eq!(typed["results"][r]["values"], json!({}));
+            for (c, name) in names.iter().enumerate() {
+                let actual = matrix[r * names.len() + c];
+                match row["values"][name.as_str().unwrap()].as_f64() {
+                    Some(expected) => assert_eq!(actual, expected),
+                    None => assert!(actual.is_nan()),
+                }
+            }
+        }
+    }
 }

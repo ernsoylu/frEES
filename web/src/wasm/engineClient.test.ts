@@ -300,8 +300,8 @@ describe('engineClient worker pool for independent sweeps (Phase 7)', () => {
     })
     w.onmessage?.({ data: { id: w.posted[0].id, ok: true, result: responsePayload } })
 
-    const result = JSON.parse(await p)
-    expect(result.stats.accessor).toBe(true)
+    const result = await p
+    expect(result.stats?.accessor).toBe(true)
     expect(result.results).toHaveLength(4)
   })
 
@@ -387,14 +387,14 @@ describe('engineClient worker pool for independent sweeps (Phase 7)', () => {
     w0.onmessage?.({ data: { id: w0.posted[0].id, ok: true, result: chunk0Res } })
     w1.onmessage?.({ data: { id: w1.posted[0].id, ok: true, result: chunk1Res } })
 
-    const res = JSON.parse(await p)
+    const res = await p
     expect(res.results).toHaveLength(4)
-    expect(res.results.map((r: { values: { y: number } }) => r.values.y)).toEqual([2, 4, 6, 8])
-    expect(res.stats.runs).toBe(4)
-    expect(res.stats.solved).toBe(4)
-    expect(res.stats.failed).toBe(0)
-    expect(res.stats.iterations).toBe(8)
-    expect(res.stats.maxResidual).toBe(2e-12)
+    expect(res.results!.map((r) => r.values.y)).toEqual([2, 4, 6, 8])
+    expect(res.stats?.runs).toBe(4)
+    expect(res.stats?.solved).toBe(4)
+    expect(res.stats?.failed).toBe(0)
+    expect(res.stats?.iterations).toBe(8)
+    expect(res.stats?.maxResidual).toBe(2e-12)
     // Variables must come from the last successful chunk (row 4)
     expect(res.variables).toEqual([{ name: 'y', value: 8 }])
   })
@@ -605,8 +605,155 @@ describe('engineClient worker pool for independent sweeps (Phase 7)', () => {
     w0.onmessage?.({ data: { id: w0.posted[0].id, ok: true, result: errPayload } })
     w1.onmessage?.({ data: { id: w1.posted[0].id, ok: true, result: errPayload } })
 
-    const res = JSON.parse(await p)
+    const res = await p
     expect(res.error).toBe('Syntax error: unexpected token')
     expect(res.results).toEqual([])
   })
+
+  it('wasmSolve handles zero-copy odeBuffers, reconstructing rows and attaching matrix', async () => {
+    const { wasmSolve } = await client()
+    const p = wasmSolve('dummy ODE source', '{}')
+    expect(FakeWorker.instances).toHaveLength(1)
+    const w = FakeWorker.instances[0]
+
+    const envelope = JSON.stringify({
+      success: true,
+      variables: [],
+      blocks: [],
+      residuals: [],
+      stats: null,
+      solutions: [],
+      unitWarnings: [],
+      error: null,
+      odeTables: [
+        {
+          name: 'ode1',
+          vars: ['t', 'x'],
+          units: ['s', 'm'],
+          rows: [],
+          events: [],
+          method: 'ode45',
+          stopped: false,
+          endTime: 1.0,
+        },
+      ],
+    })
+    const odeBuf = new Float64Array([0.0, 10.0, 0.5, 15.0, 1.0, 20.0])
+    w.onmessage?.({
+      data: {
+        id: w.posted[0].id,
+        ok: true,
+        result: envelope,
+        odeBuffers: [odeBuf],
+      },
+    })
+
+    const res = await p
+    expect(res.success).toBe(true)
+    expect(res.odeTables).toBeDefined()
+    expect(res.odeTables![0].matrix).toBe(odeBuf)
+    expect(res.odeTables![0].rows).toEqual([
+      [0.0, 10.0],
+      [0.5, 15.0],
+      [1.0, 20.0],
+    ])
+  })
+
+  it('wasmSolveTable hydrates empty values and attaches matrix from zero-copy worker reply', async () => {
+    const { wasmSolveTable, setWorkerPoolConcurrency } = await client()
+    setWorkerPoolConcurrency(1)
+
+    const source = 'y = 2 * x\n'
+    const req = JSON.stringify({
+      table: {
+        variables: ['x', 'y'],
+        rows: [{ x: 1 }, { x: 2 }],
+      },
+    })
+
+    const p = wasmSolveTable(source, req)
+    const w = FakeWorker.instances[0]
+
+    const envelope = JSON.stringify({
+      results: [
+        { success: true, values: {}, error: null },
+        { success: true, values: {}, error: null },
+      ],
+      stats: {
+        converged: true,
+        passes: 1,
+        termination: 'completed',
+        accessor: false,
+        runs: 2,
+        solved: 2,
+        failed: 0,
+        notRun: 0,
+        equations: 1,
+        unknowns: 1,
+        iterations: 2,
+        elapsedMillis: 5,
+        maxResidual: 0,
+      },
+      variables: [{ name: 'y', value: 4 }],
+      varNames: ['x', 'y'],
+      numRows: 2,
+      numCols: 2,
+    })
+    const matrix = new Float64Array([1, 2, 2, 4])
+    w.onmessage?.({
+      data: {
+        id: w.posted[0].id,
+        ok: true,
+        result: envelope,
+        matrix,
+      },
+    })
+
+    const raw = await p
+    const parsed = raw
+    // Row values should be hydrated
+    expect(parsed.results![0].values).toEqual({ x: 1, y: 2 })
+    expect(parsed.results![1].values).toEqual({ x: 2, y: 4 })
+    // The response retains the transferred matrix
+    expect(raw.matrix).toBe(matrix)
+  })
+
+  it('mergeSolveTableResponses merges chunk typed array matrices into a single contiguous matrix', async () => {
+    const { mergeSolveTableResponses } = await client()
+
+    const chunk1 = {
+      results: [
+        { success: true, values: { x: 1, y: 2 }, error: null },
+        { success: true, values: { x: 2, y: 4 }, error: null },
+      ],
+      matrix: new Float64Array([1, 2, 2, 4]),
+      varNames: ['x', 'y'],
+    }
+    const chunk2 = {
+      results: [
+        { success: true, values: { x: 3, y: 6 }, error: null },
+        { success: true, values: { x: 4, y: 8 }, error: null },
+      ],
+      matrix: new Float64Array([3, 6, 4, 8]),
+      varNames: ['x', 'y'],
+    }
+
+    const merged = mergeSolveTableResponses([chunk1, chunk2], 4, 15)
+    expect(merged.matrix).toBeDefined()
+    expect(merged.matrix!.length).toBe(8)
+    expect(Array.from(merged.matrix!)).toEqual([1, 2, 2, 4, 3, 6, 4, 8])
+    expect(merged.varNames).toEqual(['x', 'y'])
+  })
+  it('aligns different chunk columns and keeps failed cells missing', async () => {
+    const { mergeSolveTableResponses } = await client()
+    const merged = mergeSolveTableResponses([
+      { results: [{ success: false, values: {}, error: 'failed' }],
+        varNames: ['x'], matrix: new Float64Array([NaN]) },
+      { results: [{ success: true, values: { x: 2, y: 4 }, error: null }],
+        varNames: ['y', 'x'], matrix: new Float64Array([4, 2]) },
+    ], 2, 0)
+    expect(merged.varNames).toEqual(['x', 'y'])
+    expect(Array.from(merged.matrix!)).toEqual([NaN, NaN, 2, 4])
+  })
+
 })

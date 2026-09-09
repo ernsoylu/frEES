@@ -248,6 +248,8 @@ export interface OdeTableDto {
   /** Per-column SI unit, aligned to `vars` (the ODE rows are SI). */
   units: string[]
   rows: (number | null)[][]
+  /** Transferred bulk numeric trajectory data in row-major order. */
+  matrix?: Float64Array
   events: { name: string; time: number }[]
   method: string
   stopped: boolean
@@ -918,6 +920,8 @@ export interface SolveTableResponse {
   results: TableRowResult[]
   stats: TableStats | null
   variables: VariableResult[]
+  matrix?: Float64Array | null
+  varNames?: string[]
 }
 
 /** `POST /api/solve/table` — the Tables workbook Solve, now served by the
@@ -948,7 +952,7 @@ export async function solveTable(
     variables: [],
   })
   try {
-    const parsed = JSON.parse(await wasmSolveTable(text, request, onProgress)) as SolveTableResponse & {
+    const parsed = await wasmSolveTable(text, request, onProgress) as SolveTableResponse & {
       error?: string
     }
     if (parsed.error) {

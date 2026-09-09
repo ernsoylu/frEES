@@ -33,10 +33,6 @@ test.describe('Phase 9 End-to-End Browser Journeys', () => {
     await expect(page.getByRole('button', { name: 'Solve', exact: true })).toBeVisible({
       timeout: 60_000,
     })
-    // Disable notification overlays so they do not intercept action bar pointer events
-    await page.addStyleTag({
-      content: '.mantine-Notifications-root { display: none !important; pointer-events: none !important; }',
-    })
     await dismissWelcomeIfOpen(page)
   })
 
