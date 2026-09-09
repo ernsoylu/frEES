@@ -61,7 +61,9 @@ rustprop-data = { git = "https://github.com/ernsoylu/RustProp", tag = "v0.1.0", 
     #
     # The alias table in `props/propfun.rs` already resolves every one of them,
     # R717 and R290 included; only the data was missing. Picker entries
-    # (`served_fluids`) stay a separate decision, per the G2/C1 rule.
+    # (`served_fluids`) were the separate decision the G2/C1 rule asks for, and
+    # were taken the same day by owner request once the diagram coverage had
+    # been measured: +72 bytes raw, against CO2's +142 in Wave C1.
     "ammonia",
     "nitrogen",
     "methane",

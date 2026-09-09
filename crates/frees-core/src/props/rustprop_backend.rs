@@ -221,6 +221,17 @@ impl RealFluid for RustpropBackend {
                 "R1234yf",
                 "Air",
                 "CO2",
+                // 2026-09-09, by owner request, after measuring rather than
+                // assuming: each of these four draws a complete 400-point dome
+                // on every `diagrams::Kind`, a full nine-line quality set, and
+                // seven isobars on T-s — where CO2, on this list since Wave C1,
+                // manages three. The coverage table is in
+                // `crates/frees/src/lib.rs`'s
+                // `the_newly_served_fluids_draw_every_diagram_kind`.
+                "Ammonia",
+                "Nitrogen",
+                "Methane",
+                "Propane",
                 "INCOMP::MEG",
                 "INCOMP::MPG",
             ]

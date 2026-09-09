@@ -1533,10 +1533,10 @@ fn signature_of(name: &str, arity: frees_core::eval::Arity) -> String {
 /// Java list back verbatim.
 ///
 /// Since D9 the subset is rustprop's `served_fluids` — Water, R134a, R1234yf,
-/// `Air`, `CO2` and the two glycol families — and `backend` below reports
-/// rustprop rather than the table list. Only the five with a `plot_fluids()`
-/// entry reach this export; the glycol families are served for property calls
-/// but have no dome to draw.
+/// `Air`, `CO2`, `Ammonia`, `Nitrogen`, `Methane`, `Propane` and the two glycol
+/// families — and `backend` below reports rustprop rather than the table list.
+/// Only the nine with a `plot_fluids()` entry reach this export; the glycol
+/// families are served for property calls but have no dome to draw.
 ///
 /// `CO2` joined on **2026-08-24 (Wave C1), by owner request**. Its per-fluid
 /// data had been linked since Wave G2 — that is what makes
@@ -1548,6 +1548,15 @@ fn signature_of(name: &str, arity: frees_core::eval::Arity) -> String {
 /// (the 220 K isotherm) and one divergence was needed to get the isobars (the
 /// cold-anchor walk, ledger item 38) — both are written up in
 /// `props/diagrams.rs`, and the amendment in D9 has the numbers.
+///
+/// `Ammonia`, `Methane`, `Nitrogen` and `Propane` joined on **2026-09-09, by
+/// owner request**, on the same two-step rule: the `rustprop-data` features
+/// were linked first (+106.2 KiB raw for all four), the diagrams were then
+/// measured rather than assumed, and only then did the picker change (+72
+/// bytes raw). All four draw a complete 400-point dome on every
+/// `diagrams::Kind`, a full nine-line quality set and seven isobars on T-s —
+/// strictly better coverage than CO2, whose cold-anchor problem holds it to
+/// three. The table is in `the_newly_served_fluids_draw_every_diagram_kind`.
 ///
 /// `Air` is on that list again as of Wave-2 (2026-08-18). D9 had dropped it
 /// with the `air.fraux` transport grid it was the only backing for, because
@@ -2596,28 +2605,50 @@ END\n\
         assert!(message.contains("Argon"), "{message}");
     }
 
-    /// The four fluids linked on 2026-09-09 draw real domes, which is the
-    /// evidence a `served_fluids` picker entry would rest on. They are
-    /// deliberately *not* on that list yet — linking data and listing a fluid
-    /// are separate decisions (Waves G2/C1) — so this pins the capability, not
-    /// the picker.
+    /// The four fluids linked on 2026-09-09 are on the picker, and this is the
+    /// coverage the decision rested on: measured against Water (the reference
+    /// the diagram generator was built for) and CO2 (the most recent addition),
+    /// on every `Kind`.
+    ///
+    /// | fluid    | dome | quality | isobars (T-s) | isentropes (P-h) |
+    /// |----------|------|---------|---------------|------------------|
+    /// | Water    | 400  | 9       | 7             | 7                |
+    /// | CO2      | 400  | 9       | **3**         | 7                |
+    /// | Ammonia  | 400  | 9       | 7             | 7                |
+    /// | Nitrogen | 400  | 9       | 7             | 7                |
+    /// | Methane  | 400  | 9       | 7             | 7                |
+    /// | Propane  | 400  | 9       | 7             | 7                |
+    ///
+    /// CO2's 3 is the documented cold-anchor/solid-region problem (ledger item
+    /// 38). None of the four has it — they are strictly better behaved than a
+    /// fluid that has been on this list since Wave C1. Isotherm counts vary by
+    /// fluid (Nitrogen 4, Water 5, Ammonia 6, Methane and Propane 7, CO2 8)
+    /// because the anchors are fixed and each fluid's range admits a different
+    /// number of them; that is normal, not a gap. `P-T` carries no isolines for
+    /// any fluid, Water included — it is the saturation curve alone by design.
     #[test]
-    fn the_newly_linked_fluids_draw_domes_even_though_the_picker_hides_them() {
+    fn the_newly_served_fluids_draw_every_diagram_kind() {
         let _guard = backend_guard();
         frees_core::props::tables::install_builtin_once();
-        for fluid in ["Ammonia", "Nitrogen", "Methane", "Propane"] {
-            let payload = parsed(&property_diagram(fluid, "T-s"));
-            assert!(payload.get("error").is_none(), "{fluid}: {payload}");
-            let ys: Vec<Option<f64>> =
-                serde_json::from_value(payload["dome"][0]["y"].clone()).expect("y array");
-            let finite = ys.iter().flatten().count();
-            assert!(finite > 100, "{fluid}: only {finite} finite dome points");
-        }
-        // ...and the picker does not offer them, which is the state to change
-        // deliberately rather than by accident.
         let offered = frees_core::props::propfun::plot_fluids_available();
         for fluid in ["Ammonia", "Nitrogen", "Methane", "Propane"] {
-            assert!(!offered.contains(&fluid), "{fluid} unexpectedly offered");
+            assert!(offered.contains(&fluid), "{fluid} missing from the picker");
+            for kind in ["T-s", "P-h", "P-v", "T-v", "h-s", "P-T"] {
+                let payload = parsed(&property_diagram(fluid, kind));
+                assert!(payload.get("error").is_none(), "{fluid} {kind}: {payload}");
+                let ys: Vec<Option<f64>> =
+                    serde_json::from_value(payload["dome"][0]["y"].clone()).expect("y array");
+                let finite = ys.iter().flatten().count();
+                let want = if kind == "P-T" { 200 } else { 400 };
+                assert_eq!(finite, want, "{fluid} {kind}: {finite} finite dome points");
+            }
+            // The two-phase interior: a full quality set and real isobars, the
+            // half CO2 cannot manage.
+            let payload = parsed(&property_diagram(fluid, "T-s"));
+            let isolines = payload["isolines"].as_array().expect("isolines");
+            let family = |name: &str| isolines.iter().filter(|c| c["family"] == name).count();
+            assert_eq!(family("quality"), 9, "{fluid}: quality lines");
+            assert_eq!(family("isobar"), 7, "{fluid}: isobars");
         }
     }
 
@@ -2662,9 +2693,18 @@ END\n\
         // been linked since Wave G2 but the fluid was held off the picker until
         // full states were verified rather than assumed. Note the spelling: the
         // canonical name is `CO2`, not `CarbonDioxide` (a document alias).
+        //
+        // `Ammonia`, `Methane`, `Nitrogen` and `Propane` joined on 2026-09-09,
+        // the same way: linked first, measured, then listed by owner request.
+        // The coverage they were measured on is tabulated in
+        // `the_newly_served_fluids_draw_every_diagram_kind`. The order here is
+        // `plot_fluids()`'s, i.e. ASCII byte order over the canonical names.
         assert_eq!(
             names,
-            ["Air", "CO2", "R1234yf", "R134a", "Water"],
+            [
+                "Air", "Ammonia", "CO2", "Methane", "Nitrogen", "Propane", "R1234yf", "R134a",
+                "Water"
+            ],
             "{listed}"
         );
         assert_eq!(listed["available"], Value::Bool(true));

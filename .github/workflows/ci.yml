@@ -108,8 +108,11 @@ env:
   # built: four fluids at ~26 KiB each is not a budget problem, and the
   # trigger/fetch/cache machinery was scoped to prevent exactly this spend.
   # `install_from_bytes` stays compiled as the seam. Revisit under ~200 KiB of
-  # headroom. `served_fluids` (the diagram picker) is again deliberately
-  # unchanged — linking data and listing a fluid stay separate decisions.
+  # headroom. `served_fluids` (the diagram picker) then took the four on the
+  # same day by owner request, once their diagram coverage was measured rather
+  # than assumed: +72 bytes raw / +85 gzipped, against CO2's +142 in Wave C1.
+  # All four draw a full 400-point dome on every diagram kind with nine quality
+  # lines and seven isobars, which is better coverage than CO2 has ever had.
   WASM_BUDGET_KB: 4096
 
 jobs:
