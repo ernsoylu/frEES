@@ -591,6 +591,13 @@ export interface CurveFitParams {
   initialGuess?: number[]
   /** Phase 4.2 per-point measurement standard deviations, all positive. */
   sigma?: number[]
+  /** Phase 4.2 box constraints; send both sides or neither. */
+  lowerBounds?: number[]
+  upperBounds?: number[]
+  /** Robust loss. Omitted means `'linear'`, ordinary least squares. */
+  loss?: 'linear' | 'soft_l1' | 'huber' | 'cauchy'
+  /** Residual scale a robust loss measures outliers against; omit to estimate. */
+  fScale?: number
 }
 
 export interface CurveFitResponse {
@@ -617,6 +624,9 @@ export interface CurveFitResponse {
   unidentifiable: boolean
   /** `null` without `sigma` — unweighted residuals have no absolute scale. */
   reducedChiSquare: number | null
+  /** Per parameter: is the optimum sitting on one of its bounds? A standard
+   *  error beside a `true` was computed as though the parameter were free. */
+  atBound: boolean[]
 }
 
 export const CURVE_FIT_FAILURE: Omit<CurveFitResponse, 'error'> = {
@@ -635,6 +645,7 @@ export const CURVE_FIT_FAILURE: Omit<CurveFitResponse, 'error'> = {
   conditionNumber: null,
   unidentifiable: false,
   reducedChiSquare: null,
+  atBound: [],
 }
 
 /** `POST /api/curve-fit` — served by the wasm `curve_fit` export (Wave B3).

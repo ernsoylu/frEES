@@ -122,15 +122,20 @@ Focus: Thermodynamic data loading, large-scale sparse numerical solvers, and cus
 
 Items **3.1, 3.2, and 3.6 are deferred and excluded from active development**; their original IDs are retained in the deferred candidates below.
 
+**Status audit, 2026-09-09.** None of 3.3, 3.4 or 3.5 is implemented. 3.4 is the one that is not greenfield — see its note.
+
 - [ ] **3.3 Pre-Expansion Lazy Chunk Seam for Thermodynamic Data**
   - Implement dynamic chunk fetching for property tables and component libraries (`props/tables.rs::install_from_bytes`) on first mention.
   - Safeguard the $\le 4,096\text{ KiB}$ WASM budget before adding new fluids (Ammonia, Propane, Nitrogen, Methane).
+  - Audit: the **seam exists and the fetching does not**. `install_from_bytes` is public, tested, and compiled into both builds, but nothing in `crates/frees` or `web/src` calls it at runtime — every table still arrives through `install_builtin_once`. The work left is the trigger (first mention of an uninstalled fluid), the fetch, and the cache, not the installer.
 - [ ] **3.4 Sparse Matrix Factorization & Graph Reordering**
   - Implement Approximate Minimum Degree (AMD) and Column Approximate Minimum Degree (COLAMD) fill-reducing permutations.
   - Integrate pure-Rust sparse LU/QR factorizations (`faer` / `sprs`) with sparsity pattern reuse across Newton iterations for systems exceeding 5,000 equations.
+  - Audit: **partially present, in the wrong place.** `crates/frees-core/src/dae/colamd.rs` already implements a COLAMD-lite ordering (AMD on the column-intersection graph, no supercolumn absorption, deterministic tie-breaking) and `dae/solver.rs` runs it in front of a Gilbert–Peierls sparse LU. But it is `pub(crate)`, it is reached only from the DAE path, and its own docs accept `O(n²)` because "`n` is a DAE dimension, tens to low hundreds". There is no AMD proper, no sparse QR, no `faer`/`sprs` dependency, no pattern reuse across Newton iterations, and nothing wired into the general solver. Extend and lift what is there rather than starting a second sparse stack.
 - [ ] **3.5 Custom Component Authoring & Advanced Schematic Routing**
   - Provide a UI workflow for selecting a group of components on the schematic canvas and encapsulating them into a reusable custom `COMPONENT` block with exposed ports.
   - Implement obstacle-avoiding orthogonal wire routing with connection validation.
+  - Audit: **not started.** `web/src/schematic/` has layout, wiring validation, palette and symbols, but no encapsulation workflow and no routing code — `layout.ts` contains no orthogonal, obstacle-avoiding or elbow routing at all.
 
 ---
 
@@ -148,10 +153,13 @@ Focus: Complete the engineering workflow from measured data to a fitted physical
   - Conventions: sample (n − 1) denominators; reliability (not frequency) weights for `wvar`; structured results are reached through one accessor name per output (`*_stat`, `*_pval`, `*_df`) rather than a tuple return, matching the existing `slope`/`intercept`/`r2` split. Scalar arguments precede vector arguments (`ci_mean_lo(0.95, [...])`), matching `trimmedmean`. Vectors are list literals, as for `slope`/`intercept`/`r2`; table-column plumbing belongs to 4.4.
   - `chi_square(x, df)` is unchanged and still a CDF. `betainc` and `fcdf` are verified against closed-form and quadrature references (`I_0.3(2,5) = 0.579825`, `F(5,10)` CDF at 3 = 0.93444243790617); reference values quoted in earlier drafts of these tests were wrong and were corrected, not the kernels.
   - Bundle cost: 3,251.0 KiB raw / 1,323.7 KiB gzipped on 2026-09-09, 845 KiB under the 4,096 KiB ceiling. Reference-page documentation for these names is 4.7's scope.
-- [ ] **4.2 Weighted & Bounded Fitting with Parameter Uncertainty**
+- [ ] **4.2 Weighted & Bounded Fitting with Parameter Uncertainty** — *engine complete, UI pending*
   - Extend `analysis/curvefit.rs` and the existing Curve Fit UI/API with measurement standard deviations or error covariance, real parameter bounds, and robust losses. Reuse the existing calibration workflow's bound conventions; its bounds already work independently of curve fitting.
   - Report parameter covariance, standard errors, confidence/prediction bands, and rank/conditioning diagnostics alongside existing R², RMSE, residuals, and fitted values. Flag unidentifiable fits rather than presenting misleading finite uncertainty; document local-linear approximations and residual degrees of freedom.
   - Support multiple predictor columns and carry weighting/diagnostics into dynamic parameter calibration where applicable. Reuse existing QR/SVD kernels rather than solving least squares through explicit normal-equation inversion.
+  - Engine (done): `curvefit::fit` takes a `CurveFitRequest` carrying `sigma`, `lower`/`upper`, `loss` and `f_scale`, and multiple predictor columns via `x_variables`/`x_data`. Bounds are projected Levenberg-Marquardt (each trial point clamped, trust-region bookkeeping measuring the clamped step); robust losses are IRLS over the same LM with a MAD-based scale. Covariance comes off an SVD of the Jacobian at the optimum, never a `JᵀJ` inversion. `FitResult` reports covariance, standard errors, residual dof, rank, condition number, `unidentifiable` and `at_bound`; rank-deficient or zero-dof fits report `NaN`/`null` rather than a plausible number. `Loss::Linear` with no σ and no bounds skips every added multiplication, so all eight Java oracle goldens still pass iterate for iterate.
+  - Boundary (done): `curve_fit` accepts `sigma`, `xVariables`/`xColumns`, `lowerBounds`/`upperBounds`, `loss`, `fScale`, and returns `parameterStdErrors`, `parameterCovariance`, `residualDof`, `rank`, `conditionNumber`, `unidentifiable`, `reducedChiSquare` and `atBound`. Non-finite values cross as JSON `null`.
+  - Remaining: confidence/prediction bands, the Curve Fit UI for the new inputs and diagnostics, and carrying weighting into dynamic parameter calibration.
 - [ ] **4.3 Correlated & Non-Gaussian Uncertainty**
   - Extend input uncertainty specifications with validated covariance/correlation matrices and propagate first-order covariance through the model (`J Σ Jᵀ`), retaining the current independent-input behavior when no correlations are supplied.
   - Add selectable uniform, triangular, lognormal, Weibull, and beta distributions alongside normal inputs. Implement proper truncated sampling; the current bound-clamped Gaussian sampler must remain explicitly identified if retained for compatibility.

@@ -789,6 +789,13 @@ struct CurveFitRequest {
     initial_guess: Option<Vec<f64>>,
     /// Phase 4.2 per-point measurement standard deviations.
     sigma: Option<Vec<f64>>,
+    /// Phase 4.2 box constraints. The Java accepted these and did nothing with
+    /// them; they are honoured now, and both sides must be sent together.
+    lower_bounds: Option<Vec<f64>>,
+    upper_bounds: Option<Vec<f64>>,
+    /// `"linear"` (default), `"soft_l1"`, `"huber"` or `"cauchy"`.
+    loss: Option<String>,
+    f_scale: Option<f64>,
 }
 
 /// Least-squares curve fit. Returns a `CurveFitResponse` JSON string.
@@ -813,6 +820,7 @@ pub fn curve_fit(request_json: &str) -> String {
             "conditionNumber": Value::Null,
             "unidentifiable": false,
             "reducedChiSquare": Value::Null,
+            "atBound": [],
         })
         .to_string(),
     }
@@ -864,6 +872,18 @@ fn curve_fit_inner(request_json: &str) -> Result<Value, String> {
         }
     }
 
+    let loss = match request.loss.as_deref().unwrap_or("linear") {
+        "linear" => frees_core::analysis::curvefit::Loss::Linear,
+        "soft_l1" => frees_core::analysis::curvefit::Loss::SoftL1,
+        "huber" => frees_core::analysis::curvefit::Loss::Huber,
+        "cauchy" => frees_core::analysis::curvefit::Loss::Cauchy,
+        other => {
+            return Err(format!(
+                "Unknown loss '{other}'. Expected linear, soft_l1, huber or cauchy."
+            ))
+        }
+    };
+
     let result =
         frees_core::analysis::curvefit::fit(&frees_core::analysis::curvefit::CurveFitRequest {
             model: &request.model,
@@ -874,6 +894,10 @@ fn curve_fit_inner(request_json: &str) -> Result<Value, String> {
             y_data: &request.y_data,
             initial_guess: request.initial_guess.as_deref(),
             sigma: request.sigma.as_deref(),
+            lower: request.lower_bounds.as_deref(),
+            upper: request.upper_bounds.as_deref(),
+            loss,
+            f_scale: request.f_scale,
         })
         .map_err(|e| match e {
             // Parse → the shared syntax prefix; everything else → the Java's
@@ -909,6 +933,7 @@ fn curve_fit_inner(request_json: &str) -> Result<Value, String> {
         "conditionNumber": finite_or_null_scalar(result.condition_number),
         "unidentifiable": result.unidentifiable,
         "reducedChiSquare": finite_or_null_scalar(result.reduced_chi_square),
+        "atBound": result.at_bound,
     }))
 }
 

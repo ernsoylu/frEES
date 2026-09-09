@@ -319,6 +319,54 @@ fn curve_fit_refuses_a_non_positive_sigma_and_reports_no_false_confidence() {
 }
 
 #[test]
+fn curve_fit_honours_box_constraints_and_robust_losses() {
+    // y = 2x + 1 with a gross outlier at x = 5. Least squares is dragged to
+    // a = 2.539394; Cauchy is not.
+    let x: Vec<f64> = (0..10).map(f64::from).collect();
+    let mut y: Vec<f64> = x.iter().map(|x| 2.0 * x + 1.0).collect();
+    y[5] = 100.0;
+    let base = serde_json::json!({
+        "model": "y = a * x + b",
+        "yVariable": "y",
+        "xVariable": "x",
+        "parameters": ["a", "b"],
+        "xData": x,
+        "yData": y,
+    });
+
+    let out: Value = serde_json::from_str(&frees::curve_fit(&base.to_string())).unwrap();
+    let fitted = out["fittedParameters"].as_array().unwrap();
+    assert!(
+        (fitted[0].as_f64().unwrap() - 2.539_393_939_4).abs() < 1e-6,
+        "{out}"
+    );
+
+    let mut robust = base.clone();
+    robust["loss"] = serde_json::json!("cauchy");
+    let out: Value = serde_json::from_str(&frees::curve_fit(&robust.to_string())).unwrap();
+    let fitted = out["fittedParameters"].as_array().unwrap();
+    assert!((fitted[0].as_f64().unwrap() - 2.0).abs() < 1e-3, "{out}");
+
+    // An upper bound below the least-squares answer must bind and be reported.
+    let mut bounded = base.clone();
+    bounded["lowerBounds"] = serde_json::json!([0.0, -10.0]);
+    bounded["upperBounds"] = serde_json::json!([2.1, 10.0]);
+    let out: Value = serde_json::from_str(&frees::curve_fit(&bounded.to_string())).unwrap();
+    let fitted = out["fittedParameters"].as_array().unwrap();
+    assert!(fitted[0].as_f64().unwrap() <= 2.1 + 1e-12, "{out}");
+    assert_eq!(out["atBound"], serde_json::json!([true, false]), "{out}");
+
+    let mut wrong = base;
+    wrong["loss"] = serde_json::json!("l1");
+    let out: Value = serde_json::from_str(&frees::curve_fit(&wrong.to_string())).unwrap();
+    assert_eq!(out["success"], false);
+    assert!(
+        out["error"].as_str().unwrap().contains("Unknown loss"),
+        "{out}"
+    );
+}
+
+#[test]
 fn curve_fit_accepts_two_predictor_columns() {
     // y = 2*x1 - 3*x2 exactly.
     let request = serde_json::json!({

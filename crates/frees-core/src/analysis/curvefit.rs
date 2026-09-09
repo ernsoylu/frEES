@@ -40,13 +40,35 @@
 //! the parameter's own uncertainty. It is not a profile-likelihood interval
 //! and does not know about curvature.
 //!
-//! # Parameter bounds are accepted by the Java signature and ignored
+//! # Parameter bounds — the Java's empty `if`, filled in
 //!
 //! `CurveFitter.fit` takes `lowerBounds` / `upperBounds` and its body contains
 //! an empty `if` with the comment "LevenbergMarquardtOptimizer doesn't directly
 //! support bounds in Commons Math 3.x, so we proceed without box constraints".
-//! They are therefore not yet part of this API — `CurveFitParams` in
-//! `web/src/api.ts` does not send them either.
+//! Phase 4.2 makes them real, on the
+//! [`crate::analysis::paramfit::FitRequest`] convention: parallel finite
+//! `lower`/`upper` slices with the initial guess already inside.
+//!
+//! The mechanism is **projected Levenberg–Marquardt** — each trial point is
+//! clamped back into the box and the trust-region bookkeeping then measures the
+//! clamped step, not the unconstrained one it came from. That is not the same
+//! algorithm as an active-set or interior-point LM: a parameter pinned to a
+//! bound can slow convergence, and the local-linear covariance computed at such
+//! a point ignores the constraint entirely. [`FitResult::at_bound`] says which
+//! parameters that applies to, so the standard error can be read with the right
+//! amount of suspicion rather than none.
+//!
+//! # Robust losses
+//!
+//! [`Loss`] replaces the squared residual with soft-L1, Huber or Cauchy through
+//! iteratively reweighted least squares: each outer pass reweights by
+//! `ρ'((r/s)²)` and re-runs the same LM. The scale `s` defaults to the
+//! residuals' own MAD-based robust spread — a fixed `f_scale` in raw data units
+//! is a knob nobody can set correctly without seeing the residuals first — and
+//! [`CurveFitRequest::f_scale`] pins it when the measurement scale is known.
+//!
+//! [`Loss::Linear`], the default, runs the outer loop exactly once with no
+//! reweighting, which is the untouched `lmder` path.
 
 // The LM core below is a line-by-line transcription of Commons Math's
 // `LevenbergMarquardtOptimizer` (MINPACK `lmder`), an algorithm written
@@ -81,6 +103,51 @@ const SAFE_MIN: f64 = f64::MIN_POSITIVE;
 /// `2 * Precision.EPSILON`, where Commons Math's `EPSILON` is `0x1.0p-53`.
 /// This is therefore `0x1.0p-52`, i.e. `f64::EPSILON`.
 const TWO_EPS: f64 = f64::EPSILON;
+
+/// How a residual is penalised. `ρ` is written as a function of the squared
+/// scaled residual `z = (r/s)²`, the SciPy `least_squares` convention.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum Loss {
+    /// `ρ(z) = z` — ordinary least squares, and the only variant that leaves
+    /// the transcribed `lmder` path untouched.
+    #[default]
+    Linear,
+    /// `ρ(z) = 2(√(1+z) − 1)` — smooth L1, mildly outlier-tolerant.
+    SoftL1,
+    /// `ρ(z) = z` for `z ≤ 1` and `2√z − 1` beyond — Huber.
+    Huber,
+    /// `ρ(z) = ln(1 + z)` — Cauchy, the most aggressive of the three; far
+    /// outliers are given nearly no weight at all.
+    Cauchy,
+}
+
+impl Loss {
+    /// The IRLS weight `ρ'(u²)` for a scaled residual `u`, i.e. the factor the
+    /// squared residual is multiplied by to imitate this loss.
+    fn weight(self, u: f64) -> f64 {
+        let z = u * u;
+        match self {
+            Loss::Linear => 1.0,
+            Loss::SoftL1 => 1.0 / (1.0 + z).sqrt(),
+            Loss::Huber => {
+                if z <= 1.0 {
+                    1.0
+                } else {
+                    1.0 / z.sqrt()
+                }
+            }
+            Loss::Cauchy => 1.0 / (1.0 + z),
+        }
+    }
+}
+
+/// Outer IRLS passes before a robust fit gives up refining its weights. Twenty
+/// is far past where the parameter change test below normally stops it.
+const MAX_IRLS_PASSES: usize = 20;
+
+/// The IRLS outer loop stops when no parameter moves by more than this,
+/// relative to its own magnitude.
+const IRLS_PARAM_TOL: f64 = 1e-10;
 
 /// Everything a curve fit needs about the problem.
 ///
@@ -120,6 +187,21 @@ pub struct CurveFitRequest<'a> {
     /// is scaled by the estimated residual variance `SSres / (n − p)` instead,
     /// which is the right answer when only *relative* weights are known.
     pub sigma: Option<&'a [f64]>,
+    /// Lower box constraints, one per parameter. Must be finite and strictly
+    /// below [`upper`](Self::upper), with the initial guess already inside —
+    /// the [`crate::analysis::paramfit`] rules, refused in its words.
+    /// `None` on either side means an unconstrained fit.
+    pub lower: Option<&'a [f64]>,
+    /// Upper box constraints; see [`lower`](Self::lower).
+    pub upper: Option<&'a [f64]>,
+    /// The residual penalty. [`Loss::Linear`] is ordinary least squares.
+    pub loss: Loss,
+    /// The residual scale a robust [`loss`](Self::loss) measures outliers
+    /// against, in the same units as the (σ-scaled, if σ was given) residual.
+    /// `None` re-estimates it each pass from the residuals' own MAD spread,
+    /// `1.4826 · median|r − median r|`, floored away from zero. Ignored for
+    /// [`Loss::Linear`].
+    pub f_scale: Option<f64>,
 }
 
 /// The outcome of a curve-fit run. Port of `CurveFitter.FitResult`, plus the
@@ -167,6 +249,10 @@ pub struct FitResult {
     /// unweighted residuals have no absolute scale to be compared against, and
     /// `NaN` without residual degrees of freedom.
     pub reduced_chi_square: f64,
+    /// Per parameter: does the optimum sit on one of its bounds? The standard
+    /// error beside a `true` here was computed as though the parameter were
+    /// free, so it overstates how well the data pins it down.
+    pub at_bound: Vec<bool>,
 }
 
 /// Fits `request.model` to the observed data. Port of `CurveFitter.fit`, plus
@@ -216,49 +302,91 @@ pub fn fit(request: &CurveFitRequest<'_>) -> Result<FitResult> {
         })
         .collect();
 
-    // `1/σᵢ` per point, or all-ones when no σ was given. The unweighted case
-    // must not merely *equal* one — it must skip the multiplication entirely,
+    let bounds = box_constraints(request, &start)?;
+
+    // `1/σᵢ` per point, or `None` when no σ was given. The unweighted case must
+    // not merely *equal* one — it must skip the multiplication entirely,
     // because scaling residuals and Jacobian rows by an exact 1.0 is still a
     // different float operation and the oracle goldens pin the iterate path.
-    let weights: Option<Vec<f64>> = request
+    let base_weights: Option<Vec<f64>> = request
         .sigma
         .map(|sigma| sigma.iter().map(|s| 1.0 / s).collect());
 
-    let observed: Vec<f64> = match &weights {
-        None => request.y_data.to_vec(),
-        Some(w) => request.y_data.iter().zip(w).map(|(y, w)| y * w).collect(),
-    };
+    // Iteratively reweighted least squares. `Loss::Linear` runs the body once
+    // with `effective == base_weights` and breaks, which is the plain LM path.
+    let mut effective = base_weights.clone();
+    let mut point = start;
+    let mut iterations = 0usize;
+    let mut passes = 0usize;
+    loop {
+        let observed: Vec<f64> = match &effective {
+            None => request.y_data.to_vec(),
+            Some(w) => request.y_data.iter().zip(w).map(|(y, w)| y * w).collect(),
+        };
+        let weights = effective.as_deref();
 
-    // The model + central-difference Jacobian, i.e. `buildModelFunction`.
-    let model_function = |params: &[f64]| -> (Vec<f64>, Mat) {
-        let mut values = vec![0.0; n];
-        let mut jacobian = vec![vec![0.0; p]; n];
-        for i in 0..n {
-            let xi = &x_rows[i];
-            values[i] = evaluate(&model_expr, &x_vars_lower, xi, &param_lower, params);
-            for j in 0..p {
-                let h = FD_STEP.max(params[j].abs() * FD_STEP);
-                let mut plus = params.to_vec();
-                let mut minus = params.to_vec();
-                plus[j] += h;
-                minus[j] -= h;
-                let f_plus = evaluate(&model_expr, &x_vars_lower, xi, &param_lower, &plus);
-                let f_minus = evaluate(&model_expr, &x_vars_lower, xi, &param_lower, &minus);
-                jacobian[i][j] = (f_plus - f_minus) / (2.0 * h);
-            }
-            if let Some(w) = &weights {
-                values[i] *= w[i];
+        // The model + central-difference Jacobian, i.e. `buildModelFunction`.
+        let model_function = |params: &[f64]| -> (Vec<f64>, Mat) {
+            let mut values = vec![0.0; n];
+            let mut jacobian = vec![vec![0.0; p]; n];
+            for i in 0..n {
+                let xi = &x_rows[i];
+                values[i] = evaluate(&model_expr, &x_vars_lower, xi, &param_lower, params);
                 for j in 0..p {
-                    jacobian[i][j] *= w[i];
+                    let h = FD_STEP.max(params[j].abs() * FD_STEP);
+                    let mut plus = params.to_vec();
+                    let mut minus = params.to_vec();
+                    plus[j] += h;
+                    minus[j] -= h;
+                    let f_plus = evaluate(&model_expr, &x_vars_lower, xi, &param_lower, &plus);
+                    let f_minus = evaluate(&model_expr, &x_vars_lower, xi, &param_lower, &minus);
+                    jacobian[i][j] = (f_plus - f_minus) / (2.0 * h);
+                }
+                if let Some(w) = weights {
+                    values[i] *= w[i];
+                    for j in 0..p {
+                        jacobian[i][j] *= w[i];
+                    }
                 }
             }
-        }
-        (values, jacobian)
-    };
+            (values, jacobian)
+        };
 
-    let optimum = levenberg_marquardt(&start, &observed, model_function)?;
-    let fitted = optimum.point;
-    let iterations = optimum.iterations;
+        let optimum = levenberg_marquardt(&point, &observed, model_function, bounds.as_deref())?;
+        iterations += optimum.iterations;
+        let settled = passes > 0 && converged(&point, &optimum.point);
+        point = optimum.point;
+        passes += 1;
+
+        if request.loss == Loss::Linear || passes >= MAX_IRLS_PASSES || settled {
+            break;
+        }
+
+        // Reweight against the residuals this pass actually left behind.
+        let scaled: Vec<f64> = (0..n)
+            .map(|i| {
+                let r = request.y_data[i]
+                    - evaluate(&model_expr, &x_vars_lower, &x_rows[i], &param_lower, &point);
+                match &base_weights {
+                    None => r,
+                    Some(w) => r * w[i],
+                }
+            })
+            .collect();
+        let scale = request.f_scale.unwrap_or_else(|| robust_scale(&scaled));
+        effective = Some(
+            (0..n)
+                .map(|i| {
+                    let robust = request.loss.weight(scaled[i] / scale).max(0.0).sqrt();
+                    match &base_weights {
+                        None => robust,
+                        Some(w) => w[i] * robust,
+                    }
+                })
+                .collect(),
+        );
+    }
+    let fitted = point;
 
     // Fitted values, residuals, R² and RMSE — recomputed at the optimum rather
     // than reused from the optimizer's last evaluation, as the Java does, and
@@ -279,7 +407,7 @@ pub fn fit(request: &CurveFitRequest<'_>) -> Result<FitResult> {
         );
         residuals[i] = request.y_data[i] - fitted_values[i];
         ss_res += residuals[i] * residuals[i];
-        if let Some(w) = &weights {
+        if let Some(w) = &base_weights {
             let scaled = residuals[i] * w[i];
             chi_square += scaled * scaled;
         }
@@ -293,16 +421,49 @@ pub fn fit(request: &CurveFitRequest<'_>) -> Result<FitResult> {
     };
     let rmse = (ss_res / n as f64).sqrt();
 
+    // The Jacobian the uncertainty is read off is the one the final pass
+    // minimised — for a robust fit that is the reweighted one, which is what
+    // makes its covariance an approximation and not the exact thing.
+    let final_jacobian = {
+        let mut jacobian = vec![vec![0.0; p]; n];
+        for i in 0..n {
+            for j in 0..p {
+                let h = FD_STEP.max(fitted[j].abs() * FD_STEP);
+                let mut plus = fitted.clone();
+                let mut minus = fitted.clone();
+                plus[j] += h;
+                minus[j] -= h;
+                let f_plus = evaluate(&model_expr, &x_vars_lower, &x_rows[i], &param_lower, &plus);
+                let f_minus =
+                    evaluate(&model_expr, &x_vars_lower, &x_rows[i], &param_lower, &minus);
+                jacobian[i][j] = (f_plus - f_minus) / (2.0 * h);
+                if let Some(w) = &effective {
+                    jacobian[i][j] *= w[i];
+                }
+            }
+        }
+        jacobian
+    };
+
     let uncertainty = parameter_uncertainty(
-        &model_function(&fitted).1,
+        &final_jacobian,
         p,
         n,
-        if weights.is_some() {
+        if base_weights.is_some() {
             chi_square
         } else {
             ss_res
         },
-        weights.is_some(),
+        base_weights.is_some(),
+    );
+
+    let at_bound = bounds.as_ref().map_or_else(
+        || vec![false; p],
+        |box_| {
+            (0..p)
+                .map(|j| fitted[j] <= box_[j].0 || fitted[j] >= box_[j].1)
+                .collect()
+        },
     );
 
     Ok(FitResult {
@@ -320,7 +481,69 @@ pub fn fit(request: &CurveFitRequest<'_>) -> Result<FitResult> {
         condition_number: uncertainty.condition_number,
         unidentifiable: uncertainty.unidentifiable,
         reduced_chi_square: uncertainty.reduced_chi_square,
+        at_bound,
     })
+}
+
+/// Have the parameters stopped moving between IRLS passes?
+fn converged(previous: &[f64], current: &[f64]) -> bool {
+    previous
+        .iter()
+        .zip(current)
+        .all(|(a, b)| (a - b).abs() <= IRLS_PARAM_TOL * a.abs().max(1.0))
+}
+
+/// The residuals' own robust spread, `1.4826 · MAD`, for a robust loss that was
+/// given no `f_scale`. Falls back to the mean absolute residual and then to 1
+/// so that a degenerate residual vector cannot divide by zero — a zero scale
+/// would send every weight to `ρ'(∞)` and freeze the fit.
+fn robust_scale(residuals: &[f64]) -> f64 {
+    if let Ok(mad) = crate::descriptive::median_abs_deviation(residuals) {
+        let scale = 1.4826 * mad;
+        if scale > 0.0 {
+            return scale;
+        }
+    }
+    let mean_abs = residuals.iter().map(|r| r.abs()).sum::<f64>() / residuals.len().max(1) as f64;
+    if mean_abs > 0.0 {
+        mean_abs
+    } else {
+        1.0
+    }
+}
+
+/// Validates and pairs up the box constraints, in the
+/// [`crate::analysis::paramfit`] words. `None` when either side was omitted.
+fn box_constraints(
+    request: &CurveFitRequest<'_>,
+    start: &[f64],
+) -> Result<Option<Vec<(f64, f64)>>> {
+    let (Some(lower), Some(upper)) = (request.lower, request.upper) else {
+        return Ok(None);
+    };
+    let p = request.parameters.len();
+    if lower.len() != p || upper.len() != p {
+        return Err(FreesError::solver(
+            "Parameter bounds need one lower and one upper value per fitted parameter.",
+        ));
+    }
+    for i in 0..p {
+        if !lower[i].is_finite() || !upper[i].is_finite() || lower[i] >= upper[i] {
+            return Err(FreesError::solver(format!(
+                "Bounds for {} must be finite with lower < upper.",
+                request.parameters[i]
+            )));
+        }
+        if start[i] < lower[i] || start[i] > upper[i] {
+            return Err(FreesError::solver(format!(
+                "The initial value of {} lies outside its bounds.",
+                request.parameters[i]
+            )));
+        }
+    }
+    Ok(Some(
+        lower.iter().copied().zip(upper.iter().copied()).collect(),
+    ))
 }
 
 /// What [`parameter_uncertainty`] reads off the Jacobian at the optimum.
@@ -573,7 +796,12 @@ struct LmScratch {
 ///
 /// `model(point) -> (values, jacobian)` is the `MultivariateJacobianFunction`;
 /// residuals are `target − values`, exactly as `computeResiduals` defines them.
-fn levenberg_marquardt<F>(start: &[f64], target: &[f64], mut model: F) -> Result<LmOptimum>
+fn levenberg_marquardt<F>(
+    start: &[f64],
+    target: &[f64],
+    mut model: F,
+    bounds: Option<&[(f64, f64)]>,
+) -> Result<LmOptimum>
 where
     F: FnMut(&[f64]) -> (Vec<f64>, Mat),
 {
@@ -720,6 +948,19 @@ where
                 let pj = data.permutation[j];
                 scratch.lm_dir[pj] = -scratch.lm_dir[pj];
                 current_point[pj] = scratch.old_x[pj] + scratch.lm_dir[pj];
+                // Projected LM. The step actually taken is the clamped one, so
+                // the trust-region bookkeeping below must measure *that*, not
+                // the unconstrained step it was derived from. Left strictly
+                // alone when unbounded: recomputing `lm_dir` as
+                // `(old_x + d) - old_x` is not bit-identical to `d`, and the
+                // oracle goldens pin this path float for float.
+                if let Some(box_) = bounds {
+                    let clamped = current_point[pj].clamp(box_[pj].0, box_[pj].1);
+                    if clamped != current_point[pj] {
+                        current_point[pj] = clamped;
+                        scratch.lm_dir[pj] = clamped - scratch.old_x[pj];
+                    }
+                }
                 let s = scratch.diag[pj] * scratch.lm_dir[pj];
                 lm_norm += s * s;
             }
@@ -1229,7 +1470,7 @@ mod tests {
             x_data: x,
             y_data: y,
             initial_guess: start,
-            sigma: None,
+            ..Default::default()
         }
     }
 
@@ -1664,5 +1905,157 @@ mod tests {
             "{}",
             err.to_string_message()
         );
+    }
+
+    // -- Phase 4.2: bounds and robust losses --------------------------------
+
+    fn bounded_line_fit(lower: &[f64], upper: &[f64], start: Option<&[f64]>) -> Result<FitResult> {
+        let params = ["a".to_string()];
+        let x_vars = ["x".to_string()];
+        let columns = vec![LINE_X.to_vec()];
+        // OLS through the origin on this data wants a = 2.0257...
+        fit(&CurveFitRequest {
+            model: "y = a * x",
+            y_variable: "y",
+            x_variables: &x_vars,
+            parameters: &params,
+            x_data: &columns,
+            y_data: &LINE_Y,
+            initial_guess: start,
+            lower: Some(lower),
+            upper: Some(upper),
+            ..Default::default()
+        })
+    }
+
+    #[test]
+    fn bounds_that_do_not_bind_leave_the_optimum_where_it_was() {
+        let free = bounded_line_fit(&[-100.0], &[100.0], None).expect("fit");
+        let params = ["a".to_string()];
+        let columns = vec![LINE_X.to_vec()];
+        let unbounded = fit(&request("y = a * x", &params, &columns, &LINE_Y, None)).expect("fit");
+        close(
+            free.fitted_parameters[0],
+            unbounded.fitted_parameters[0],
+            1e-9,
+        );
+        assert_eq!(free.at_bound, [false]);
+    }
+
+    #[test]
+    fn an_active_upper_bound_holds_and_is_reported() {
+        // The unconstrained optimum is above 1.5, so the bound must bind.
+        let r = bounded_line_fit(&[0.0], &[1.5], Some(&[1.0])).expect("fit");
+        assert!(
+            r.fitted_parameters[0] <= 1.5 + 1e-12,
+            "{}",
+            r.fitted_parameters[0]
+        );
+        close(r.fitted_parameters[0], 1.5, 1e-9);
+        assert_eq!(r.at_bound, [true]);
+    }
+
+    #[test]
+    fn malformed_bounds_are_refused_in_the_calibration_workflow_words() {
+        let err = bounded_line_fit(&[0.0, 0.0], &[1.0], None).unwrap_err();
+        assert!(
+            err.to_string_message()
+                .starts_with("Parameter bounds need one"),
+            "{}",
+            err.to_string_message()
+        );
+        let err = bounded_line_fit(&[2.0], &[1.0], None).unwrap_err();
+        assert_eq!(
+            err.to_string_message(),
+            "Bounds for a must be finite with lower < upper."
+        );
+        let err = bounded_line_fit(&[0.0], &[f64::INFINITY], None).unwrap_err();
+        assert_eq!(
+            err.to_string_message(),
+            "Bounds for a must be finite with lower < upper."
+        );
+        // The default start is 1.0, which is outside [5, 10].
+        let err = bounded_line_fit(&[5.0], &[10.0], None).unwrap_err();
+        assert_eq!(
+            err.to_string_message(),
+            "The initial value of a lies outside its bounds."
+        );
+    }
+
+    /// `y = 2x + 1` with one gross outlier at x = 5. Least squares is dragged
+    /// to a = 2.539394, b = 7.472727; a robust loss should not be.
+    fn outlier_fit(loss: Loss) -> FitResult {
+        let x: Vec<f64> = (0..10).map(f64::from).collect();
+        let mut y: Vec<f64> = x.iter().map(|x| 2.0 * x + 1.0).collect();
+        y[5] = 100.0;
+        let params = ["a".to_string(), "b".to_string()];
+        let x_vars = ["x".to_string()];
+        let columns = vec![x];
+        fit(&CurveFitRequest {
+            model: "y = a * x + b",
+            y_variable: "y",
+            x_variables: &x_vars,
+            parameters: &params,
+            x_data: &columns,
+            y_data: &y,
+            loss,
+            ..Default::default()
+        })
+        .expect("fit")
+    }
+
+    #[test]
+    fn least_squares_is_dragged_by_a_gross_outlier() {
+        let r = outlier_fit(Loss::Linear);
+        close(r.fitted_parameters[0], 2.539_393_939_393_94, 1e-6);
+        close(r.fitted_parameters[1], 7.472_727_272_727_27, 1e-6);
+    }
+
+    #[test]
+    fn a_robust_loss_recovers_the_line_the_outlier_hid() {
+        for loss in [Loss::SoftL1, Loss::Huber, Loss::Cauchy] {
+            let r = outlier_fit(loss);
+            assert!(
+                (r.fitted_parameters[0] - 2.0).abs() < 0.05,
+                "{loss:?} slope {}",
+                r.fitted_parameters[0]
+            );
+            assert!(
+                (r.fitted_parameters[1] - 1.0).abs() < 0.3,
+                "{loss:?} intercept {}",
+                r.fitted_parameters[1]
+            );
+            // The reported residuals stay raw, so the outlier is still visible.
+            assert!(r.residuals[5] > 80.0, "{loss:?} {}", r.residuals[5]);
+        }
+        // Cauchy is the most aggressive and should land nearest of the three.
+        let cauchy = outlier_fit(Loss::Cauchy);
+        close(cauchy.fitted_parameters[0], 2.0, 1e-3);
+        close(cauchy.fitted_parameters[1], 1.0, 1e-2);
+    }
+
+    #[test]
+    fn a_fixed_f_scale_overrides_the_estimated_one() {
+        // A scale far larger than any residual makes every weight ~1, so the
+        // robust fit collapses back onto least squares.
+        let x: Vec<f64> = (0..10).map(f64::from).collect();
+        let mut y: Vec<f64> = x.iter().map(|x| 2.0 * x + 1.0).collect();
+        y[5] = 100.0;
+        let params = ["a".to_string(), "b".to_string()];
+        let x_vars = ["x".to_string()];
+        let columns = vec![x];
+        let r = fit(&CurveFitRequest {
+            model: "y = a * x + b",
+            y_variable: "y",
+            x_variables: &x_vars,
+            parameters: &params,
+            x_data: &columns,
+            y_data: &y,
+            loss: Loss::Cauchy,
+            f_scale: Some(1e6),
+            ..Default::default()
+        })
+        .expect("fit");
+        close(r.fitted_parameters[0], 2.539_393_939_393_94, 1e-4);
     }
 }
