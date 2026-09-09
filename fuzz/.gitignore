@@ -1,0 +1,5 @@
+/artifacts/
+/coverage/
+# Retain curated seeds; ignore libFuzzer's hash-named discoveries.
+/corpus/*/*
+!/corpus/*/*.frees
