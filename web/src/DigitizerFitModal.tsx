@@ -222,7 +222,9 @@ export default function DigitizerFitModal({
           </Text>
         )}
 
-        {result && <FitResultView result={result} />}
+        {result && (
+          <FitResultView result={result} xData={xData} yData={yData} xLabel={xVar} yLabel={yVar} />
+        )}
 
         {result?.success && onCreateFunctionTable && (
           <Stack gap={4}>
