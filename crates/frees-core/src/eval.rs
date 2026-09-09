@@ -672,6 +672,28 @@ pub const INTRINSICS: &[Intrinsic] = &[
         a[0],
         &a[1..]
     )),
+    // ----- robust descriptive statistics (Phase 4.1) -------------------------
+    strict!("skewness", Arity::AtLeast(3), |_, a| {
+        crate::descriptive::skewness(a)
+    }),
+    strict!("kurtosis", Arity::AtLeast(4), |_, a| {
+        crate::descriptive::kurtosis(a)
+    }),
+    strict!("mad", Arity::AtLeast(1), |_, a| {
+        crate::descriptive::median_abs_deviation(a)
+    }),
+    // ----- Student-t distribution (Phase 4.1) --------------------------------
+    strict!("tcdf", Arity::Exact(2), |_, a| student_t_cdf(a[0], a[1])),
+    strict!("tpdf", Arity::Exact(2), |_, a| student_t_pdf(a[0], a[1])),
+    strict!("tinv", Arity::Exact(2), |_, a| student_t_inv(a[0], a[1])),
+    // ----- F distribution (Phase 4.1) ----------------------------------------
+    strict!("fcdf", Arity::Exact(3), |_, a| f_dist_cdf(a[0], a[1], a[2])),
+    strict!("fpdf", Arity::Exact(3), |_, a| f_dist_pdf(a[0], a[1], a[2])),
+    strict!("finv", Arity::Exact(3), |_, a| f_dist_inv(a[0], a[1], a[2])),
+    // ----- regularized incomplete beta (Phase 4.1) ---------------------------
+    strict!("betainc", Arity::Exact(3), |_, a| regularized_beta(
+        a[0], a[1], a[2]
+    )),
     // ----- normal distribution (erf-based, matching Apache's formulas) -------
     strict!("normalcdf", Arity::Range(1, 3), |n, a| {
         let (mu, sigma) = normal_params(n, a)?;
@@ -824,6 +846,65 @@ pub const INTRINSICS: &[Intrinsic] = &[
     lazy!("slope", Arity::Exact(2), eval_lin_fit_call),
     lazy!("intercept", Arity::Exact(2), eval_lin_fit_call),
     lazy!("r2", Arity::Exact(2), eval_lin_fit_call),
+    // ----- Phase 4.1: correlation & descriptive (vector-argument) ------------
+    lazy!("cov", Arity::Exact(2), |n, args, env| {
+        let x = vector_arg(n, "x", &args[0], env)?;
+        let y = vector_arg(n, "y", &args[1], env)?;
+        crate::descriptive::sample_covariance(&x, &y)
+    }),
+    lazy!("pearson", Arity::Exact(2), |n, args, env| {
+        let x = vector_arg(n, "x", &args[0], env)?;
+        let y = vector_arg(n, "y", &args[1], env)?;
+        crate::descriptive::pearson_correlation(&x, &y)
+    }),
+    lazy!("corrcoef", Arity::Exact(2), |n, args, env| {
+        let x = vector_arg(n, "x", &args[0], env)?;
+        let y = vector_arg(n, "y", &args[1], env)?;
+        crate::descriptive::pearson_correlation(&x, &y)
+    }),
+    lazy!("spearman", Arity::Exact(2), |n, args, env| {
+        let x = vector_arg(n, "x", &args[0], env)?;
+        let y = vector_arg(n, "y", &args[1], env)?;
+        crate::descriptive::spearman_correlation(&x, &y)
+    }),
+    lazy!("wmean", Arity::Exact(2), |n, args, env| {
+        let w = vector_arg(n, "weights", &args[0], env)?;
+        let x = vector_arg(n, "values", &args[1], env)?;
+        crate::descriptive::weighted_mean(&w, &x)
+    }),
+    lazy!("wvar", Arity::Exact(2), |n, args, env| {
+        let w = vector_arg(n, "weights", &args[0], env)?;
+        let x = vector_arg(n, "values", &args[1], env)?;
+        crate::descriptive::weighted_variance(&w, &x)
+    }),
+    lazy!("trimmedmean", Arity::Exact(2), |n, args, env| {
+        let alpha = eval_in(&args[0], env)?;
+        let x = vector_arg(n, "values", &args[1], env)?;
+        crate::descriptive::trimmed_mean(alpha, &x)
+    }),
+    // ----- Phase 4.1: hypothesis tests (individual output accessors) ---------
+    lazy!("ttest1_stat", Arity::Exact(2), eval_ttest1_call),
+    lazy!("ttest1_pval", Arity::Exact(2), eval_ttest1_call),
+    lazy!("ttest1_df", Arity::Exact(2), eval_ttest1_call),
+    lazy!("ttest_paired_stat", Arity::Exact(2), eval_ttest_paired_call),
+    lazy!("ttest_paired_pval", Arity::Exact(2), eval_ttest_paired_call),
+    lazy!("ttest_paired_df", Arity::Exact(2), eval_ttest_paired_call),
+    lazy!("ttest2_stat", Arity::Exact(2), eval_ttest2_call),
+    lazy!("ttest2_pval", Arity::Exact(2), eval_ttest2_call),
+    lazy!("ttest2_df", Arity::Exact(2), eval_ttest2_call),
+    lazy!("anova1_f", Arity::AtLeast(2), eval_anova1_call),
+    lazy!("anova1_pval", Arity::AtLeast(2), eval_anova1_call),
+    lazy!("anova1_df_between", Arity::AtLeast(2), eval_anova1_call),
+    lazy!("anova1_df_within", Arity::AtLeast(2), eval_anova1_call),
+    lazy!("chi2gof_stat", Arity::Exact(2), eval_chi2gof_call),
+    lazy!("chi2gof_pval", Arity::Exact(2), eval_chi2gof_call),
+    lazy!("chi2gof_df", Arity::Exact(2), eval_chi2gof_call),
+    lazy!("ci_mean_lo", Arity::Exact(2), eval_ci_mean_call),
+    lazy!("ci_mean_hi", Arity::Exact(2), eval_ci_mean_call),
+    lazy!("bootstrap_ci_lo", Arity::Exact(4), eval_bootstrap_ci_call),
+    lazy!("bootstrap_ci_hi", Arity::Exact(4), eval_bootstrap_ci_call),
+    lazy!("permtest_stat", Arity::Exact(4), eval_permtest_call),
+    lazy!("permtest_pval", Arity::Exact(4), eval_permtest_call),
     lazy!("interp2", Arity::Exact(5), eval_interp2_call),
     // ----- dynamic array indexing -------------------------------------------
     // ArrayElmt(data[1:N], k): the range expands to N element args; the last
@@ -2364,6 +2445,155 @@ fn eval_lin_fit_call<'a>(name: &str, args: &'a [Expr], env: &'a Env<'a>) -> Resu
     }
 }
 
+// --- Phase 4.1: Hypothesis test dispatchers --------------------------------
+//
+// Each test function computes the full result struct, then the function name
+// selects the field to return — the same pattern as `eval_lin_fit_call`.
+
+/// Wrapper that calls `student_t_cdf` with the function-pointer signature
+/// the descriptive module expects.
+fn t_cdf_fn(x: f64, df: f64) -> Result<f64> {
+    student_t_cdf(x, df)
+}
+
+fn t_inv_fn(p: f64, df: f64) -> Result<f64> {
+    student_t_inv(p, df)
+}
+
+fn f_cdf_fn(x: f64, d1: f64, d2: f64) -> Result<f64> {
+    f_dist_cdf(x, d1, d2)
+}
+
+fn chi2_cdf_fn(x: f64, df: f64) -> Result<f64> {
+    regularized_gamma_p(df / 2.0, x / 2.0)
+}
+
+/// `ttest1_stat(mu0, data)` / `ttest1_pval(…)` / `ttest1_df(…)`
+fn eval_ttest1_call<'a>(name: &str, args: &'a [Expr], env: &'a Env<'a>) -> Result<f64> {
+    let mu0 = eval_in(&args[0], env)?;
+    let x = vector_arg(name, "data", &args[1], env)?;
+    let r = crate::descriptive::ttest_one_sample(mu0, &x, t_cdf_fn)?;
+    match name {
+        "ttest1_stat" => Ok(r.statistic),
+        "ttest1_pval" => Ok(r.p_value),
+        "ttest1_df" => Ok(r.df),
+        other => Err(FreesError::evaluation(format!(
+            "Unknown ttest1 output: {other}"
+        ))),
+    }
+}
+
+/// `ttest_paired_stat(x, y)` / `ttest_paired_pval(…)` / `ttest_paired_df(…)`
+fn eval_ttest_paired_call<'a>(name: &str, args: &'a [Expr], env: &'a Env<'a>) -> Result<f64> {
+    let x = vector_arg(name, "x", &args[0], env)?;
+    let y = vector_arg(name, "y", &args[1], env)?;
+    let r = crate::descriptive::ttest_paired(&x, &y, t_cdf_fn)?;
+    match name {
+        "ttest_paired_stat" => Ok(r.statistic),
+        "ttest_paired_pval" => Ok(r.p_value),
+        "ttest_paired_df" => Ok(r.df),
+        other => Err(FreesError::evaluation(format!(
+            "Unknown ttest_paired output: {other}"
+        ))),
+    }
+}
+
+/// `ttest2_stat(x, y)` / `ttest2_pval(…)` / `ttest2_df(…)`
+fn eval_ttest2_call<'a>(name: &str, args: &'a [Expr], env: &'a Env<'a>) -> Result<f64> {
+    let x = vector_arg(name, "x", &args[0], env)?;
+    let y = vector_arg(name, "y", &args[1], env)?;
+    let r = crate::descriptive::ttest_welch(&x, &y, t_cdf_fn)?;
+    match name {
+        "ttest2_stat" => Ok(r.statistic),
+        "ttest2_pval" => Ok(r.p_value),
+        "ttest2_df" => Ok(r.df),
+        other => Err(FreesError::evaluation(format!(
+            "Unknown ttest2 output: {other}"
+        ))),
+    }
+}
+
+/// `anova1_f(g1, g2, …)` / `anova1_pval(…)` / `anova1_df_between(…)` /
+/// `anova1_df_within(…)`
+fn eval_anova1_call<'a>(name: &str, args: &'a [Expr], env: &'a Env<'a>) -> Result<f64> {
+    let mut groups: Vec<Vec<f64>> = Vec::with_capacity(args.len());
+    for (i, arg) in args.iter().enumerate() {
+        groups.push(vector_arg(name, &format!("group{}", i + 1), arg, env)?);
+    }
+    let group_refs: Vec<&[f64]> = groups.iter().map(|g| g.as_slice()).collect();
+    let r = crate::descriptive::anova_oneway(&group_refs, f_cdf_fn)?;
+    match name {
+        "anova1_f" => Ok(r.f_statistic),
+        "anova1_pval" => Ok(r.p_value),
+        "anova1_df_between" => Ok(r.df_between),
+        "anova1_df_within" => Ok(r.df_within),
+        other => Err(FreesError::evaluation(format!(
+            "Unknown anova1 output: {other}"
+        ))),
+    }
+}
+
+/// `chi2gof_stat(observed, expected)` / `chi2gof_pval(…)` / `chi2gof_df(…)`
+fn eval_chi2gof_call<'a>(name: &str, args: &'a [Expr], env: &'a Env<'a>) -> Result<f64> {
+    let obs = vector_arg(name, "observed", &args[0], env)?;
+    let exp = vector_arg(name, "expected", &args[1], env)?;
+    let r = crate::descriptive::chi2_goodness_of_fit(&obs, &exp, chi2_cdf_fn)?;
+    match name {
+        "chi2gof_stat" => Ok(r.statistic),
+        "chi2gof_pval" => Ok(r.p_value),
+        "chi2gof_df" => Ok(r.df),
+        other => Err(FreesError::evaluation(format!(
+            "Unknown chi2gof output: {other}"
+        ))),
+    }
+}
+
+/// `ci_mean_lo(confidence, data)` / `ci_mean_hi(…)`
+fn eval_ci_mean_call<'a>(name: &str, args: &'a [Expr], env: &'a Env<'a>) -> Result<f64> {
+    let confidence = eval_in(&args[0], env)?;
+    let x = vector_arg(name, "data", &args[1], env)?;
+    let (lo, hi) = crate::descriptive::ci_mean(confidence, &x, t_inv_fn)?;
+    match name {
+        "ci_mean_lo" => Ok(lo),
+        "ci_mean_hi" => Ok(hi),
+        other => Err(FreesError::evaluation(format!(
+            "Unknown ci_mean output: {other}"
+        ))),
+    }
+}
+
+/// `bootstrap_ci_lo(confidence, n_resamples, seed, data)` / `bootstrap_ci_hi(…)`
+fn eval_bootstrap_ci_call<'a>(name: &str, args: &'a [Expr], env: &'a Env<'a>) -> Result<f64> {
+    let confidence = eval_in(&args[0], env)?;
+    let n_resamples = eval_in(&args[1], env)? as usize;
+    let seed = eval_in(&args[2], env)? as i64;
+    let x = vector_arg(name, "data", &args[3], env)?;
+    let (lo, hi) = crate::descriptive::bootstrap_ci_mean(confidence, n_resamples, seed, &x)?;
+    match name {
+        "bootstrap_ci_lo" => Ok(lo),
+        "bootstrap_ci_hi" => Ok(hi),
+        other => Err(FreesError::evaluation(format!(
+            "Unknown bootstrap_ci output: {other}"
+        ))),
+    }
+}
+
+/// `permtest_stat(n_perms, seed, x, y)` / `permtest_pval(…)`
+fn eval_permtest_call<'a>(name: &str, args: &'a [Expr], env: &'a Env<'a>) -> Result<f64> {
+    let n_perms = eval_in(&args[0], env)? as usize;
+    let seed = eval_in(&args[1], env)? as i64;
+    let x = vector_arg(name, "x", &args[2], env)?;
+    let y = vector_arg(name, "y", &args[3], env)?;
+    let r = crate::descriptive::permutation_test_means(n_perms, seed, &x, &y)?;
+    match name {
+        "permtest_stat" => Ok(r.statistic),
+        "permtest_pval" => Ok(r.p_value),
+        other => Err(FreesError::evaluation(format!(
+            "Unknown permtest output: {other}"
+        ))),
+    }
+}
+
 /// `Interp2` in **expression position** — regular-grid 2-D interpolation
 /// through [`crate::interp2::interpolate`].
 ///
@@ -3112,6 +3342,254 @@ fn regularized_gamma_q(a: f64, x: f64) -> Result<f64> {
         ));
     }
     Ok(libm::exp(-x + a * libm::log(x) - libm::lgamma(a)) / h_n)
+}
+
+// --- Regularized incomplete beta I_x(a, b) ---------------------------------
+//
+// Used by the Student-t and F distribution CDFs.  Implements the same
+// continued-fraction algorithm as Apache Commons Math
+// `Beta.regularizedBeta` (Lentz's method with the DLMF 8.17.22 fraction).
+
+/// Iteration cap for the beta continued fraction.
+const BETA_MAX_ITERATIONS: usize = 10_000;
+const BETA_EPSILON: f64 = 1e-14;
+
+/// Regularized incomplete beta function I_x(a, b) = B(x; a, b) / B(a, b).
+///
+/// Returns the probability P(X ≤ x) for X ~ Beta(a, b).
+pub fn regularized_beta(x: f64, a: f64, b: f64) -> Result<f64> {
+    if x.is_nan() || a.is_nan() || b.is_nan() {
+        return Ok(f64::NAN);
+    }
+    if x < 0.0 || x > 1.0 || a <= 0.0 || b <= 0.0 {
+        return Ok(f64::NAN);
+    }
+    if x == 0.0 {
+        return Ok(0.0);
+    }
+    if x == 1.0 {
+        return Ok(1.0);
+    }
+    // Use the symmetry relation I_x(a, b) = 1 − I_{1−x}(b, a) to ensure the
+    // continued fraction converges (it converges when x < (a + 1) / (a + b + 2)).
+    if x > (a + 1.0) / (a + b + 2.0) {
+        return Ok(1.0 - regularized_beta(1.0 - x, b, a)?);
+    }
+    // Log of the prefactor: x^a (1−x)^b / (a * B(a, b))
+    let log_prefix = a * libm::log(x) + b * libm::log(1.0 - x) - libm::lgamma(a) - libm::lgamma(b)
+        + libm::lgamma(a + b)
+        - libm::log(a);
+    let prefix = libm::exp(log_prefix);
+    // Lentz's continued fraction for I_x(a, b).
+    // CF coefficients from DLMF 8.17.22.
+    let small = 1e-50_f64;
+    let mut c = 1.0_f64;
+    let mut d = 1.0 - (a + b) * x / (a + 1.0);
+    if libm::fabs(d) < small {
+        d = small;
+    }
+    d = 1.0 / d;
+    let mut h = d;
+    for m in 1..=BETA_MAX_ITERATIONS {
+        let mf = m as f64;
+        // Even step: d_{2m} = m(b − m)x / ((a + 2m − 1)(a + 2m))
+        let num_even = mf * (b - mf) * x / ((a + 2.0 * mf - 1.0) * (a + 2.0 * mf));
+        d = 1.0 + num_even * d;
+        if libm::fabs(d) < small {
+            d = small;
+        }
+        c = 1.0 + num_even / c;
+        if libm::fabs(c) < small {
+            c = small;
+        }
+        d = 1.0 / d;
+        h *= d * c;
+        // Odd step: d_{2m+1} = −(a + m)(a + b + m)x / ((a + 2m)(a + 2m + 1))
+        let num_odd = -((a + mf) * (a + b + mf) * x) / ((a + 2.0 * mf) * (a + 2.0 * mf + 1.0));
+        d = 1.0 + num_odd * d;
+        if libm::fabs(d) < small {
+            d = small;
+        }
+        c = 1.0 + num_odd / c;
+        if libm::fabs(c) < small {
+            c = small;
+        }
+        d = 1.0 / d;
+        let delta = d * c;
+        h *= delta;
+        if libm::fabs(delta - 1.0) < BETA_EPSILON {
+            return Ok(prefix * h);
+        }
+    }
+    Err(FreesError::evaluation(
+        "regularized beta continued fraction failed to converge",
+    ))
+}
+
+// --- Student-t distribution ------------------------------------------------
+
+/// Student-t cumulative distribution function: P(T ≤ x) for T ~ t(df).
+///
+/// Uses the regularized beta identity:
+///   CDF(x) = 1 − ½ I_{df/(df+x²)}(df/2, 1/2)   for x ≥ 0
+///   CDF(x) = ½ I_{df/(df+x²)}(df/2, 1/2)         for x < 0
+pub fn student_t_cdf(x: f64, df: f64) -> Result<f64> {
+    if df <= 0.0 {
+        return Err(FreesError::evaluation(format!(
+            "tcdf: degrees of freedom must be > 0, got {df}"
+        )));
+    }
+    if x == 0.0 {
+        return Ok(0.5);
+    }
+    let t2 = x * x;
+    let z = df / (df + t2);
+    let beta_val = regularized_beta(z, df / 2.0, 0.5)?;
+    if x > 0.0 {
+        Ok(1.0 - 0.5 * beta_val)
+    } else {
+        Ok(0.5 * beta_val)
+    }
+}
+
+/// Student-t probability density function.
+pub fn student_t_pdf(x: f64, df: f64) -> Result<f64> {
+    if df <= 0.0 {
+        return Err(FreesError::evaluation(format!(
+            "tpdf: degrees of freedom must be > 0, got {df}"
+        )));
+    }
+    let half_df = df / 2.0;
+    let log_pdf = libm::lgamma(half_df + 0.5)
+        - libm::lgamma(half_df)
+        - 0.5 * libm::log(df * std::f64::consts::PI)
+        - (half_df + 0.5) * libm::log(1.0 + x * x / df);
+    Ok(libm::exp(log_pdf))
+}
+
+/// Inverse of the Student-t CDF via Newton–Raphson with a rational initial
+/// guess.  Returns the value `t` such that P(T ≤ t) = p for T ~ t(df).
+pub fn student_t_inv(p: f64, df: f64) -> Result<f64> {
+    if df <= 0.0 {
+        return Err(FreesError::evaluation(format!(
+            "tinv: degrees of freedom must be > 0, got {df}"
+        )));
+    }
+    if p <= 0.0 {
+        return Ok(f64::NEG_INFINITY);
+    }
+    if p >= 1.0 {
+        return Ok(f64::INFINITY);
+    }
+    if (p - 0.5).abs() < 1e-15 {
+        return Ok(0.0);
+    }
+    // Use the symmetry: if p < 0.5, tinv(p, df) = −tinv(1−p, df).
+    if p < 0.5 {
+        return Ok(-student_t_inv(1.0 - p, df)?);
+    }
+    // Initial guess from normal approximation for large df.
+    let z = std::f64::consts::SQRT_2 * erf_inv(2.0 * p - 1.0);
+    let mut t = if df > 100.0 {
+        z
+    } else {
+        // Cornish–Fisher expansion for moderate df.
+        let z2 = z * z;
+        z + (z2 * z + z) / (4.0 * df)
+            + (5.0 * z2 * z2 * z + 16.0 * z2 * z + 3.0 * z) / (96.0 * df * df)
+    };
+    // Newton–Raphson refinement.
+    for _ in 0..50 {
+        let cdf = student_t_cdf(t, df)?;
+        let pdf = student_t_pdf(t, df)?;
+        if pdf < 1e-300 {
+            break;
+        }
+        let dt = (cdf - p) / pdf;
+        t -= dt;
+        if libm::fabs(dt) < 1e-14 * libm::fabs(t).max(1.0) {
+            break;
+        }
+    }
+    Ok(t)
+}
+
+// --- F distribution --------------------------------------------------------
+
+/// F distribution CDF: P(X ≤ x) for X ~ F(d1, d2).
+///
+/// Uses the regularized beta identity:
+///   CDF(x) = I_{d1·x/(d1·x+d2)}(d1/2, d2/2)
+pub fn f_dist_cdf(x: f64, d1: f64, d2: f64) -> Result<f64> {
+    if d1 <= 0.0 || d2 <= 0.0 {
+        return Err(FreesError::evaluation(format!(
+            "fcdf: degrees of freedom must be > 0, got d1={d1}, d2={d2}"
+        )));
+    }
+    if x <= 0.0 {
+        return Ok(0.0);
+    }
+    let z = d1 * x / (d1 * x + d2);
+    regularized_beta(z, d1 / 2.0, d2 / 2.0)
+}
+
+/// F distribution probability density function.
+pub fn f_dist_pdf(x: f64, d1: f64, d2: f64) -> Result<f64> {
+    if d1 <= 0.0 || d2 <= 0.0 {
+        return Err(FreesError::evaluation(format!(
+            "fpdf: degrees of freedom must be > 0, got d1={d1}, d2={d2}"
+        )));
+    }
+    if x <= 0.0 {
+        return Ok(0.0);
+    }
+    let log_pdf = (d1 / 2.0) * libm::log(d1 / d2) + (d1 / 2.0 - 1.0) * libm::log(x)
+        - ((d1 + d2) / 2.0) * libm::log(1.0 + d1 * x / d2)
+        - libm::lgamma(d1 / 2.0)
+        - libm::lgamma(d2 / 2.0)
+        + libm::lgamma((d1 + d2) / 2.0);
+    Ok(libm::exp(log_pdf))
+}
+
+/// Inverse of the F distribution CDF via Newton–Raphson.
+/// Returns `x` such that P(X ≤ x) = p for X ~ F(d1, d2).
+pub fn f_dist_inv(p: f64, d1: f64, d2: f64) -> Result<f64> {
+    if d1 <= 0.0 || d2 <= 0.0 {
+        return Err(FreesError::evaluation(format!(
+            "finv: degrees of freedom must be > 0, got d1={d1}, d2={d2}"
+        )));
+    }
+    if p <= 0.0 {
+        return Ok(0.0);
+    }
+    if p >= 1.0 {
+        return Ok(f64::INFINITY);
+    }
+    // Initial guess: use the mean of the F distribution (d2 / (d2 − 2)) scaled
+    // by a normal quantile adjustment.
+    let z = std::f64::consts::SQRT_2 * erf_inv(2.0 * p - 1.0);
+    let mean_f = if d2 > 2.0 { d2 / (d2 - 2.0) } else { 1.0 };
+    let mut x = mean_f * libm::exp(z * 0.5);
+    if x <= 0.0 {
+        x = 0.01;
+    }
+    // Newton–Raphson.
+    for _ in 0..100 {
+        let cdf = f_dist_cdf(x, d1, d2)?;
+        let pdf = f_dist_pdf(x, d1, d2)?;
+        if pdf < 1e-300 {
+            break;
+        }
+        let dx = (cdf - p) / pdf;
+        x -= dx;
+        if x <= 0.0 {
+            x = 1e-10;
+        }
+        if libm::fabs(dx) < 1e-14 * x.max(1.0) {
+            break;
+        }
+    }
+    Ok(x)
 }
 
 // --- Bessel functions (Numerical-Recipes transcriptions from Evaluator.java) —
@@ -7317,6 +7795,104 @@ mod tests {
         assert!(msg.contains("probability"), "{msg}");
         let msg = cerr("normalinvcdf", &[0.5, 0.0, -1.0]);
         assert!(msg.contains("standard deviation"), "{msg}");
+    }
+
+    // =====================================================================
+    // Phase 4.1: Student-t, F, regularized beta, descriptive stats
+    // =====================================================================
+
+    #[test]
+    fn student_t_cdf_known_values() {
+        // t(0, 1) = 0.5 for any df.
+        close(c("tcdf", &[0.0, 5.0]), 0.5);
+        // Reference (Simpson quadrature of the incomplete beta): 0.94903026058507.
+        close(c("tcdf", &[2.0, 5.0]), 0.949_030_260_585_07);
+        // Negative argument: symmetry.
+        let neg = c("tcdf", &[-2.0, 5.0]);
+        close(neg, 1.0 - 0.949_030_260_585_07);
+        // Large df approaches normal: 0.97498824 vs the normal 0.975.
+        let large_df = c("tcdf", &[1.96, 10000.0]);
+        assert!((large_df - 0.975).abs() < 1e-4, "got {large_df}");
+    }
+
+    #[test]
+    fn student_t_pdf_at_zero() {
+        // t PDF at x=0 with df=1 (Cauchy) = 1/π ≈ 0.31831
+        let val = c("tpdf", &[0.0, 1.0]);
+        close(val, 1.0 / std::f64::consts::PI);
+    }
+
+    #[test]
+    fn student_t_inv_round_trips() {
+        // tinv(tcdf(x, df), df) ≈ x.
+        let x = 1.5;
+        let df = 10.0;
+        let p = c("tcdf", &[x, df]);
+        let recovered = c("tinv", &[p, df]);
+        close(recovered, x);
+    }
+
+    #[test]
+    fn student_t_inv_critical_values() {
+        // Standard t-table value t(0.975, 9) = 2.262157162798.
+        let val = c("tinv", &[0.975, 9.0]);
+        close(val, 2.262_157_162_798);
+    }
+
+    #[test]
+    fn f_dist_cdf_known_values() {
+        // fcdf(0, d1, d2) = 0 for all d1, d2 > 0.
+        assert_eq!(c("fcdf", &[0.0, 5.0, 10.0]), 0.0);
+        // F(5, 10) CDF at 3 = I_0.6(2.5, 5); reference quadrature: 0.93444243790617.
+        close(c("fcdf", &[3.0, 5.0, 10.0]), 0.934_442_437_906_17);
+    }
+
+    #[test]
+    fn f_dist_pdf_positive() {
+        let val = c("fpdf", &[1.0, 5.0, 10.0]);
+        assert!(val > 0.0, "F PDF at x=1 should be positive, got {val}");
+    }
+
+    #[test]
+    fn f_dist_inv_round_trips() {
+        let x = 2.5;
+        let d1 = 3.0;
+        let d2 = 15.0;
+        let p = c("fcdf", &[x, d1, d2]);
+        let recovered = c("finv", &[p, d1, d2]);
+        close(recovered, x);
+    }
+
+    #[test]
+    fn regularized_beta_boundary_values() {
+        assert_eq!(c("betainc", &[0.0, 2.0, 3.0]), 0.0);
+        assert_eq!(c("betainc", &[1.0, 2.0, 3.0]), 1.0);
+        // I_{0.5}(1, 1) = 0.5 (uniform distribution).
+        close(c("betainc", &[0.5, 1.0, 1.0]), 0.5);
+    }
+
+    #[test]
+    fn regularized_beta_known_value() {
+        // Integer a, b close form: I_0.3(2, 5) = 1 - 0.7^6 - 6(0.3)(0.7^5) = 0.579825.
+        close(c("betainc", &[0.3, 2.0, 5.0]), 0.579_825);
+    }
+
+    #[test]
+    fn skewness_dispatch() {
+        // Symmetric data: skewness ≈ 0.
+        close(c("skewness", &[1.0, 2.0, 3.0, 4.0, 5.0]), 0.0);
+    }
+
+    #[test]
+    fn kurtosis_dispatch() {
+        // [1, 2, 3, 4, 5]: excess kurtosis = -1.2.
+        close(c("kurtosis", &[1.0, 2.0, 3.0, 4.0, 5.0]), -1.2);
+    }
+
+    #[test]
+    fn mad_dispatch() {
+        // [1, 2, 3, 4, 5]: median = 3, deviations = [2, 1, 0, 1, 2], MAD = 1.
+        close(c("mad", &[1.0, 2.0, 3.0, 4.0, 5.0]), 1.0);
     }
 
     // =====================================================================
