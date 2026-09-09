@@ -28,7 +28,7 @@ Guidelines and reference architecture for AI coding assistants and developers wo
 - **Test Suite Health**:
   - `cargo test --workspace -- --skip golden_corpus_parity`: passes across all workspace crates.
   - `cargo test --release --test parity`: 1,308/1,308 golden fixtures passing.
-  - `vitest run` (Node 22): 54 test files, 603 tests passing.
+  - `vitest run` (Node 22): 55 test files, 620 tests passing.
   - `cargo clippy`: 0 warnings with `-D warnings` on native and `wasm32-unknown-unknown`.
   - `npm run lint`: 0 errors.
 
