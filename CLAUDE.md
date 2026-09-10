@@ -21,10 +21,10 @@ Guidelines and reference architecture for AI coding assistants and developers wo
 
 - **Solvers**: Scaled Newton-Raphson, trust-region line search, Powell hybrid dogleg, rank-deficient merge recovery, polish pass, and reusable prepared solvers (`PreparedDocument`).
 - **Dynamic Systems**: Adaptive Dormand-Prince Runge-Kutta (`ode45`), 5th-order Radau IIA (`radau5`/`radauiia`), and variable-coefficient DAE BDF/IDA with zero-crossing event root-finding.
-- **Properties**: Pure-Rust CoolProp 8.0.0 implementation (`rustprop`) for high-accuracy Helmholtz equations of state, cubic EoS, incompressibles, and psychrometrics (`HAPropsSI`).
+- **Properties**: Pure-Rust CoolProp 8.0.0 implementation (`rustprop`) for high-accuracy Helmholtz equations of state, cubic EoS, incompressibles, and psychrometrics (`HAPropsSI`). 26 real fluids are linked and served on the diagram picker — every pure fluid the alias table names. The ten `.mix` refrigerant blends remain unbacked pending mixture routing upstream.
 - **Component Library**: 295+ standard acausal components spanning fluid networks, thermal systems, moist air HVAC, mechanics, and electrical circuits.
 - **Worker Pool**: Up to 4 Web Workers executing independent parametric sweep chunks in parallel with weighted progress, preserving deterministic row ordering.
-- **WASM Bundle Budget**: Strictly gated at $\le 4,096\text{ KiB}$ raw (current build: ~3,380 KiB raw / ~1,412 KiB gzipped, ~716 KiB headroom).
+- **WASM Bundle Budget**: Strictly gated at $\le 5,120\text{ KiB}$ raw (current build: ~3,753 KiB raw / ~1,699 KiB gzipped, ~1,367 KiB headroom). Raised from 4,096 on 2026-09-10, owner-authorized, to link every fluid the alias table names; the `ci.yml` header carries the full ledger and records that the lazy-chunk pay-down is now overdue.
 - **Test Suite Health**:
   - `cargo test --workspace -- --skip golden_corpus_parity`: passes across all workspace crates.
   - `cargo test --release --test parity`: 1,308/1,308 golden fixtures passing.

@@ -1594,8 +1594,21 @@ pub fn property_diagram(fluid: &str, kind: &str) -> String {
     }
     // A document spelling ("water", "R134a") resolves to the canonical CoolProp
     // name; an already-canonical name passes through unchanged.
-    let canonical = frees_core::props::propfun::resolve_fluid(&fluid.to_lowercase())
-        .unwrap_or_else(|_| fluid.to_string());
+    //
+    // That second half used to be a lie. `resolve_fluid` returns its argument
+    // untouched when no alias matches, and the argument here is the LOWERCASED
+    // name — so every canonical name that is not itself an alias key arrived at
+    // rustprop in lower case and came back "key [n-butane] was not found in
+    // JSONFluidLibrary". It went unnoticed while those fluids had no data to
+    // reach; linking them on 2026-09-10 turned it into six failing diagrams
+    // each for `R1234ze(E)` and `n-Butane`. Fall back to the spelling the
+    // caller actually passed, which is what the comment always claimed.
+    let lowered = fluid.to_lowercase();
+    let canonical = match frees_core::props::propfun::resolve_fluid(&lowered) {
+        Ok(name) if name == lowered => fluid.to_string(),
+        Ok(name) => name,
+        Err(_) => fluid.to_string(),
+    };
     match frees_core::props::diagrams::generate(&canonical, kind) {
         Ok(diagram) => diagram_json(&diagram).to_string(),
         Err(e) => json!({ "error": e.to_string() }).to_string(),
@@ -2594,15 +2607,16 @@ END\n\
     #[test]
     fn a_property_diagram_for_an_untabulated_fluid_is_an_error_body() {
         let _guard = backend_guard();
-        // Argon, not Ammonia. This case named Ammonia until 2026-09-09, when
-        // the `ammonia` rustprop-data feature was linked and it stopped being
-        // untabulated — the assertion held only because the data was missing,
-        // so it had to move to a fluid the alias table knows and no linked
-        // feature backs.
-        let payload = parsed(&property_diagram("Argon", "T-s"));
+        // This case has now outlived two fluids: it named Ammonia until
+        // 2026-09-09 and Argon until 2026-09-10, each time because the fluid it
+        // relied on stopped being untabulated. `R454B` should be the last move
+        // — the `.mix` blends are unbacked for an upstream reason (rustprop's
+        // facade does not route predefined mixtures) rather than a budget one,
+        // so linking more fluids cannot quietly retire this assertion again.
+        let payload = parsed(&property_diagram("R454B", "T-s"));
         assert_key(&payload, "error", Value::is_string);
         let message = payload["error"].as_str().expect("string");
-        assert!(message.contains("Argon"), "{message}");
+        assert!(message.contains("R454B"), "{message}");
     }
 
     /// The four fluids linked on 2026-09-09 are on the picker, and this is the
@@ -2631,7 +2645,29 @@ END\n\
         let _guard = backend_guard();
         frees_core::props::tables::install_builtin_once();
         let offered = frees_core::props::propfun::plot_fluids_available();
-        for fluid in ["Ammonia", "Nitrogen", "Methane", "Propane"] {
+        for fluid in [
+            "Ammonia",
+            "Nitrogen",
+            "Methane",
+            "Propane",
+            "R12",
+            "R22",
+            "R32",
+            "R123",
+            "R245fa",
+            "R404A",
+            "R407C",
+            "R410A",
+            "R1234ze(E)",
+            "Argon",
+            "CarbonMonoxide",
+            "Ethane",
+            "Helium",
+            "Hydrogen",
+            "IsoButane",
+            "n-Butane",
+            "Oxygen",
+        ] {
             assert!(offered.contains(&fluid), "{fluid} missing from the picker");
             for kind in ["T-s", "P-h", "P-v", "T-v", "h-s", "P-T"] {
                 let payload = parsed(&property_diagram(fluid, kind));
@@ -2639,16 +2675,33 @@ END\n\
                 let ys: Vec<Option<f64>> =
                     serde_json::from_value(payload["dome"][0]["y"].clone()).expect("y array");
                 let finite = ys.iter().flatten().count();
+                // R410A comes back one point short on every kind — the
+                // pseudo-pure blend's glide at one end of the dome, measured
+                // and accepted, not a silent tolerance for everyone.
                 let want = if kind == "P-T" { 200 } else { 400 };
-                assert_eq!(finite, want, "{fluid} {kind}: {finite} finite dome points");
+                let slack = usize::from(fluid == "R410A");
+                assert!(
+                    finite + slack >= want && finite <= want,
+                    "{fluid} {kind}: {finite} finite dome points, wanted {want}"
+                );
             }
             // The two-phase interior: a full quality set and real isobars, the
             // half CO2 cannot manage.
             let payload = parsed(&property_diagram(fluid, "T-s"));
             let isolines = payload["isolines"].as_array().expect("isolines");
             let family = |name: &str| isolines.iter().filter(|c| c["family"] == name).count();
+            // Nine quality lines is structural — 0.1 through 0.9 — so it is
+            // pinned exactly. The isobar count is not: the pressure anchors are
+            // fixed and each fluid's range admits a different number of them
+            // (Helium 5, Argon 6, Water and most others 7, CO2 only 3 because
+            // of its cold-anchor problem). Pin the floor CO2 already clears,
+            // and let the rest vary as the physics dictates.
             assert_eq!(family("quality"), 9, "{fluid}: quality lines");
-            assert_eq!(family("isobar"), 7, "{fluid}: isobars");
+            assert!(
+                family("isobar") >= 3,
+                "{fluid}: only {} isobars",
+                family("isobar")
+            );
         }
     }
 
@@ -2696,14 +2749,43 @@ END\n\
         //
         // `Ammonia`, `Methane`, `Nitrogen` and `Propane` joined on 2026-09-09,
         // the same way: linked first, measured, then listed by owner request.
-        // The coverage they were measured on is tabulated in
-        // `the_newly_served_fluids_draw_every_diagram_kind`. The order here is
-        // `plot_fluids()`'s, i.e. ASCII byte order over the canonical names.
+        // The remaining seventeen joined on 2026-09-10, when the budget went
+        // 4096 -> 5120 and there was finally room for every fluid the alias
+        // table names. The coverage all of them were measured on is tabulated
+        // in `the_newly_served_fluids_draw_every_diagram_kind`.
+        //
+        // The order here is `plot_fluids()`'s, i.e. ASCII byte order over the
+        // canonical names — which is why `n-Butane` sorts last, after every
+        // capitalised name.
         assert_eq!(
             names,
             [
-                "Air", "Ammonia", "CO2", "Methane", "Nitrogen", "Propane", "R1234yf", "R134a",
-                "Water"
+                "Air",
+                "Ammonia",
+                "Argon",
+                "CO2",
+                "CarbonMonoxide",
+                "Ethane",
+                "Helium",
+                "Hydrogen",
+                "IsoButane",
+                "Methane",
+                "Nitrogen",
+                "Oxygen",
+                "Propane",
+                "R12",
+                "R123",
+                "R1234yf",
+                "R1234ze(E)",
+                "R134a",
+                "R22",
+                "R245fa",
+                "R32",
+                "R404A",
+                "R407C",
+                "R410A",
+                "Water",
+                "n-Butane",
             ],
             "{listed}"
         );

@@ -113,7 +113,36 @@ env:
   # than assumed: +72 bytes raw / +85 gzipped, against CO2's +142 in Wave C1.
   # All four draw a full 400-point dome on every diagram kind with nine quality
   # lines and seven isobars, which is better coverage than CO2 has ever had.
-  WASM_BUDGET_KB: 4096
+  #
+  # 2026-09-10: raised 4096 -> 5120, OWNER-AUTHORIZED, and against this
+  # header's own rule. The 2026-08-22 entry says "do not raise past 4096
+  # without doing [debt (2), the lazy chunk split]" and debt (2) is still
+  # untouched. The owner overrode that, knowingly, to unblock linking the
+  # property data the alias table has always promised: `props/propfun.rs`
+  # names 37 canonical fluids and only nine had data behind them, so
+  # `Enthalpy(Oxygen, ...)` — a spelling the parser accepts — failed at
+  # runtime. That is a correctness gap the budget was buying, and it is the
+  # thing this raise pays for.
+  #
+  # Recorded plainly so the next reader is not misled: this raise did NOT
+  # come with a structural pay-down. Debt (2) is now overdue rather than
+  # merely open, and it is the only structural lever left — every cheaper
+  # one was re-measured as spent in the 2026-08-22 entry.
+  #
+  # What the raise bought, measured: 3752.8 KiB raw / 1699.0 KiB gzipped,
+  # 73.3% of the new ceiling with 1367 KiB of headroom. +372.5 KiB raw for
+  # seventeen fluids (~22 KiB each) — r12, r22, r32, r123, r245fa, r404a,
+  # r407c, r410a, r1234ze_e_, argon, carbonmonoxide, ethane, helium,
+  # hydrogen, isobutane, n_butane, oxygen. All seventeen went onto
+  # `served_fluids` too, after measuring a full 400-point dome on all six
+  # diagram kinds for each (R410A: 399, the pseudo-pure glide).
+  #
+  # NOT linked, and not for budget reasons: `mixture-data`. The ten `.mix`
+  # blends the alias table names stay unbacked because rustprop's `props_si`
+  # facade does not route predefined mixtures at all — `R454B.mix` and
+  # `R454B` both come back "key not found in JSONFluidLibrary". Enabling the
+  # feature links bytes nothing can reach. That gap needs upstream support.
+  WASM_BUDGET_KB: 5120
 
 jobs:
   fuzz:

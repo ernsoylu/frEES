@@ -9,10 +9,10 @@ This document outlines the phased engineering roadmap, active milestones, and qu
 The project provides an end-to-end client-side WebAssembly modeling platform with zero external backend dependencies:
 
 - **Target-Agnostic Core (`frees-core`)**: Scaled Newton-Raphson, Powell hybrid dogleg, adaptive ODE integrators (`ode45`, `radau5`), index-1 DAE BDF/IDA solver with event root-finding, and an exact rational symbolic CAS.
-- **Thermodynamic Property Backbone (`rustprop`)**: Pure-Rust CoolProp 8.0.0 implementation supporting multiparameter Helmholtz energy equations of state, incompressibles (`INCOMP::MEG`, `MPG`), and ASHRAE moist air psychrometrics (`HAPropsSI`).
+- **Thermodynamic Property Backbone (`rustprop`)**: Pure-Rust CoolProp 8.0.0 implementation supporting multiparameter Helmholtz energy equations of state, incompressibles (`INCOMP::MEG`, `MPG`), and ASHRAE moist air psychrometrics (`HAPropsSI`). 26 real fluids are linked and served on the diagram picker as of 2026-09-10 — every pure fluid `props/propfun.rs`'s alias table names.
 - **WebAssembly Bridge & Worker Pool (`frees`, `engineClient.ts`)**: Structured JSON RPC boundary hosting a pool of up to 4 Web Workers with dynamic concurrency clamping, request correlation, weighted sweep progress, and deterministic row re-assembly.
 - **Interactive Workbench (`web`)**: React 19 / TypeScript application featuring Glide Data Grid virtualized tables, Plotly.js scientific plotting with thermodynamic diagram overlays, CodeMirror/Monaco editor support, shareable URL links (`#share=<lz-string>`), and offline PWA caching via IndexedDB.
-- **Strict Quality Gates**: 1,308 golden regression fixtures passing with zero regressions, 54 frontend Vitest test suites (603 tests) passing, clean clippy `-D warnings` on native and `wasm32-unknown-unknown`, and WASM bundle strictly gated under the 4,096 KiB ceiling (~3,216 KiB raw).
+- **Strict Quality Gates**: 1,308 golden regression fixtures passing with zero regressions, 55 frontend Vitest test suites (620 tests) passing, clean clippy `-D warnings` on native and `wasm32-unknown-unknown`, and WASM bundle strictly gated under the 5,120 KiB ceiling (~3,753 KiB raw).
 
 ---
 
@@ -122,14 +122,21 @@ Focus: Thermodynamic data loading, large-scale sparse numerical solvers, and cus
 
 Items **3.1, 3.2, and 3.6 are deferred and excluded from active development**; their original IDs are retained in the deferred candidates below.
 
-**Status audit, 2026-09-09.** None of 3.3, 3.4 or 3.5 is implemented. 3.4 is the one that is not greenfield — see its note.
+**Status audit, 2026-09-09, amended 2026-09-10.** None of 3.3, 3.4 or 3.5 is implemented. 3.4 is the one that is not greenfield — see its note. 3.3 changed status on 2026-09-10: it is now overdue debt rather than a deferred nicety.
 
-- [ ] **3.3 Pre-Expansion Lazy Chunk Seam for Thermodynamic Data** — *premise expired; deferred behind a measured trigger*
-  - Original scope: implement dynamic chunk fetching for property tables and component libraries (`props/tables.rs::install_from_bytes`) on first mention, to safeguard the $\le 4,096\text{ KiB}$ WASM budget before adding new fluids (Ammonia, Propane, Nitrogen, Methane).
+- [ ] **3.3 Pre-Expansion Lazy Chunk Seam for Thermodynamic Data** — *OVERDUE: the 2026-09-10 raise was taken against the rule that required this first*
+  - Original scope: implement dynamic chunk fetching for property tables and component libraries (`props/tables.rs::install_from_bytes`) on first mention, to safeguard the WASM budget before adding new fluids (Ammonia, Propane, Nitrogen, Methane).
   - Audit (2026-09-09): the **seam exists and the fetching does not** — `install_from_bytes` is public, tested and compiled into both builds, but nothing in `crates/frees` or `web/src` calls it at runtime. More importantly, the reason to build the fetching had evaporated: CO2 cost +25.5 KiB raw when Wave G2 linked it, and the module was sitting 822 KiB under the ceiling.
   - Resolution: the four fluids were linked outright instead. **Measured cost: +106.2 KiB raw / +88.6 KiB gzipped for all four**, leaving 716 KiB of headroom. That is the whole thing the lazy chunking existed to avoid spending.
   - Picker: all four went onto `served_fluids` the same day by owner request, after their diagram coverage was measured — a full 400-point dome on every `diagrams::Kind`, nine quality lines and seven T-s isobars each, better than CO2's three. Cost +72 bytes raw.
-  - Remaining trigger for this item: **headroom below ~200 KiB**. Until then, linking a fluid is one line in `crates/frees-core/Cargo.toml` and the trigger/fetch/cache machinery is unbuilt complexity. Revisit if a large component library, a mixture database, or a fluid an order of magnitude bigger than a Helmholtz EoS arrives.
+  - **2026-09-10 — status changed from "deferred" to OVERDUE.** The budget was raised 4,096 → 5,120 KiB (owner-authorized) and the remaining seventeen named fluids were linked, +372.5 KiB raw, landing at 3,752.8 KiB (73.3% of the new ceiling, 1,367 KiB headroom). That raise went **against the `ci.yml` header's own rule**, which conditions raising past 4,096 on building this split first. It was taken knowingly and recorded there; the consequence is that this item is no longer a nicety deferred on measured grounds but the one structural debt the project is now carrying. Every cheaper lever was re-measured as spent in the 2026-08-22 ledger entry.
+  - Remaining trigger: **headroom below ~200 KiB, or the next raise request — whichever comes first.** There should not be a next raise before this is built.
+
+**Property coverage, 2026-09-10 (not a numbered item; recorded here because 3.3's budget is what paid for it).** The alias table named 37 canonical fluids and only nine had data, so `Enthalpy(Oxygen, ...)` — a spelling the parser accepts and resolves — failed at runtime. Seventeen were linked (+372.5 KiB raw, ~22 KiB each) and all seventeen joined `served_fluids` after measuring a full 400-point dome on all six `diagrams::Kind`s with nine quality lines each; R410A returns 399, the pseudo-pure blend's glide. Two latent bugs surfaced and were fixed at the root: `property_diagram` passed the **lowercased** name to rustprop whenever no alias matched (breaking `R1234ze(E)` and `n-Butane` on every diagram kind), and `CarbonMonoxide` had no full-name alias so the eval path could never reach it. Two limitations are pinned by tests rather than left to surprise someone:
+
+- **The ten `.mix` refrigerant blends stay unbacked, and not for budget reasons.** rustprop ships predefined mixture data but its `props_si` facade does not route to it — `R454B.mix` and `R454B` both return "key not found in JSONFluidLibrary". Linking `mixture-data` adds bytes nothing can reach. Reviving these needs mixture support upstream.
+- **`CarbonMonoxide` has no viscosity or conductivity model upstream.** It answers density, enthalpy and entropy and refuses the other two. The test asserts the absence and will fail the day upstream adds one.
+
 - [ ] **3.4 Sparse Matrix Factorization & Graph Reordering**
   - Implement Approximate Minimum Degree (AMD) and Column Approximate Minimum Degree (COLAMD) fill-reducing permutations.
   - Integrate pure-Rust sparse LU/QR factorizations (`faer` / `sprs`) with sparsity pattern reuse across Newton iterations for systems exceeding 5,000 equations.
@@ -185,6 +192,7 @@ Focus: Complete the engineering workflow from measured data to a fitted physical
   - Add analytical fixtures and independently generated reference cases from NumPy/SciPy/statsmodels/SALib, recording versions, estimator conventions, seeds, and tolerances. Reference generation may use Python; shipping and offline CI replay must not require Python or network access.
   - Cover small/degenerate samples, singular covariance, rank-deficient fits, active parameter bounds, outliers, truncated distributions, and known correlated linear models. Validate stochastic estimators statistically rather than expecting identical random streams across libraries.
   - Add end-to-end examples for sensor calibration with confidence bands, correlated instrument uncertainty, noisy-signal spectral analysis, and global sensitivity of an engineering model. Document new functions in the existing reference/catalog and expose consistent Rust/WASM/UI behavior.
+  - **Open gap, and the coverage gate cannot see it.** The 43 names 4.1 added and everything 4.2 added have no reference pages. `npm run check-docs` still reports 655/655 documented, because `build-doc-manifest.mjs` derives the documentable surface from the Java reference repo (`$FREES_HOME`, or `../frees`) and silently keeps the last generated list when that repo is absent — which it is on a normal checkout. So the 100% figure is stale, not earned. Whoever closes this should also make the manifest builder fail loudly, or derive the surface from the Rust registries, rather than reporting full coverage from a cached list.
   - Benchmark transform scaling and representative fitting/sampling workloads; retain the existing offline, cancellation, regression, browser, and WASM-size gates. Ship and verify each increment before broadening scope.
 
 **Scope boundary:** general N-dimensional array execution, public sparse APIs, additional LP/MILP/gradient optimizers, BVP/PDE tooling, broad symbolic algebra, ML/Bayesian programming, and GPU/distributed execution remain separate candidates requiring a concrete workload. Coordinate sparse execution with Phase 3.4. Standalone code export (3.2) is deferred and is not a dependency of this phase. Neither an internal sparse solver nor compiled Rust/WASM implies NumPy/Numba/JAX execution parity.
@@ -253,7 +261,7 @@ npm run build
 ```
 
 - **Node 22 Toolchain Requirement**: Pinned in `web/.nvmrc` and enforced via `package.json`.
-- **Bundle Budget Ceiling**: The compiled WebAssembly engine (`frees.wasm`) must strictly remain $\le 4,096\text{ KiB}$ raw. Any PR exceeding this budget fails CI automatically.
+- **Bundle Budget Ceiling**: The compiled WebAssembly engine (`frees.wasm`) must strictly remain $\le 5,120\text{ KiB}$ raw (raised from 4,096 on 2026-09-10, owner-authorized). Any PR exceeding this budget fails CI automatically. The `ci.yml` header records why each raise happened; the lazy-chunk split is overdue and should be built before any further raise.
 
 ### 3. Implementation Invariants
 
