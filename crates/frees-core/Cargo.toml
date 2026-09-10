@@ -68,6 +68,39 @@ rustprop-data = { git = "https://github.com/ernsoylu/RustProp", tag = "v0.1.0", 
     "nitrogen",
     "methane",
     "n_propane",
+    # 2026-09-10, after the budget went 4096 -> 5120: every remaining pure
+    # fluid `props/propfun.rs`'s alias table already names. That table promised
+    # 37 canonical fluids and only nine had data, so `Enthalpy(Oxygen, ...)` —
+    # a spelling the parser accepts and resolves — failed at runtime. Linking
+    # these closes the gap between what the language accepts and what the
+    # engine can answer.
+    #
+    # Refrigerants the table names:
+    "r12",
+    "r22",
+    "r32",
+    "r123",
+    "r245fa",
+    "r404a",
+    "r407c",
+    "r410a",
+    "r1234ze_e_",
+    # Permanent gases and light hydrocarbons the table names:
+    "argon",
+    "carbonmonoxide",
+    "ethane",
+    "helium",
+    "hydrogen",
+    "isobutane",
+    "n_butane",
+    "oxygen",
+    # NOT linked: `mixture-data`. The ten `.mix` refrigerant blends the alias
+    # table names (R448A, R449A, R452A/B, R454A/B/C, R455A, R513A, R515B) stay
+    # unbacked, and that is not a budget decision. rustprop ships the predefined
+    # mixture data but its `props_si` facade does not route to it — asked
+    # directly, `R454B.mix` and `R454B` both come back "key not found in
+    # JSONFluidLibrary". Enabling the feature links bytes nothing can reach.
+    # Reviving these needs mixture support upstream, not headroom.
 ], optional = true }
 # rustprop-core carries the shared parameter types. The warm adapter
 # (`props/rustprop_warm.rs`) drives rustprop's LOW-LEVEL `PtFlash` API, and

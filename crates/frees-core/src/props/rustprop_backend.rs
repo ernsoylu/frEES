@@ -232,6 +232,33 @@ impl RealFluid for RustpropBackend {
                 "Nitrogen",
                 "Methane",
                 "Propane",
+                // 2026-09-10, with the budget at 5120: every remaining fluid
+                // the alias table names, measured the same way — all seventeen
+                // draw a full 400-point dome on all six `diagrams::Kind`s with
+                // isoline counts matching or beating Water's. The two that did
+                // not were `R1234ze(E)` and `n-Butane`, and that was the
+                // lower-casing bug in `property_diagram`, not the data.
+                //
+                // `R410A` is the one asterisk: 399 dome points rather than 400,
+                // which is the pseudo-pure blend's glide at one end, not a
+                // failure.
+                "R12",
+                "R22",
+                "R32",
+                "R123",
+                "R245fa",
+                "R404A",
+                "R407C",
+                "R410A",
+                "R1234ze(E)",
+                "Argon",
+                "CarbonMonoxide",
+                "Ethane",
+                "Helium",
+                "Hydrogen",
+                "IsoButane",
+                "n-Butane",
+                "Oxygen",
                 "INCOMP::MEG",
                 "INCOMP::MPG",
             ]
@@ -302,8 +329,12 @@ mod tests {
         }
     }
 
-    /// The four fluids linked on 2026-09-09 (ammonia, nitrogen, methane,
-    /// n-propane) answer real states.
+    /// The fluids linked on 2026-09-09 and 2026-09-10 answer real states.
+    ///
+    /// The ideal-gas leg covers only the permanent gases and light
+    /// hydrocarbons: at 300 K / 1 atm those are dilute. The refrigerants get
+    /// their own leg below, because several (R123 most obviously) are *liquid*
+    /// at that state, where the ideal-gas limit says nothing at all.
     ///
     /// These assertions are **physics, not captured output**. There is no
     /// CoolProp oracle on this checkout — `tools/golden-dumper` needs the
@@ -316,7 +347,18 @@ mod tests {
     #[test]
     fn the_newly_linked_fluids_answer_states_that_obey_the_physics() {
         const R: f64 = 8.314_462_618_153_24;
-        for fluid in ["Ammonia", "Nitrogen", "Methane", "Propane"] {
+        for fluid in [
+            "Ammonia",
+            "Nitrogen",
+            "Methane",
+            "Propane",
+            "Argon",
+            "CarbonMonoxide",
+            "Ethane",
+            "Helium",
+            "Hydrogen",
+            "Oxygen",
+        ] {
             let (t, p) = (300.0, 101_325.0);
 
             // Ideal-gas limit. At 300 K and 1 atm every one of these is a dilute
@@ -335,11 +377,53 @@ mod tests {
             let back = B.props_si("T", "P", p, "Hmass", h, fluid).unwrap();
             assert!((back - t).abs() < 1e-6, "{fluid}: T round-trip gave {back}");
 
-            // Transport properties are a separate table and must answer too.
+            // Transport properties are a separate table from the EoS and do
+            // not come with it. CarbonMonoxide is the one fluid on the served
+            // list with no viscosity or conductivity model upstream — it gets
+            // density, enthalpy and entropy and refuses the other two with
+            // "Viscosity model is not available for this fluid". Pinned as a
+            // known limitation so it is a documented absence rather than a
+            // surprise, and so the day upstream adds one, this test says so.
+            let transport_expected = fluid != "CarbonMonoxide";
             for output in ["viscosity", "conductivity"] {
-                let value = B.props_si(output, "T", t, "P", p, fluid).unwrap();
-                assert!(value.is_finite() && value > 0.0, "{fluid}: {output}");
+                match B.props_si(output, "T", t, "P", p, fluid) {
+                    Ok(value) => {
+                        assert!(
+                            transport_expected,
+                            "{fluid}: {output} now answers ({value})"
+                        );
+                        assert!(
+                            value.is_finite() && value > 0.0,
+                            "{fluid}: {output} = {value}"
+                        );
+                    }
+                    Err(e) => assert!(!transport_expected, "{fluid}: {output} failed: {e}"),
+                }
             }
+        }
+
+        // The refrigerants: no ideal-gas leg (R123 is liquid at 300 K / 1 atm,
+        // rho = 1459 kg/m3), but the (P,h) inverse still has to invert and the
+        // density still has to be finite and positive.
+        for fluid in [
+            "R12",
+            "R22",
+            "R32",
+            "R123",
+            "R245fa",
+            "R404A",
+            "R407C",
+            "R410A",
+            "R1234ze(E)",
+            "IsoButane",
+            "n-Butane",
+        ] {
+            let (t, p) = (300.0, 101_325.0);
+            let rho = B.props_si("Dmass", "T", t, "P", p, fluid).unwrap();
+            assert!(rho.is_finite() && rho > 0.0, "{fluid}: rho = {rho}");
+            let h = B.props_si("Hmass", "T", t, "P", p, fluid).unwrap();
+            let back = B.props_si("T", "P", p, "Hmass", h, fluid).unwrap();
+            assert!((back - t).abs() < 1e-6, "{fluid}: T round-trip gave {back}");
         }
 
         // Saturation, at a pressure comfortably inside every one of their
@@ -349,6 +433,13 @@ mod tests {
             ("Nitrogen", 1.0e6),
             ("Methane", 1.0e6),
             ("Propane", 1.0e6),
+            ("R12", 5.0e5),
+            ("R22", 1.0e6),
+            ("R32", 1.0e6),
+            ("R410A", 1.0e6),
+            ("Ethane", 1.0e6),
+            ("Oxygen", 1.0e6),
+            ("Argon", 1.0e6),
         ] {
             let rho_f = B.props_si("Dmass", "P", pressure, "Q", 0.0, fluid).unwrap();
             let rho_g = B.props_si("Dmass", "P", pressure, "Q", 1.0, fluid).unwrap();

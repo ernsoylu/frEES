@@ -179,6 +179,12 @@ const FLUIDS: &[(&str, &str)] = &[
     ("o2", "Oxygen"),
     ("co2", CO2),
     ("co", "CarbonMonoxide"),
+    // The full spelling was missing while every other fluid accepted its own
+    // canonical name, so `Enthalpy(CarbonMonoxide, ...)` resolved to itself,
+    // reached rustprop as the lowercased "carbonmonoxide" and came back
+    // "key ... not found in JSONFluidLibrary". Latent until 2026-09-10 linked
+    // the data, because before that it had no state to fail at.
+    ("carbonmonoxide", "CarbonMonoxide"),
     ("h2o", WATER),
     ("h2", "Hydrogen"),
     ("ch4", "Methane"),

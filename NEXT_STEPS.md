@@ -12,7 +12,7 @@ The project provides an end-to-end client-side WebAssembly modeling platform wit
 - **Thermodynamic Property Backbone (`rustprop`)**: Pure-Rust CoolProp 8.0.0 implementation supporting multiparameter Helmholtz energy equations of state, incompressibles (`INCOMP::MEG`, `MPG`), and ASHRAE moist air psychrometrics (`HAPropsSI`).
 - **WebAssembly Bridge & Worker Pool (`frees`, `engineClient.ts`)**: Structured JSON RPC boundary hosting a pool of up to 4 Web Workers with dynamic concurrency clamping, request correlation, weighted sweep progress, and deterministic row re-assembly.
 - **Interactive Workbench (`web`)**: React 19 / TypeScript application featuring Glide Data Grid virtualized tables, Plotly.js scientific plotting with thermodynamic diagram overlays, CodeMirror/Monaco editor support, shareable URL links (`#share=<lz-string>`), and offline PWA caching via IndexedDB.
-- **Strict Quality Gates**: 1,308 golden regression fixtures passing with zero regressions, 54 frontend Vitest test suites (603 tests) passing, clean clippy `-D warnings` on native and `wasm32-unknown-unknown`, and WASM bundle strictly gated under the 4,096 KiB ceiling (~3,216 KiB raw).
+- **Strict Quality Gates**: 1,308 golden regression fixtures passing with zero regressions, 54 frontend Vitest test suites (620 tests) passing, clean clippy `-D warnings` on native and `wasm32-unknown-unknown`, and WASM bundle strictly gated under the 5,120 KiB ceiling (~3,753 KiB raw).
 
 ---
 
@@ -125,7 +125,7 @@ Items **3.1, 3.2, and 3.6 are deferred and excluded from active development**; t
 **Status audit, 2026-09-09.** None of 3.3, 3.4 or 3.5 is implemented. 3.4 is the one that is not greenfield — see its note.
 
 - [ ] **3.3 Pre-Expansion Lazy Chunk Seam for Thermodynamic Data** — *premise expired; deferred behind a measured trigger*
-  - Original scope: implement dynamic chunk fetching for property tables and component libraries (`props/tables.rs::install_from_bytes`) on first mention, to safeguard the $\le 4,096\text{ KiB}$ WASM budget before adding new fluids (Ammonia, Propane, Nitrogen, Methane).
+  - Original scope: implement dynamic chunk fetching for property tables and component libraries (`props/tables.rs::install_from_bytes`) on first mention, to safeguard the WASM budget before adding new fluids (Ammonia, Propane, Nitrogen, Methane).
   - Audit (2026-09-09): the **seam exists and the fetching does not** — `install_from_bytes` is public, tested and compiled into both builds, but nothing in `crates/frees` or `web/src` calls it at runtime. More importantly, the reason to build the fetching had evaporated: CO2 cost +25.5 KiB raw when Wave G2 linked it, and the module was sitting 822 KiB under the ceiling.
   - Resolution: the four fluids were linked outright instead. **Measured cost: +106.2 KiB raw / +88.6 KiB gzipped for all four**, leaving 716 KiB of headroom. That is the whole thing the lazy chunking existed to avoid spending.
   - Picker: all four went onto `served_fluids` the same day by owner request, after their diagram coverage was measured — a full 400-point dome on every `diagrams::Kind`, nine quality lines and seven T-s isobars each, better than CO2's three. Cost +72 bytes raw.
@@ -253,7 +253,7 @@ npm run build
 ```
 
 - **Node 22 Toolchain Requirement**: Pinned in `web/.nvmrc` and enforced via `package.json`.
-- **Bundle Budget Ceiling**: The compiled WebAssembly engine (`frees.wasm`) must strictly remain $\le 4,096\text{ KiB}$ raw. Any PR exceeding this budget fails CI automatically.
+- **Bundle Budget Ceiling**: The compiled WebAssembly engine (`frees.wasm`) must strictly remain $\le 5,120\text{ KiB}$ raw (raised from 4,096 on 2026-09-10, owner-authorized). Any PR exceeding this budget fails CI automatically. The `ci.yml` header records why each raise happened; the lazy-chunk split is overdue and should be built before any further raise.
 
 ### 3. Implementation Invariants
 
