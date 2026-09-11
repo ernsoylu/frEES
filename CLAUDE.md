@@ -23,14 +23,16 @@ Guidelines and reference architecture for AI coding assistants and developers wo
 - **Dynamic Systems**: Adaptive Dormand-Prince Runge-Kutta (`ode45`), 5th-order Radau IIA (`radau5`/`radauiia`), and variable-coefficient DAE BDF/IDA with zero-crossing event root-finding.
 - **Properties**: Pure-Rust CoolProp 8.0.0 implementation (`rustprop`) for high-accuracy Helmholtz equations of state, cubic EoS, incompressibles, and psychrometrics (`HAPropsSI`). 26 real fluids are linked and served on the diagram picker — every pure fluid the alias table names. The ten `.mix` refrigerant blends remain unbacked pending mixture routing upstream.
 - **Component Library**: 295+ standard acausal components spanning fluid networks, thermal systems, moist air HVAC, mechanics, and electrical circuits.
+- **Experimental Data & Statistics** (`crates/frees-core/src/analysis/`): weighted/bounded/robust curve fitting and dynamic calibration with SVD parameter covariance; correlated and non-Gaussian input uncertainty declared in the document as `Correlation(A, B) = ρ` and `DistributionOf(X) = Uniform(…)`; truncated inverse-CDF sampling; seeded Latin-hypercube and scrambled Sobol designs; Sobol' and Morris global sensitivity. `signal.rs` carries an `O(n log n)` transform (radix-2 + Bluestein, any length) and the sensor kernels behind `CALL Detrend/Smooth/Window/Filter/FiltFilt/XCorr/Welch`.
 - **Worker Pool**: Up to 4 Web Workers executing independent parametric sweep chunks in parallel with weighted progress, preserving deterministic row ordering.
-- **WASM Bundle Budget**: Strictly gated at $\le 5,120\text{ KiB}$ raw (current build: ~3,753 KiB raw / ~1,699 KiB gzipped, ~1,367 KiB headroom). Raised from 4,096 on 2026-09-10, owner-authorized, to link every fluid the alias table names; the `ci.yml` header carries the full ledger and records that the lazy-chunk pay-down is now overdue.
+- **WASM Bundle Budget**: Strictly gated at $\le 5,120\text{ KiB}$ raw (current build: ~3,888 KiB raw / ~1,753 KiB gzipped, ~1,232 KiB headroom). Raised from 4,096 on 2026-09-10, owner-authorized, to link every fluid the alias table names; the `ci.yml` header carries the full ledger and records that the lazy-chunk pay-down is now overdue.
 - **Test Suite Health**:
-  - `cargo test --workspace -- --skip golden_corpus_parity`: passes across all workspace crates.
+  - `cargo test --workspace -- --skip golden_corpus_parity`: 3,323 tests pass across all workspace crates.
   - `cargo test --release --test parity`: 1,308/1,308 golden fixtures passing.
   - `vitest run` (Node 22): 55 test files, 620 tests passing.
   - `cargo clippy`: 0 warnings with `-D warnings` on native and `wasm32-unknown-unknown`.
   - `npm run lint`: 0 errors.
+  - `npm run check-docs`: 667/719 documentable symbols have a reference page. The builder reconciles the function and CALL families against the Rust registries (`eval::INTRINSICS`, `procedures::EXPANDED_CALL_TARGETS`) and **exits non-zero** rather than reporting coverage from a cached list — the 100% it used to print without the Java sibling repo was stale, not earned.
 
 ---
 

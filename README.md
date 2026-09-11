@@ -22,11 +22,17 @@ Equations are declarative and order-independent, variable names are case-insensi
   - Explicit & Stiff ODE Solvers: Adaptive Dormand-Prince Runge-Kutta (`ode45`) and 5th-order Radau IIA (`radau5` / `radauiia`).
   - Stiff Differential-Algebraic Equations (DAE): Variable-coefficient Backward Differentiation Formulas (BDF / IDA) with adaptive order (1–5) and step-size control.
   - State Event Handling: Root-finding zero crossings (`EVENT condition -> action`), discrete mode switching, and trajectory stop events.
-- **Thermodynamic Property Engine (`rustprop`)**: Pure-Rust CoolProp 8.0.0 implementation supporting high-accuracy Helmholtz equations of state for Water/Steam, Air, CO2, R134a, R1234yf, Ammonia, Hydrocarbons, incompressibles, and humid air psychrometric properties (`HAPropsSI`).
+- **Thermodynamic Property Engine (`rustprop`)**: Pure-Rust CoolProp 8.0.0 implementation supporting high-accuracy Helmholtz equations of state. 26 pure fluids are linked and served on the diagram picker — every one the property alias table names — spanning Water/Steam, Air, CO2, the R-series refrigerants, Ammonia, the light hydrocarbons, and the permanent and noble gases (Nitrogen, Oxygen, Argon, Helium, Hydrogen). Cubic EoS, incompressibles (`INCOMP::MEG`, `MPG`) and humid air psychrometrics (`HAPropsSI`) sit alongside them.
 - **Standard Acausal Component Library**: 295+ built-in acausal components across 13 physical domains: fluid networks, heat transfer, moist air HVAC, electrical systems, mechanics, and control blocks.
 - **Computer Algebra (CAS) & Control Systems**:
   - CAS: Exact rational arithmetic over $\mathbb{Q}$, polynomial operations, Zassenhaus factorization, partial fractions, and symbolic Laplace transforms.
   - Control Systems: Transfer functions, state-space models ($A, B, C, D$), pole placement, LQR/LQE, frequency response (Bode, Nyquist), and automated PID tuning.
+- **Experimental Data, Statistics & Uncertainty**:
+  - Inference: covariance and correlation, robust summaries, Student-t and F primitives, confidence intervals, t-tests, one-way ANOVA, chi-square goodness-of-fit, seeded bootstrap and permutation tests.
+  - Fitting: weighted, bounded and robust curve fitting and dynamic parameter calibration, reporting parameter covariance, standard errors, confidence/prediction bands, and rank/conditioning diagnostics that flag an unidentifiable fit rather than inventing a finite uncertainty for it.
+  - Uncertainty: first-order propagation with declared input correlations (`Correlation(A, B) = ρ`), six input distributions (`DistributionOf(X) = Uniform(…)`) drawn by truncated inverse CDF, and Monte Carlo over seeded Latin-hypercube or scrambled Sobol designs.
+  - Global sensitivity: Sobol' first-order and total-order variance indices with bootstrap error bars, and Morris elementary-effects screening.
+  - Signal processing: an `O(n log n)` transform at any length (radix-2 and Bluestein), plus `Detrend`, `Smooth`, `Window`, `Filter`, `FiltFilt`, `XCorr`, `Welch` power spectra and peak detection.
 - **Multi-Worker Parametric Sweeps**: Hardware-aware worker pool (up to 4 Web Workers) executing independent table sweep chunks in parallel with weighted progress reporting, plus fixed-point Gauss-Seidel iteration for table-wide accessor functions (`TableRun#`, `TableAvg`, etc.).
 - **Interactive Visualization & Inspection**: Fast Plotly.js charts with smart series decimation for dense trajectories (> 2,000 points rendered responsively while preserving 100% raw data in memory), dual cursors with delta/slope inspection, and thermodynamic phase diagrams ($T\text{-}s$, $P\text{-}h$, Psychrometric).
 - **Offline-First PWA & Storage**: Installable Progressive Web App with Service Worker precaching, durable dual-write autosave (synchronous `localStorage` boot slot + durable `IndexedDB` mirror), and FileSystem Access API support.
@@ -62,6 +68,8 @@ Equations are declarative and order-independent, variable names are case-insensi
                       |  - rustprop Thermodynamic Engine         |
                       |  - CAS & Control Systems                 |
                       |  - Single & Multi-Objective Optimizer   |
+                      |  - Statistics, Fitting & Uncertainty     |
+                      |  - Sampling, Sensitivity & Signal DSP    |
                       +------------------------------------------+
 ```
 
@@ -134,11 +142,18 @@ cd web && npm test
 
 # 5. Production frontend bundle build & PWA validation
 cd web && npm run build
+
+# 6. Reference-documentation coverage and cross-link invariants
+cd web && npm run check-docs
+
+# 7. Golden corpus replayed through the COMPILED WASM module under Node,
+#    so the browser engine is graded, not just the native build
+cd web && node scripts/wasm-parity.mjs --shard 0/4
 ```
 
 ### Bundle Budget Gate
 
-The WebAssembly engine binary is strictly gated in CI against a ceiling of **4,096 KiB** raw to maintain fast download and startup performance on web and mobile devices (current build: ~3,283 KiB raw / ~1,344 KiB gzipped).
+The WebAssembly engine binary is strictly gated in CI against a ceiling of **5,120 KiB** raw to maintain fast download and startup performance on web and mobile devices (current build: ~3,888 KiB raw / ~1,753 KiB gzipped). The ceiling was raised from 4,096 KiB on 2026-09-10 to link every pure fluid the property alias table names; `.github/workflows/ci.yml` carries the full ledger of why each raise happened.
 
 ---
 

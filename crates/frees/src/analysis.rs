@@ -515,6 +515,10 @@ struct MonteCarloRequest {
     /// them once and `MonteCarlo.run` threads them into the base solve and
     /// every per-sample solve.
     function_tables: Option<Vec<FunctionTableDto>>,
+    /// Phase 4.6: `"random"` (default), `"lhs"` or `"sobol"`.
+    design: Option<String>,
+    /// Phase 4.3: extra output quantiles to report, each in `(0, 1)`.
+    quantiles: Option<Vec<f64>>,
 }
 
 /// Run a Monte Carlo uncertainty propagation. `request_json` is the
@@ -536,6 +540,50 @@ pub fn monte_carlo(source: &str, request_json: &str) -> String {
         })
         .to_string(),
     }
+}
+
+/// `VariableInfoDto.toSpec`, exactly: guess/lower/upper convert to SI with the
+/// full factor + offset, the uncertainty (an interval width) by the factor
+/// alone, and an unknown unit falls back to factor 1 / offset 0.
+///
+/// Shared by the Monte Carlo and sensitivity endpoints — two transcriptions of
+/// one conversion rule is how they drift apart.
+fn specs_from_variable_info(
+    facade: &SolveRequest,
+) -> BTreeMap<String, frees_core::analysis::uncertainty::UncertaintySpec> {
+    let mut specs = BTreeMap::new();
+    for dto in &facade.variable_info {
+        let name = dto.name.trim().to_ascii_lowercase();
+        if name.is_empty() {
+            continue;
+        }
+        let (factor, offset) = match dto.units.as_deref().map(str::trim) {
+            Some(unit) if !unit.is_empty() && unit != "-" => {
+                match frees_core::units::registry::UnitRegistry::parse_with_offset(unit) {
+                    Ok(recorded) => (recorded.factor, recorded.offset),
+                    Err(_) => (1.0, 0.0),
+                }
+            }
+            _ => (1.0, 0.0),
+        };
+        let mut spec = frees_core::analysis::uncertainty::UncertaintySpec::default();
+        if let Some(lower) = dto.lower {
+            spec.lower = lower * factor + offset;
+        }
+        if let Some(upper) = dto.upper {
+            spec.upper = upper * factor + offset;
+        }
+        if let Some(guess) = dto.guess {
+            spec.guess = guess * factor + offset;
+        } else {
+            spec.guess = spec.guess.clamp(spec.lower, spec.upper);
+        }
+        if let Some(uncertainty) = dto.uncertainty {
+            spec.uncertainty = uncertainty * factor;
+        }
+        specs.insert(name, spec);
+    }
+    specs
 }
 
 fn monte_carlo_inner(source: &str, request_json: &str) -> Result<Value, String> {
@@ -584,42 +632,7 @@ fn monte_carlo_inner(source: &str, request_json: &str) -> Result<Value, String> 
     let system = unit_system_of(&facade);
     let explicit_units = explicit_units_of(&facade);
 
-    // `VariableInfoDto.toSpec`, exactly: guess/lower/upper convert to SI with
-    // the full factor + offset, the uncertainty (an interval width) by the
-    // factor alone, and an unknown unit falls back to factor 1 / offset 0.
-    let mut specs: BTreeMap<String, frees_core::analysis::uncertainty::UncertaintySpec> =
-        BTreeMap::new();
-    for dto in &facade.variable_info {
-        let name = dto.name.trim().to_ascii_lowercase();
-        if name.is_empty() {
-            continue;
-        }
-        let (factor, offset) = match dto.units.as_deref().map(str::trim) {
-            Some(unit) if !unit.is_empty() && unit != "-" => {
-                match frees_core::units::registry::UnitRegistry::parse_with_offset(unit) {
-                    Ok(recorded) => (recorded.factor, recorded.offset),
-                    Err(_) => (1.0, 0.0),
-                }
-            }
-            _ => (1.0, 0.0),
-        };
-        let mut spec = frees_core::analysis::uncertainty::UncertaintySpec::default();
-        if let Some(lower) = dto.lower {
-            spec.lower = lower * factor + offset;
-        }
-        if let Some(upper) = dto.upper {
-            spec.upper = upper * factor + offset;
-        }
-        if let Some(guess) = dto.guess {
-            spec.guess = guess * factor + offset;
-        } else {
-            spec.guess = spec.guess.clamp(spec.lower, spec.upper);
-        }
-        if let Some(uncertainty) = dto.uncertainty {
-            spec.uncertainty = uncertainty * factor;
-        }
-        specs.insert(name, spec);
-    }
+    let specs = specs_from_variable_info(&facade);
 
     // The base solve the Java reads `base.uncertainties()` from —
     // `montecarlo::run` keeps only the base *values*, so the first-order
@@ -628,6 +641,21 @@ fn monte_carlo_inner(source: &str, request_json: &str) -> Result<Value, String> 
     // same shape differently (its `run` returns the whole base result).
     let base = frees_core::solve_with_tables(source, &settings, &overrides, &extra_tables)
         .map_err(|failure| failure.to_string_message())?;
+
+    // Phase 4.3/4.6: the document's own `DistributionOf`/`Correlation`
+    // declarations ride out on the base solve, and the request picks the
+    // design and any extra output quantiles. All-default here reproduces the
+    // legacy i.i.d. clamped-normal run exactly — see `SamplingOptions`.
+    let design = frees_core::analysis::sampling::Design::from_name(
+        request.design.as_deref().unwrap_or("random"),
+    )
+    .map_err(|e| e.to_string_message())?;
+    let sampling = frees_core::analysis::montecarlo::SamplingOptions {
+        design,
+        distributions: base.uncertainty_distributions.clone(),
+        correlations: base.uncertainty_correlations.clone(),
+        quantiles: request.quantiles.clone().unwrap_or_default(),
+    };
 
     let started = now_ms();
     let outcome = frees_core::analysis::montecarlo::run_with_tables_and_base(
@@ -640,6 +668,7 @@ fn monte_carlo_inner(source: &str, request_json: &str) -> Result<Value, String> 
         || (now_ms() - started) / 1000.0 > MAX_MC_SECONDS,
         &extra_tables,
         Some(&base.values),
+        Some(&sampling),
     )
     .map_err(|e| e.to_string_message())?;
 
@@ -685,6 +714,11 @@ fn monte_carlo_inner(source: &str, request_json: &str) -> Result<Value, String> 
                 "p50": display_value(&key, s.p50),
                 "p95": display_value(&key, s.p95),
                 "firstOrderSigma": display_width(&key, s.mean, s.first_order_sigma),
+                "quantiles": s
+                    .quantiles
+                    .iter()
+                    .map(|(q, v)| json!({ "q": q, "value": display_value(&key, *v) }))
+                    .collect::<Vec<_>>(),
             })
         })
         .collect();
@@ -734,6 +768,254 @@ fn monte_carlo_inner(source: &str, request_json: &str) -> Result<Value, String> 
         "requestedSamples": n,
         "failedSamples": outcome.failed_samples,
         "truncated": outcome.truncated,
+        // Phase 4.3/4.6: what actually ran, so a caller never has to infer it.
+        // `iidStandardErrorApplies` is false for the stratified designs, whose
+        // error is not sigma/sqrt(n) — quoting one for them would be wrong.
+        "diagnostics": {
+            "design": outcome.diagnostics.design,
+            "requested": outcome.diagnostics.requested,
+            "completed": outcome.diagnostics.completed,
+            "failed": outcome.diagnostics.failed,
+            "designComplete": outcome.diagnostics.design_complete,
+            "iidStandardErrorApplies": outcome.diagnostics.iid_standard_error_applies,
+        },
+    }))
+}
+
+// ---------------------------------------------------------------------------
+// Phase 4.6: global sensitivity (Sobol' indices and Morris screening)
+// ---------------------------------------------------------------------------
+
+/// Base sample ceiling for a Sobol' run. The model is called `n·(p + 2)` times,
+/// so this is the knob that actually decides how long a run takes.
+const MAX_SOBOL_SAMPLES: usize = 4_096;
+const SOBOL_DEFAULT_SAMPLES: usize = 512;
+const MAX_MORRIS_TRAJECTORIES: usize = 500;
+const MORRIS_DEFAULT_TRAJECTORIES: usize = 20;
+const MAX_SENSITIVITY_SECONDS: f64 = 120.0;
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+struct SensitivityRequest {
+    stop_criteria: Option<StopCriteriaDto>,
+    variable_info: Vec<VariableInfoDto>,
+    display_unit_system: Option<String>,
+    function_tables: Option<Vec<FunctionTableDto>>,
+    /// `"sobol"` (default) or `"morris"`.
+    method: Option<String>,
+    /// Sobol' base sample count `n`.
+    samples: Option<i64>,
+    /// Morris trajectory count.
+    trajectories: Option<i64>,
+    /// Morris grid levels; must be even and at least 4.
+    levels: Option<i64>,
+    /// The design behind the Sobol' A/B matrices: `"sobol"` (default), `"lhs"`
+    /// or `"random"`.
+    design: Option<String>,
+    /// Bootstrap resamples for the Sobol' index standard errors; 0 disables.
+    bootstrap: Option<i64>,
+    seed: Option<i64>,
+}
+
+/// Global sensitivity analysis. `request_json` is a `SensitivityRequest`;
+/// returns first-order/total Sobol' indices or Morris `mu`/`mu*`/`sigma` per
+/// output variable, plus the run's own diagnostics.
+///
+/// These are **global** indices over each input's whole declared range, not the
+/// local first-order contributions the solve response's tornado data carries.
+/// The two answer different questions and the response keeps them apart.
+#[wasm_bindgen]
+pub fn sensitivity(source: &str, request_json: &str) -> String {
+    match sensitivity_inner(source, request_json) {
+        Ok(value) => value.to_string(),
+        Err(message) => json!({
+            "method": "",
+            "outputs": [],
+            "sources": [],
+            "error": message,
+        })
+        .to_string(),
+    }
+}
+
+#[allow(clippy::too_many_lines)]
+fn sensitivity_inner(source: &str, request_json: &str) -> Result<Value, String> {
+    frees_core::props::tables::install_builtin_once();
+
+    let request: SensitivityRequest = if request_json.trim().is_empty() {
+        SensitivityRequest::default()
+    } else {
+        serde_json::from_str(request_json).map_err(|e| format!("Invalid request: {e}"))?
+    };
+    if source.trim().is_empty() {
+        return Err("The document is empty.".to_string());
+    }
+    if let Err(failure) = frees_core::parse_document(source) {
+        return Err(format!("Syntax error: {}", failure.to_string_message()));
+    }
+
+    let facade = SolveRequest {
+        variable_info: request.variable_info,
+        stop_criteria: request.stop_criteria,
+        display_unit_system: request.display_unit_system.clone(),
+        fill_missing: None,
+        function_tables: None,
+        find_all_solutions: None,
+        overrides: None,
+    };
+    let extra_tables = function_table_defs_of(&request.function_tables);
+    let (_deadline, _budget) = install_analysis_deadline(
+        facade.stop_criteria.as_ref(),
+        MAX_TABLE_SECONDS,
+        "Sensitivity analysis exceeded its elapsed-time budget and was stopped.".to_string(),
+    );
+    let settings = settings_of(&facade);
+    let overrides = overrides_of(&facade);
+    let specs = specs_from_variable_info(&facade);
+
+    let base = frees_core::solve_with_tables(source, &settings, &overrides, &extra_tables)
+        .map_err(|failure| failure.to_string_message())?;
+
+    // The sources are exactly Monte Carlo's: a declared uncertainty (a bare `±`
+    // or one implied by a distribution) on a variable the base solve produced.
+    let sources: Vec<String> = specs
+        .iter()
+        .filter(|(name, spec)| spec.uncertainty > 0.0 && base.values.contains_key(*name))
+        .map(|(name, _)| name.clone())
+        .collect();
+    let space = frees_core::analysis::sensitivity::input_space_from_document(
+        &sources,
+        &base.values,
+        &specs,
+        &base.uncertainty_distributions,
+        &base.uncertainty_correlations,
+    )
+    .map_err(|e| e.to_string_message())?;
+
+    let sample_specs: Vec<frees_core::engine::VariableOverride> = specs
+        .iter()
+        .map(|(name, spec)| frees_core::engine::VariableOverride {
+            name: name.clone(),
+            guess: Some(spec.guess),
+            lower: Some(spec.lower),
+            upper: Some(spec.upper),
+            // Already SI: `specs_from_variable_info` converted them.
+            unit: None,
+            // Per-sample specs carry no uncertainty, exactly as Monte Carlo's do
+            // — a design point is a fixed input, not another source.
+            uncertainty: None,
+        })
+        .collect();
+
+    let seed = request.seed.unwrap_or(MC_DEFAULT_SEED);
+    let started = now_ms();
+    let expired = || (now_ms() - started) / 1000.0 > MAX_SENSITIVITY_SECONDS;
+    let method = request
+        .method
+        .as_deref()
+        .unwrap_or("sobol")
+        .to_ascii_lowercase();
+
+    let evaluate = frees_core::analysis::sensitivity::document_evaluator(
+        source,
+        &settings,
+        &sample_specs,
+        &extra_tables,
+        &space.names,
+    );
+
+    // No display-unit conversion on this endpoint, deliberately: a Sobol' index
+    // is a dimensionless variance ratio, and a Morris elementary effect carries
+    // the output's units *per the input's* — rescaling it by either side's
+    // factor alone would be wrong. Only the names are mapped to their source
+    // spelling.
+    let display_name = |name: &String| crate::display_of(&base.display_names, name).clone();
+
+    let (outputs_json, diagnostics) = match method.as_str() {
+        "sobol" => {
+            let n = clamp_positive(request.samples, SOBOL_DEFAULT_SAMPLES, MAX_SOBOL_SAMPLES);
+            let plan = frees_core::analysis::sensitivity::SobolPlan {
+                space: space.clone(),
+                base_samples: n,
+                seed,
+                design: frees_core::analysis::sampling::Design::from_name(
+                    request.design.as_deref().unwrap_or("sobol"),
+                )
+                .map_err(|e| e.to_string_message())?,
+                bootstrap: request.bootstrap.unwrap_or(200).clamp(0, 2_000) as usize,
+            };
+            let (outcomes, diag) =
+                frees_core::analysis::sensitivity::sobol(&plan, evaluate, expired)
+                    .map_err(|e| e.to_string_message())?;
+            let json_outputs: Vec<Value> = outcomes
+                .into_iter()
+                .filter(|o| !frees_core::parser::expand::is_internal_temp(&o.output))
+                .map(|o| {
+                    json!({
+                        "variable": display_name(&o.output),
+                        "variance": o.variance,
+                        "indices": o.indices.iter().map(|i| json!({
+                            "source": display_name(&i.source),
+                            "firstOrder": finite_or_null_scalar(i.first_order),
+                            "total": finite_or_null_scalar(i.total),
+                            "firstOrderStdError": finite_or_null_scalar(i.first_order_se),
+                            "totalStdError": finite_or_null_scalar(i.total_se),
+                        })).collect::<Vec<_>>(),
+                    })
+                })
+                .collect();
+            (json_outputs, diag)
+        }
+        "morris" => {
+            let plan = frees_core::analysis::sensitivity::MorrisPlan {
+                space: space.clone(),
+                trajectories: clamp_positive(
+                    request.trajectories,
+                    MORRIS_DEFAULT_TRAJECTORIES,
+                    MAX_MORRIS_TRAJECTORIES,
+                ),
+                levels: request.levels.unwrap_or(4).clamp(4, 64) as usize,
+                seed,
+            };
+            let (outcomes, diag) =
+                frees_core::analysis::sensitivity::morris(&plan, evaluate, expired)
+                    .map_err(|e| e.to_string_message())?;
+            let json_outputs: Vec<Value> = outcomes
+                .into_iter()
+                .filter(|o| !frees_core::parser::expand::is_internal_temp(&o.output))
+                .map(|o| {
+                    json!({
+                        "variable": display_name(&o.output),
+                        "effects": o.effects.iter().map(|e| json!({
+                            "source": display_name(&e.source),
+                            "mu": finite_or_null_scalar(e.mu),
+                            "muStar": finite_or_null_scalar(e.mu_star),
+                            "sigma": finite_or_null_scalar(e.sigma),
+                            "samples": e.samples,
+                        })).collect::<Vec<_>>(),
+                    })
+                })
+                .collect();
+            (json_outputs, diag)
+        }
+        other => {
+            return Err(format!(
+                "Unknown sensitivity method `{other}`. Use 'sobol' or 'morris'."
+            ))
+        }
+    };
+
+    Ok(json!({
+        "method": method,
+        "sources": space.names.iter().map(&display_name).collect::<Vec<_>>(),
+        "outputs": outputs_json,
+        "diagnostics": {
+            "design": diagnostics.design,
+            "evaluations": diagnostics.evaluations,
+            "droppedRows": diagnostics.dropped_rows,
+            "usedRows": diagnostics.used_rows,
+            "complete": diagnostics.complete,
+        },
     }))
 }
 
@@ -879,17 +1161,7 @@ fn curve_fit_inner(request_json: &str) -> Result<Value, String> {
         }
     }
 
-    let loss = match request.loss.as_deref().unwrap_or("linear") {
-        "linear" => frees_core::analysis::curvefit::Loss::Linear,
-        "soft_l1" => frees_core::analysis::curvefit::Loss::SoftL1,
-        "huber" => frees_core::analysis::curvefit::Loss::Huber,
-        "cauchy" => frees_core::analysis::curvefit::Loss::Cauchy,
-        other => {
-            return Err(format!(
-                "Unknown loss '{other}'. Expected linear, soft_l1, huber or cauchy."
-            ))
-        }
-    };
+    let loss = loss_of(request.loss.as_deref())?;
 
     let result =
         frees_core::analysis::curvefit::fit(&frees_core::analysis::curvefit::CurveFitRequest {
@@ -1270,6 +1542,20 @@ const MAX_FIT_SAMPLES: usize = 200_000;
 /// table and Monte Carlo runs use.
 const MAX_FIT_SECONDS: f64 = 120.0;
 
+/// The robust-loss name a fitting request writes. Shared by the curve fit and
+/// the dynamic calibration so the two cannot accept different spellings.
+fn loss_of(name: Option<&str>) -> Result<frees_core::analysis::curvefit::Loss, String> {
+    match name.unwrap_or("linear") {
+        "linear" => Ok(frees_core::analysis::curvefit::Loss::Linear),
+        "soft_l1" => Ok(frees_core::analysis::curvefit::Loss::SoftL1),
+        "huber" => Ok(frees_core::analysis::curvefit::Loss::Huber),
+        "cauchy" => Ok(frees_core::analysis::curvefit::Loss::Cauchy),
+        other => Err(format!(
+            "Unknown loss '{other}'. Expected linear, soft_l1, huber or cauchy."
+        )),
+    }
+}
+
 #[derive(Debug, Default, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 struct ParameterFitRequest {
@@ -1286,6 +1572,12 @@ struct ParameterFitRequest {
     measured_v: Vec<f64>,
     max_evaluations: Option<i64>,
     function_tables: Option<Vec<FunctionTableDto>>,
+    /// Phase 4.2: per-measurement standard deviations, one per `measuredT`.
+    sigma: Option<Vec<f64>>,
+    /// `"linear"` (default), `"soft_l1"`, `"huber"` or `"cauchy"`.
+    loss: Option<String>,
+    /// Residual scale for the robust losses; defaults to 1.
+    f_scale: Option<f64>,
 }
 
 /// Fit DYNAMIC-block parameters to a measured series. Returns a
@@ -1375,6 +1667,7 @@ fn parameter_fit_inner(request_json: &str) -> Result<Value, String> {
         .iter()
         .map(|p| p.trim().to_ascii_lowercase())
         .collect();
+    let sigma = request.sigma.clone().unwrap_or_default();
     let fit_request = frees_core::analysis::paramfit::FitRequest {
         text: &request.text,
         parameters: &parameters,
@@ -1386,6 +1679,9 @@ fn parameter_fit_inner(request_json: &str) -> Result<Value, String> {
         measured_t: &request.measured_t,
         measured_v: &request.measured_v,
         max_evaluations,
+        sigma: &sigma,
+        loss: loss_of(request.loss.as_deref())?,
+        f_scale: request.f_scale.unwrap_or(1.0),
     };
     let started = now_ms();
     let solve = |text: &str| -> Option<Vec<frees_core::analysis::paramfit::OdeTableView>> {
@@ -1425,6 +1721,21 @@ fn parameter_fit_inner(request_json: &str) -> Result<Value, String> {
         "truncated": outcome.truncated,
         "fittedT": outcome.fitted_series.t,
         "fittedV": outcome.fitted_series.v,
+        // Phase 4.2 diagnostics. Non-finite values cross as null so the UI can
+        // render an em dash rather than a misleading 0.
+        "parameterStdErrors": finite_or_null(&outcome.std_errors),
+        "parameterCovariance": outcome
+            .covariance
+            .iter()
+            .map(|row| finite_or_null(row))
+            .collect::<Vec<_>>(),
+        "residualDof": outcome.residual_dof,
+        "rank": outcome.rank,
+        "conditionNumber": finite_or_null_scalar(outcome.condition_number),
+        "unidentifiable": outcome.unidentifiable,
+        "reducedChiSquare": finite_or_null_scalar(outcome.reduced_chi_square),
+        "chiSquare": finite_or_null_scalar(outcome.chi_square),
+        "atBound": outcome.at_bound,
     }))
 }
 

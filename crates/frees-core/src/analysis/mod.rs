@@ -9,9 +9,12 @@
 //! decision D3 chose a worker pool over shared-memory threads.
 pub mod allroots;
 pub mod curvefit;
+pub mod distributions;
 pub mod montecarlo;
 pub mod optimizer;
 pub mod parametric;
 pub mod paramfit;
 pub mod pareto;
+pub mod sampling;
+pub mod sensitivity;
 pub mod uncertainty;

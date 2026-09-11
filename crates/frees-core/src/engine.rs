@@ -227,6 +227,12 @@ pub struct Solution {
     /// uncertainty.
     pub uncertainty_contributions:
         BTreeMap<String, Vec<crate::analysis::uncertainty::UncertaintyContribution>>,
+    /// Phase 4.3: the input shape each source declared through
+    /// `DistributionOf(X) = …`. Empty when every source is a bare `±`.
+    pub uncertainty_distributions: BTreeMap<String, crate::analysis::distributions::Distribution>,
+    /// Phase 4.3: the resolved `Correlation(A, B) = ρ` coefficients, already
+    /// validated against the source list by the propagation.
+    pub uncertainty_correlations: crate::analysis::sampling::CorrelationEntries,
     /// The `PLOT '…' … END` blocks the document declares, in declaration
     /// order — the Java `SolveController`'s `plotsOf(parsed.plots())`.
     ///

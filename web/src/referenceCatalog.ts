@@ -28299,6 +28299,471 @@ $$ F(x; k) = \\frac{\\gamma(k/2,\\ x/2)}{\\Gamma(k/2)} \\quad\\text{(chi-square 
 | \`df\` | Number | Yes | Degrees of freedom. |`,
   },
   {
+    name: `Convolve`,
+    slug: `convolve`,
+    category: `Stats`,
+    summary: `Linear convolution of two sequences, m + n − 1 long.`,
+    related: [`XCorr`, `Filter`, `FFT`, `Smooth`],
+    examples: [],
+    tags: [`convolve`, `convolution`, `impulse response`, `fir`, `kernel`, `signal`],
+    references: [],
+    guides: [],
+    body: `Applies an impulse response to a signal, or combines two kernels into one.
+
+## Syntax
+
+\`\`\`
+CALL Convolve(a, b : c)
+\`\`\`
+
+## Description
+
+Returns the full linear convolution of \`a\` and \`b\`, \`m + n − 1\` samples long. Convolving a signal with a system's impulse response gives that system's output; convolving two kernels gives the single kernel equivalent to applying them in sequence.
+
+\`Convolve\` is not the same as **Filter**: it returns the *full* result, including the \`n − 1\` samples of run-out past the end of the signal, and it has no recursive (denominator) part. Use **Filter** when you want an output the same length as the input, or a filter with feedback.
+
+Correlation is the same sum with one sequence reversed — see **XCorr**.
+
+## Mathematical Formulation
+
+$$ c_k = \\sum_{i} a_i\\, b_{k-i}, \\qquad k = 0,\\ \\dots,\\ m+n-2 $$
+
+> **Method:** direct \`O(m·n)\` sum. The evaluator's equation budget rejects vectors long before an FFT-based convolution would win.
+
+## Examples
+
+### Example 1 — a small kernel
+
+\`\`\`
+a = [1, 2, 3]
+b = [4, 5]
+CALL Convolve(a, b : c)
+\`\`\`
+
+**Expected:** \`c = 4, 13, 22, 15\`.
+
+### Example 2 — an impulse is the identity
+
+\`\`\`
+a = [1]
+b = [7, -2, 0.5]
+CALL Convolve(a, b : c)
+\`\`\`
+
+**Expected:** \`c = 7, -2, 0.5\`.
+
+## Input Arguments
+
+| Argument | Type | Required | Description |
+| --- | --- | --- | --- |
+| \`a\` | Vector | Yes | First sequence, length \`m\`, non-empty. |
+| \`b\` | Vector | Yes | Second sequence, length \`n\`, non-empty. |
+
+## Output Arguments
+
+| Argument | Type | Description |
+| --- | --- | --- |
+| \`c\` | Vector | The convolution, \`m + n − 1\` long. |
+
+## Common Errors
+
+| Error | Cause | Fix |
+| --- | --- | --- |
+| \`Convolve requires the output length to be m + n - 1\` | A declared output of the wrong size. | Leave it bare and let it be sized. |
+| \`Convolve requires two non-empty sequences\` | An empty input. | Both sequences need at least one element. |`,
+  },
+  {
+    name: `Detrend`,
+    slug: `detrend`,
+    category: `Stats`,
+    summary: `Removes a least-squares straight line (or just the mean) from a measured series.`,
+    related: [`Smooth`, `Window`, `Welch`, `FFT`],
+    examples: [],
+    tags: [`detrend`, `trend`, `drift`, `baseline`, `signal`, `sensor`],
+    references: [],
+    guides: [],
+    body: `Removes the slow drift from a measured series so the fluctuation you actually care about is what is left. Thermocouple drift, a settling load cell, a slowly warming ambient — all of them add a ramp that dominates a spectrum or a correlation unless it is taken out first.
+
+## Syntax
+
+\`\`\`
+CALL Detrend(y : yd)
+CALL Detrend(y, 'linear' : yd)
+CALL Detrend(y, 'constant' : yd)
+\`\`\`
+
+## Description
+
+\`'linear'\` (the default) fits a straight line by ordinary least squares over the sample index \`0, 1, …, n−1\` and subtracts it, so the result has neither a mean nor a slope. \`'constant'\` subtracts only the mean and leaves the slope intact.
+
+The fit is over the **index**, not over a time column: samples are assumed evenly spaced. On an uneven raster, resample first.
+
+Detrending is a linear operation, which is the property to lean on when reasoning about it: \`Detrend(a + b)\` is \`Detrend(a) + Detrend(b)\`, so adding a ramp to a signal cannot change what detrending returns for the signal itself.
+
+## Mathematical Formulation
+
+With $\\bar t = (n-1)/2$ and $\\bar y$ the sample mean,
+
+$$ m = \\frac{\\sum_{j} (j - \\bar t)(y_j - \\bar y)}{\\sum_{j} (j - \\bar t)^2}, \\qquad yd_j = y_j - \\left[\\bar y + m\\,(j - \\bar t)\\right] $$
+
+> **Method:** the closed-form ordinary-least-squares line on a known uniform design — no factorization, and no conditioning to worry about.
+
+## Examples
+
+### Example 1 — a drifting temperature record
+
+\`\`\`
+T = [20.1, 20.4, 20.6, 21.0, 21.2, 21.5, 21.7, 22.0]
+CALL Detrend(T : ripple)
+peaks = peakcount(0, 0, ripple)
+\`\`\`
+
+The ~0.27 K per sample warming trend is removed; what is left is the measurement ripple around it.
+
+### Example 2 — re-centring without flattening
+
+\`\`\`
+T = [20.1, 20.4, 20.6, 21.0]
+CALL Detrend(T, 'constant' : centred)
+\`\`\`
+
+**Expected:** the mean of \`centred\` is 0 and the sample-to-sample slope is unchanged.
+
+## Input Arguments
+
+| Argument | Type | Required | Description |
+| --- | --- | --- | --- |
+| \`y\` | Vector | Yes | The measured series, at least one sample. |
+| \`'mode'\` | String | No | \`'linear'\` (default) or \`'constant'\`. |
+
+## Output Arguments
+
+| Argument | Type | Description |
+| --- | --- | --- |
+| \`yd\` | Vector | The detrended series, same length as \`y\`. |
+
+## Common Errors
+
+| Error | Cause | Fix |
+| --- | --- | --- |
+| \`Detrend mode must be 'linear' or 'constant'\` | An unrecognised mode string. | Use one of the two spellings; \`'const'\` and \`'mean'\` are also accepted for the constant form. |
+| \`Detrend requires the output vector to match the input length\` | A declared output of a different size. | Leave the output bare and let it be sized, or declare it \`[1:n]\`. |`,
+  },
+  {
+    name: `FFT`,
+    slug: `fft`,
+    category: `Stats`,
+    summary: `Discrete Fourier transform of a complex sequence, any length.`,
+    related: [`IFFT`, `Convolve`, `Welch`, `Window`, `XCorr`],
+    examples: [],
+    tags: [`fft`, `dft`, `fourier`, `spectrum`, `frequency`, `transform`, `signal`],
+    references: [],
+    guides: [],
+    body: `Transforms a sampled signal into its frequency content.
+
+## Syntax
+
+\`\`\`
+CALL FFT(re, im : outRe, outIm)
+\`\`\`
+
+## Description
+
+Takes the complex sequence carried as two equal-length real vectors and returns its discrete Fourier transform in the same form. For a real signal, pass a vector of zeros as \`im\`.
+
+**Any length works, including primes.** Short transforms run the direct \`O(n²)\` sum; longer ones take a radix-2 Cooley–Tukey path when the length is a power of two and Bluestein's chirp-z otherwise, both \`O(n log n)\`. There is no power-of-two restriction at any size and no zero-padding happening behind your back — the transform you get is the transform of the samples you gave.
+
+Bin \`k\` (1-based \`outRe[k+1]\`) corresponds to frequency \`k·fs/n\`. Bins above \`n/2\` are the negative frequencies, mirrored for a real input.
+
+Two things to do first, for a record that is not exactly periodic: remove the trend (**Detrend**) and taper the ends (**Window**). Without them, a step between the last sample and the first leaks energy across every bin. For a power spectrum specifically, **Welch** does both and averages, and is usually the better tool.
+
+## Mathematical Formulation
+
+$$ X_k = \\sum_{j=0}^{n-1} x_j\\, e^{-2\\pi \\mathrm{i} jk/n} $$
+
+> **Method:** direct sum up to 32 points; radix-2 Cooley–Tukey at power-of-two lengths; Bluestein's chirp-z otherwise. All trigonometry goes through \`libm\`, so native and browser runs agree bit for bit.
+
+## Examples
+
+### Example 1 — the transform of a unit impulse is flat
+
+\`\`\`
+re = [1, 0, 0, 0]
+im = [0, 0, 0, 0]
+CALL FFT(re, im : fr, fi)
+\`\`\`
+
+**Expected:** \`fr = 1, 1, 1, 1\` and \`fi = 0, 0, 0, 0\`.
+
+### Example 2 — a real ramp
+
+\`\`\`
+re = [1, 2, 3, 4]
+im = [0, 0, 0, 0]
+CALL FFT(re, im : outRe, outIm)
+\`\`\`
+
+**Expected:** \`outRe[1] = 10\`, the sum of the samples — bin 0 is always the DC total.
+
+## Input Arguments
+
+| Argument | Type | Required | Description |
+| --- | --- | --- | --- |
+| \`re\` | Vector | Yes | Real parts of the sequence. |
+| \`im\` | Vector | Yes | Imaginary parts, same length as \`re\`. Pass zeros for a real signal. |
+
+## Output Arguments
+
+| Argument | Type | Description |
+| --- | --- | --- |
+| \`outRe\` | Vector | Real parts of the transform, same length. |
+| \`outIm\` | Vector | Imaginary parts of the transform, same length. |
+
+## Common Errors
+
+| Error | Cause | Fix |
+| --- | --- | --- |
+| \`FFT requires all four vectors to have the same length\` | Mismatched inputs or outputs. | All four are the same \`n\`. |
+| \`FFT real and imaginary parts must have equal length\` | The two input vectors differ. | Supply an imaginary vector of zeros the same length as the real one. |`,
+  },
+  {
+    name: `Filter`,
+    slug: `filter`,
+    category: `Stats`,
+    summary: `Causal IIR/FIR filtering by the difference equation, starting from rest.`,
+    related: [`FiltFilt`, `Smooth`, `Window`, `Convolve`],
+    examples: [],
+    tags: [`filter`, `iir`, `fir`, `lowpass`, `difference equation`, `signal`],
+    references: [],
+    guides: [],
+    body: `Runs a signal through a digital filter defined by its numerator and denominator coefficients — the same \`(b, a)\` pair MATLAB's \`filter\` and SciPy's \`lfilter\` take.
+
+## Syntax
+
+\`\`\`
+CALL Filter(b, a, x : y)
+\`\`\`
+
+## Description
+
+Implements
+
+\`\`\`
+a[1]·y[j] = b[1]·x[j] + b[2]·x[j-1] + … − a[2]·y[j-1] − a[3]·y[j-2] − …
+\`\`\`
+
+as a transposed direct-form II, so only \`max(len(a), len(b)) − 1\` state values are carried regardless of order. Pass \`a = [1]\` for a pure FIR filter.
+
+Initial conditions are **zero**: the first samples carry the filter's start-up transient, and the output is delayed relative to the input by the filter's group delay. Both are properties of causal filtering, not defects — when neither is acceptable, use **FiltFilt**, which cancels the delay and suppresses the transient.
+
+## Mathematical Formulation
+
+$$ y_j = \\frac{1}{a_1}\\left( \\sum_{i=0}^{n_b-1} b_{i+1}\\,x_{j-i} \\;-\\; \\sum_{i=1}^{n_a-1} a_{i+1}\\,y_{j-i} \\right) $$
+
+> **Method:** transposed direct-form II, coefficients normalized by \`a[1]\` once up front.
+
+## Examples
+
+### Example 1 — a two-tap moving average as an FIR filter
+
+\`\`\`
+x = [1, 3, 2, 6, 4, 9, 5, 12]
+b = [0.5, 0.5]
+a = [1]
+CALL Filter(b, a, x : y)
+\`\`\`
+
+**Expected:** \`y[1] = 0.5\` (the start-up transient — there is no \`x[0]\`), then \`y[2] = 2\`, \`y[3] = 2.5\`.
+
+### Example 2 — a one-pole low-pass
+
+\`\`\`
+x = [1, 0, 0, 0, 0, 0]
+b = [1]
+a = [1, -0.5]
+CALL Filter(b, a, x : y)
+\`\`\`
+
+**Expected:** the impulse response \`1, 0.5, 0.25, 0.125, …\`.
+
+## Input Arguments
+
+| Argument | Type | Required | Description |
+| --- | --- | --- | --- |
+| \`b\` | Vector | Yes | Numerator (feed-forward) coefficients, \`b[1]\` first. |
+| \`a\` | Vector | Yes | Denominator (feedback) coefficients; \`a[1]\` must be non-zero. |
+| \`x\` | Vector | Yes | The signal. |
+
+## Output Arguments
+
+| Argument | Type | Description |
+| --- | --- | --- |
+| \`y\` | Vector | The filtered signal, same length as \`x\`. |
+
+## Common Errors
+
+| Error | Cause | Fix |
+| --- | --- | --- |
+| \`Filter denominator a[1] must be non-zero\` | A leading zero in \`a\`. | Normalize the transfer function so \`a[1] ≠ 0\`. |
+| \`Filter coefficients must all be finite\` | A \`NaN\` or infinity among the coefficients. | Check the design step that produced them. |`,
+  },
+  {
+    name: `FiltFilt`,
+    slug: `filtfilt`,
+    category: `Stats`,
+    summary: `Zero-phase filtering — forward then backward, so the phase shifts cancel.`,
+    related: [`Filter`, `Smooth`, `XCorr`, `Welch`],
+    examples: [],
+    tags: [`filtfilt`, `zero phase`, `forward backward`, `filter`, `signal`, `sensor`],
+    references: [],
+    guides: [],
+    body: `Filters a recorded signal without shifting it in time. Use it whenever the timing of a feature matters — the location of a peak, the moment a threshold is crossed, the alignment of two channels.
+
+## Syntax
+
+\`\`\`
+CALL FiltFilt(b, a, x : y)
+\`\`\`
+
+## Description
+
+Runs **Filter** forward over the record, reverses the result, filters again, and reverses back. Each pass shifts the phase by the same amount in opposite directions, so they cancel exactly: a symmetric feature comes back symmetric, in place.
+
+Two consequences worth stating plainly:
+
+* **The magnitude response is squared.** A design that is −3 dB at some frequency is −6 dB there after \`FiltFilt\`. Design for half the attenuation you want.
+* **It is not causal.** Every output sample depends on the whole record, so this is a post-processing tool, never something to put inside a control loop.
+
+Before filtering, the signal is odd-extended by \`3·max(len(a), len(b))\` samples (clipped to \`n − 1\`) at both ends and the extension discarded afterwards. That is what stops the ends from ringing.
+
+## Mathematical Formulation
+
+With $H$ the causal filter of **Filter** and $R$ the reversal operator,
+
+$$ y = R\\,H\\,R\\,H\\,x \\quad\\Longrightarrow\\quad Y(\\omega) = |H(\\omega)|^2 X(\\omega) $$
+
+— real and non-negative, hence zero phase.
+
+> **Method:** two \`lfilter\` passes over an odd-extended record. The SciPy steady-state \`lfilter_zi\` warm start is not applied; the padding carries the edge behaviour.
+
+## Examples
+
+### Example 1 — a constant survives untouched, ends included
+
+\`\`\`
+x = [4, 4, 4, 4, 4, 4, 4, 4]
+b = [0.2, 0.2, 0.2, 0.2, 0.2]
+a = [1]
+CALL FiltFilt(b, a, x : y)
+\`\`\`
+
+**Expected:** every \`y[j] = 4\`. A zero-padded implementation would sag at both ends instead.
+
+### Example 2 — a symmetric pulse stays symmetric
+
+\`\`\`
+x = [0, 0, 0, 1, 0, 0, 0]
+b = [0.25, 0.5, 0.25]
+a = [1]
+CALL FiltFilt(b, a, x : y)
+\`\`\`
+
+**Expected:** \`y\` is symmetric about its centre — the property a single causal pass does not have.
+
+## Input Arguments
+
+| Argument | Type | Required | Description |
+| --- | --- | --- | --- |
+| \`b\` | Vector | Yes | Numerator coefficients. |
+| \`a\` | Vector | Yes | Denominator coefficients; \`a[1]\` non-zero. |
+| \`x\` | Vector | Yes | The signal, at least two samples. |
+
+## Output Arguments
+
+| Argument | Type | Description |
+| --- | --- | --- |
+| \`y\` | Vector | The zero-phase filtered signal, same length as \`x\`. |
+
+## Common Errors
+
+| Error | Cause | Fix |
+| --- | --- | --- |
+| \`FiltFilt requires at least two samples\` | A one-sample record. | There is nothing to reflect about; use **Filter** or a longer record. |`,
+  },
+  {
+    name: `IFFT`,
+    slug: `ifft`,
+    category: `Stats`,
+    summary: `Inverse discrete Fourier transform, including the 1/n normalization.`,
+    related: [`FFT`, `Convolve`, `Welch`, `Window`],
+    examples: [],
+    tags: [`ifft`, `inverse fft`, `fourier`, `transform`, `signal`],
+    references: [],
+    guides: [],
+    body: `Takes a spectrum back to the time domain.
+
+## Syntax
+
+\`\`\`
+CALL IFFT(re, im : outRe, outIm)
+\`\`\`
+
+## Description
+
+The inverse of **FFT**, including the \`1/n\` normalization — so \`IFFT(FFT(x))\` returns \`x\`, not \`n·x\`. Same length rules and the same fast paths: any length, primes included.
+
+Filtering by editing a spectrum and inverting it is a legitimate use, but note that zeroing bins is a brick-wall filter and rings badly in time. **Filter** or **FiltFilt** with a designed kernel is usually what you want instead.
+
+## Mathematical Formulation
+
+$$ x_j = \\frac{1}{n}\\sum_{k=0}^{n-1} X_k\\, e^{+2\\pi \\mathrm{i} jk/n} $$
+
+> **Method:** as **FFT**, with the conjugate exponent and a final division by \`n\`.
+
+## Examples
+
+### Example 1 — a flat spectrum inverts to an impulse
+
+\`\`\`
+re = [1, 1]
+im = [0, 0]
+CALL IFFT(re, im : gr, gi)
+\`\`\`
+
+**Expected:** \`gr = 1, 0\` and \`gi = 0, 0\`.
+
+### Example 2 — round trip
+
+\`\`\`
+x  = [3, -1, 0.5, 2.25, -7]
+im = [0, 0, 0, 0, 0]
+CALL FFT(x, im : fr, fi)
+CALL IFFT(fr, fi : br, bi)
+\`\`\`
+
+**Expected:** \`br\` reproduces \`x\` and \`bi\` is zero to rounding.
+
+## Input Arguments
+
+| Argument | Type | Required | Description |
+| --- | --- | --- | --- |
+| \`re\` | Vector | Yes | Real parts of the spectrum. |
+| \`im\` | Vector | Yes | Imaginary parts, same length. |
+
+## Output Arguments
+
+| Argument | Type | Description |
+| --- | --- | --- |
+| \`outRe\` | Vector | Real parts of the recovered sequence. |
+| \`outIm\` | Vector | Imaginary parts of the recovered sequence. |
+
+## Common Errors
+
+| Error | Cause | Fix |
+| --- | --- | --- |
+| \`IFFT requires all four vectors to have the same length\` | Mismatched inputs or outputs. | All four are the same \`n\`. |`,
+  },
+  {
     name: `intercept`,
     slug: `intercept`,
     category: `Stats`,
@@ -28600,6 +29065,134 @@ $$ \\phi(x;\\mu,\\sigma) = \\frac{1}{\\sigma\\sqrt{2\\pi}}\\,e^{-(x-\\mu)^2/(2\\
 | \`sigma\` | Number | Yes | Surface tension [N/m]. |`,
   },
   {
+    name: `peakcount`,
+    slug: `peakcount`,
+    category: `Stats`,
+    summary: `Number of strict local maxima in a series, with height and separation thresholds.`,
+    related: [`peakindex`, `Smooth`, `XCorr`, `Welch`],
+    examples: [],
+    tags: [`peak`, `peaks`, `local maximum`, `detection`, `count`, `signal`],
+    references: [],
+    guides: [],
+    body: `Counts the peaks in a measured series — cycles in a pressure trace, teeth on an encoder, bursts in a vibration record.
+
+## Syntax
+
+\`\`\`
+n = peakcount(minheight, mindistance, x1, x2, ...)
+n = peakcount(minheight, mindistance, [ ... ])
+\`\`\`
+
+## Description
+
+A peak is a sample **strictly greater than both of its neighbours**. The first and last samples are never peaks, having only one neighbour each, and a plateau of equal values is not a peak either.
+
+The two scalars come first, matching the convention \`ci_mean_lo(0.95, […])\` set:
+
+* \`minheight\` rejects peaks at or below it. Set it below the series minimum to disable.
+* \`mindistance\` enforces a minimum index separation. \`0\` or \`1\` imposes none; anything larger keeps the **tallest** peak of each contested group and discards the rest, so a broad noisy shoulder does not out-vote the crest beside it.
+
+Smooth first if the record is noisy: every noise excursion of two samples is a peak by this definition, and **Smooth** is usually the difference between counting cycles and counting samples.
+
+## Mathematical Formulation
+
+$$ P = \\{\\, j : 0 < j < n-1,\\ x_j > x_{j-1},\\ x_j > x_{j+1},\\ x_j > h \\,\\} $$
+
+then greedily thinned by descending $x_j$ under the separation constraint.
+
+> **Method:** one pass for the candidates, then a tallest-first sweep. Ties break to the lower index, so the answer is deterministic.
+
+## Examples
+
+### Example 1 — counting cycles
+
+\`\`\`
+x = [1, 3, 2, 6, 4, 9, 5, 12]
+n = peakcount(0, 0, x)
+\`\`\`
+
+**Expected:** \`n = 3\` — the 3, the 6 and the 9. The final 12 is an endpoint, not a peak.
+
+### Example 2 — ignoring small excursions
+
+\`\`\`
+x = [1, 3, 2, 6, 4, 9, 5, 12]
+tall = peakcount(5, 0, x)
+\`\`\`
+
+**Expected:** \`tall = 2\` — only the 6 and the 9 clear a height floor of 5.
+
+## Input Arguments
+
+| Argument | Type | Required | Description |
+| --- | --- | --- | --- |
+| \`minheight\` | Number | Yes | Peaks at or below this are rejected. |
+| \`mindistance\` | Number | Yes | Minimum index separation; \`0\` or \`1\` for none. |
+| \`x1, x2, …\` | Number | Yes | The series, as loose values or a list literal. |`,
+  },
+  {
+    name: `peakindex`,
+    slug: `peakindex`,
+    category: `Stats`,
+    summary: `1-based position of the k-th peak in a series, or 0 when there is none.`,
+    related: [`peakcount`, `Smooth`, `XCorr`],
+    examples: [],
+    tags: [`peak`, `peaks`, `local maximum`, `detection`, `index`, `position`, `signal`],
+    references: [],
+    guides: [],
+    body: `Locates a peak found by **peakcount**, so its value, its time or the interval to the next one can be read out of the series.
+
+## Syntax
+
+\`\`\`
+p = peakindex(k, minheight, mindistance, x1, x2, ...)
+p = peakindex(k, minheight, mindistance, [ ... ])
+\`\`\`
+
+## Description
+
+Returns the 1-based position, within the series, of the \`k\`-th peak in ascending index order. Peaks are defined exactly as in **peakcount** — strictly greater than both neighbours, subject to the same \`minheight\` floor and \`mindistance\` separation — so the same two thresholds must be passed to both to get a consistent answer.
+
+\`k\` is 1-based too: \`peakindex(1, …)\` is the first peak. When there is no \`k\`-th peak the answer is **0**, not an error and not the last peak, so a loop can walk peaks until it gets a zero.
+
+## Examples
+
+### Example 1 — walking the peaks of a trace
+
+\`\`\`
+x  = [1, 3, 2, 6, 4, 9, 5, 12]
+n  = peakcount(0, 0, x)
+p1 = peakindex(1, 0, 0, x)
+p2 = peakindex(2, 0, 0, x)
+p3 = peakindex(3, 0, 0, x)
+p4 = peakindex(4, 0, 0, x)
+\`\`\`
+
+**Expected:** \`n = 3\`, \`p1 = 2\`, \`p2 = 4\`, \`p3 = 6\`, and \`p4 = 0\` — there is no fourth peak.
+
+### Example 2 — the interval between the first two peaks
+
+\`\`\`
+{ x sampled at 100 Hz }
+dt = (peakindex(2, 0, 3, x) - peakindex(1, 0, 3, x)) / 100
+\`\`\`
+
+## Input Arguments
+
+| Argument | Type | Required | Description |
+| --- | --- | --- | --- |
+| \`k\` | Integer | Yes | Which peak, 1-based. Must be a positive whole number. |
+| \`minheight\` | Number | Yes | Peaks at or below this are rejected. |
+| \`mindistance\` | Number | Yes | Minimum index separation; \`0\` or \`1\` for none. |
+| \`x1, x2, …\` | Number | Yes | The series, as loose values or a list literal. |
+
+## Common Errors
+
+| Error | Cause | Fix |
+| --- | --- | --- |
+| \`the ordinal must be a positive whole number\` | \`k\` was 0, negative or fractional. | Peaks are numbered from 1. |`,
+  },
+  {
     name: `percentile`,
     slug: `percentile`,
     category: `Stats`,
@@ -28871,6 +29464,69 @@ $$ m = \\frac{\\sum (x_i-\\bar x)(y_i-\\bar y)}{\\sum (x_i-\\bar x)^2} \\quad\\t
 | \`yvals\` | Number | Yes | Dependent-variable data (vector). |`,
   },
   {
+    name: `Smooth`,
+    slug: `smooth`,
+    category: `Stats`,
+    summary: `Centred moving average over an odd window, with honest ends.`,
+    related: [`Detrend`, `Filter`, `FiltFilt`, `Window`],
+    examples: [],
+    tags: [`smooth`, `moving average`, `filter`, `noise`, `signal`, `sensor`],
+    references: [],
+    guides: [],
+    body: `A centred moving average — the first thing to reach for when a sensor trace is noisy and you want to see the shape of it.
+
+## Syntax
+
+\`\`\`
+CALL Smooth(x, k : y)
+\`\`\`
+
+## Description
+
+Each output sample is the mean of the \`k\` samples centred on it. \`k\` must be odd, so "centred" means what it says, and no larger than the series.
+
+At the ends, where the full window does not exist, the average is taken over **the samples that do** rather than over zeros. That is the difference between a constant series coming back constant and one that sags at both ends — a zero-padded moving average always does the latter, and the sag is easy to mistake for a real transient.
+
+A moving average is a low-pass filter with a \`sinc\` response, so it is not a good choice when you care about the frequency content; use **Filter** or **FiltFilt** with a designed kernel for that. As a way to see the trend in a plot, it is exactly right.
+
+## Mathematical Formulation
+
+$$ y_j = \\frac{1}{|W_j|}\\sum_{i \\in W_j} x_i, \\qquad W_j = \\{\\,i : |i - j| \\le \\lfloor k/2 \\rfloor,\\; 0 \\le i < n \\,\\} $$
+
+> **Method:** direct windowed mean; the window shrinks at the ends rather than being padded.
+
+## Examples
+
+### Example 1 — smoothing a noisy pressure trace
+
+\`\`\`
+p = [1, 3, 2, 6, 4, 9, 5, 12]
+CALL Smooth(p, 3 : ps)
+\`\`\`
+
+**Expected:** \`ps[1] = 2\` (the mean of the two samples that exist), \`ps[3] = 11/3\`, \`ps[8] = 8.5\`.
+
+## Input Arguments
+
+| Argument | Type | Required | Description |
+| --- | --- | --- | --- |
+| \`x\` | Vector | Yes | The series to smooth. |
+| \`k\` | Integer | Yes | Window length; odd, at least 1, at most \`n\`. |
+
+## Output Arguments
+
+| Argument | Type | Description |
+| --- | --- | --- |
+| \`y\` | Vector | The smoothed series, same length as \`x\`. |
+
+## Common Errors
+
+| Error | Cause | Fix |
+| --- | --- | --- |
+| \`Smooth requires an odd window length\` | An even \`k\`. | Use \`k − 1\` or \`k + 1\`; an even window has no centre sample. |
+| \`Smooth window is longer than the series\` | \`k > n\`. | Shorten the window, or lengthen the record. |`,
+  },
+  {
     name: `std`,
     slug: `std`,
     category: `Stats`,
@@ -28968,6 +29624,222 @@ $$ s^2 = \\frac{1}{n-1}\\sum_{i=1}^{n}(x_i - \\bar x)^2 $$
 | Argument | Type | Required | Description |
 | --- | --- | --- | --- |
 | \`x\` | Number | Yes | Vapor quality (0–1). |`,
+  },
+  {
+    name: `Welch`,
+    slug: `welch`,
+    category: `Stats`,
+    summary: `Averaged-periodogram power spectral density, one-sided and in x²/Hz.`,
+    related: [`FFT`, `Window`, `Detrend`, `XCorr`],
+    examples: [],
+    tags: [`welch`, `psd`, `spectrum`, `power spectral density`, `periodogram`, `vibration`, `noise`],
+    references: [],
+    guides: [],
+    body: `Estimates where a signal's power sits in frequency. A single \`FFT\` of a noisy record gives a spectrum whose variance does not fall as the record gets longer; Welch's method trades resolution for that variance by splitting the record into overlapping segments and averaging their spectra.
+
+## Syntax
+
+\`\`\`
+CALL Welch(x, fs, nperseg : f, pxx)
+\`\`\`
+
+## Description
+
+Splits \`x\` into 50 %-overlapped segments of \`nperseg\` samples, removes each segment's mean, tapers it with a **periodic** Hann window, and averages the squared spectra. A trailing partial segment is dropped rather than zero-padded — padding would quietly bias the average toward the record's tail.
+
+Both outputs are \`nperseg/2 + 1\` long: \`f[k] = (k−1)·fs/nperseg\` in Hz, and \`pxx\` is a one-sided **power spectral density** in the signal's units squared per hertz. "One-sided" means the negative frequencies have been folded onto their positive twins, so every bin except DC and Nyquist is doubled. The consequence to lean on when checking a result: \`Σ pxx·Δf\` recovers the signal's mean square.
+
+\`nperseg\` sets the trade: a larger segment resolves closely-spaced tones, a smaller one averages more segments and gives a smoother estimate.
+
+## Mathematical Formulation
+
+For segment $i$ with window $w$ of length $L$,
+
+$$ P^{(i)}_k = \\frac{2}{f_s \\sum_j w_j^2}\\left| \\sum_{j=0}^{L-1} (x^{(i)}_j - \\bar x^{(i)})\\, w_j\\, e^{-2\\pi \\mathrm{i} jk/L} \\right|^2 $$
+
+(the factor 2 omitted at $k = 0$ and, for even $L$, at $k = L/2$), and $P_k$ is the mean over segments.
+
+> **Method:** mixed-radix / Bluestein FFT per segment — see **FFT** — with a periodic Hann taper and constant detrending.
+
+## Examples
+
+### Example 1 — locating a tone and checking its power
+
+\`\`\`
+{ 4096 samples of a 1 Vrms 50 Hz tone at fs = 1 kHz in x[1..4096] }
+CALL Welch(x, 1000, 256 : f, pxx)
+\`\`\`
+
+**Expected:** the largest \`pxx\` sits in the bin nearest 50 Hz, and \`sum(pxx)·(f[2] − f[1])\` is 1 — the mean square of a 1 Vrms tone.
+
+## Input Arguments
+
+| Argument | Type | Required | Description |
+| --- | --- | --- | --- |
+| \`x\` | Vector | Yes | The uniformly sampled signal. |
+| \`fs\` | Number | Yes | Sample rate in Hz; may be any expression. Must be positive. |
+| \`nperseg\` | Integer | Yes | Segment length, at least 2 and at most the record length. |
+
+## Output Arguments
+
+| Argument | Type | Description |
+| --- | --- | --- |
+| \`f\` | Vector | Bin centre frequencies in Hz, \`nperseg/2 + 1\` long. |
+| \`pxx\` | Vector | One-sided power spectral density in \`x²/Hz\`, same length. |
+
+## Common Errors
+
+| Error | Cause | Fix |
+| --- | --- | --- |
+| \`Welch segment length exceeds the series length\` | \`nperseg > n\`. | Shorten the segment or lengthen the record. |
+| \`Welch requires a positive, finite sample rate\` | \`fs ≤ 0\` or non-finite. | Supply the real acquisition rate. |
+| \`Welch requires both output vectors to be nperseg/2 + 1 long\` | Declared outputs of another size. | Leave them bare and let them be sized. |
+
+> **Uniform sampling is assumed.** Nothing here inspects a time column, and an uneven raster produces a spectrum that looks fine and means nothing. Resample first.`,
+  },
+  {
+    name: `Window`,
+    slug: `window`,
+    category: `Stats`,
+    summary: `Multiplies a series by a symmetric taper (Hann, Hamming, Blackman, Bartlett or rectangular).`,
+    related: [`FFT`, `Welch`, `Detrend`, `Smooth`],
+    examples: [],
+    tags: [`window`, `taper`, `hann`, `hamming`, `blackman`, `bartlett`, `leakage`, `spectrum`],
+    references: [],
+    guides: [],
+    body: `Tapers a finite record to zero at both ends before a transform, so the discontinuity between the last sample and the first does not smear energy across the whole spectrum.
+
+## Syntax
+
+\`\`\`
+CALL Window(x, 'hann' : y)
+\`\`\`
+
+## Description
+
+An \`FFT\` treats its input as one period of a periodic signal. A record that does not happen to contain a whole number of cycles therefore has a step in it, and that step leaks energy into every bin — enough to bury a small tone sitting next to a large one. Multiplying by a taper that reaches zero at both ends removes the step.
+
+The windows here are **symmetric** (denominator \`n − 1\`), which is the right taper for a single finite record and matches MATLAB's \`hann(n)\` and SciPy's \`get_window(..., fftbins=False)\`. **Welch** uses the *periodic* form internally, because there the segments tile a longer record; the two differ by one sample and the difference is not cosmetic.
+
+Every window trades resolution for leakage: Hann is the usual default, Blackman suppresses distant leakage further at the cost of a wider main lobe, Hamming sits between them, Bartlett is the simple triangle, and \`'rect'\` is the identity — the taper you already have when you do nothing.
+
+## Mathematical Formulation
+
+With $t = j/(n-1)$,
+
+$$ w^{\\text{hann}}_j = 0.5 - 0.5\\cos 2\\pi t, \\quad w^{\\text{hamming}}_j = 0.54 - 0.46\\cos 2\\pi t $$
+$$ w^{\\text{blackman}}_j = 0.42 - 0.5\\cos 2\\pi t + 0.08\\cos 4\\pi t, \\quad w^{\\text{bartlett}}_j = 1 - |2t - 1| $$
+
+and $y_j = w_j x_j$.
+
+> **Method:** the closed-form weights, evaluated through \`libm\` so native and browser runs agree bit for bit.
+
+## Examples
+
+### Example 1 — tapering before a transform
+
+\`\`\`
+x  = [1, 2, 3, 4, 5, 6, 7, 8]
+im = [0, 0, 0, 0, 0, 0, 0, 0]
+CALL Window(x, 'hann' : xw)
+CALL FFT(xw, im : re, imf)
+\`\`\`
+
+**Expected:** \`xw[1] = 0\` and \`xw[8] = 0\` — a symmetric Hann closes on zero at both ends.
+
+## Input Arguments
+
+| Argument | Type | Required | Description |
+| --- | --- | --- | --- |
+| \`x\` | Vector | Yes | The series to taper. |
+| \`'kind'\` | String | Yes | \`'rect'\`, \`'hann'\`, \`'hamming'\`, \`'blackman'\` or \`'bartlett'\`. \`'hanning'\`, \`'boxcar'\`, \`'rectangular'\`, \`'none'\` and \`'triangular'\` are accepted spellings. |
+
+## Output Arguments
+
+| Argument | Type | Description |
+| --- | --- | --- |
+| \`y\` | Vector | \`x\` multiplied by the window, same length. |
+
+## Common Errors
+
+| Error | Cause | Fix |
+| --- | --- | --- |
+| \`Unknown window\` | A name outside the list. | Use one of the five; the name is matched case-insensitively. |
+| \`Window option 2 must be a quoted name\` | The kind was passed unquoted. | Write \`'hann'\`, with quotes. |`,
+  },
+  {
+    name: `XCorr`,
+    slug: `xcorr`,
+    category: `Stats`,
+    summary: `Full linear cross-correlation of two series, zero lag at the centre.`,
+    related: [`Convolve`, `FiltFilt`, `Welch`, `Smooth`],
+    examples: [],
+    tags: [`xcorr`, `cross-correlation`, `autocorrelation`, `lag`, `delay`, `alignment`, `signal`],
+    references: [],
+    guides: [],
+    body: `Finds how far one signal leads or lags another — the transport delay between two thermocouples, the phase between a drive and a response, the period hidden in a noisy trace.
+
+## Syntax
+
+\`\`\`
+CALL XCorr(a, b : c)
+\`\`\`
+
+## Description
+
+Returns the full linear cross-correlation, \`m + n − 1\` samples long. Output element \`c[i]\` carries lag \`i − n\` in 1-based terms: the **centre** element \`c[n]\` is the zero-lag correlation, a peak to the right of centre means \`a\` leads \`b\`, and a peak to the left means it lags.
+
+\`XCorr(a, a)\` is the autocorrelation, which always peaks at the centre with the signal's energy \`Σ aᵢ²\`; the position of its next peak is the dominant period.
+
+Both series are used raw. Remove any trend first (**Detrend**) — a common ramp correlates with itself and will dominate whatever you were actually looking for.
+
+## Mathematical Formulation
+
+$$ c_{\\ell} = \\sum_{j} a_j\\, b_{j-\\ell}, \\qquad \\ell = -(n-1),\\ \\dots,\\ m-1 $$
+
+which is the convolution of \`a\` with \`b\` reversed.
+
+> **Method:** direct sum, \`O(m·n)\`. The evaluator's equation budget rejects vectors long before an FFT-based correlation would win.
+
+## Examples
+
+### Example 1 — measuring a one-sample delay
+
+\`\`\`
+a = [0, 0, 1, 2, 1, 0, 0]
+b = [0, 1, 2, 1, 0, 0, 0]
+CALL XCorr(a, b : c)
+\`\`\`
+
+**Expected:** the peak lands one element right of the centre — \`a\` leads \`b\` by one sample.
+
+### Example 2 — autocorrelation energy
+
+\`\`\`
+x = [1, 3, 2, 6, 4, 9, 5, 12]
+CALL XCorr(x, x : r)
+\`\`\`
+
+**Expected:** \`r[8]\` (the centre of 15) is \`Σ xᵢ² = 316\`, and \`r\` is symmetric about it.
+
+## Input Arguments
+
+| Argument | Type | Required | Description |
+| --- | --- | --- | --- |
+| \`a\` | Vector | Yes | The reference series, length \`m\`. |
+| \`b\` | Vector | Yes | The series compared against it, length \`n\`. |
+
+## Output Arguments
+
+| Argument | Type | Description |
+| --- | --- | --- |
+| \`c\` | Vector | \`m + n − 1\` correlation values, lag \`−(n−1)\` first. |
+
+## Common Errors
+
+| Error | Cause | Fix |
+| --- | --- | --- |
+| \`XCorr requires the output length to be m + n - 1\` | A declared output of the wrong size. | Leave it bare and let it be sized, or declare \`[1:m+n-1]\`. |`,
   },
   {
     name: `stringlen`,

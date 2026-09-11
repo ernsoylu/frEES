@@ -682,6 +682,21 @@ pub const INTRINSICS: &[Intrinsic] = &[
     strict!("mad", Arity::AtLeast(1), |_, a| {
         crate::descriptive::median_abs_deviation(a)
     }),
+    // ----- peak detection (Phase 4.5) ----------------------------------------
+    // Scalars precede the series, the convention `ci_mean_lo(0.95, […])` set.
+    // `minheight` rejects peaks at or below it (set it under the series minimum
+    // to disable); `mindistance` of 0 or 1 imposes no separation, and anything
+    // larger keeps the tallest peak of each contested group.
+    strict!("peakcount", Arity::AtLeast(3), |_, a| {
+        Ok(peaks_of(a).len() as f64)
+    }),
+    // 1-based on both sides: `peakindex(1, …)` is the first peak, and the
+    // answer indexes the series from 1. Returns 0 when there is no k-th peak.
+    strict!("peakindex", Arity::AtLeast(4), |n, a| {
+        let k = require_positive_index(n, a[0])?;
+        let found = peaks_of(&a[1..]);
+        Ok(found.get(k - 1).map_or(0.0, |&j| (j + 1) as f64))
+    }),
     // ----- Student-t distribution (Phase 4.1) --------------------------------
     strict!("tcdf", Arity::Exact(2), |_, a| student_t_cdf(a[0], a[1])),
     strict!("tpdf", Arity::Exact(2), |_, a| student_t_pdf(a[0], a[1])),
@@ -2713,6 +2728,82 @@ fn eval_synthetic<'a>(function: &str, args: &'a [Expr], env: &'a Env<'a>) -> Res
                 .copied()
                 .ok_or_else(|| synthetic_bounds(function, k, out.len()))
         }
+        // ── Phase 4.5 sensor kernels ────────────────────────────────────
+        // Each carries its whole input vector in the argument list and selects
+        // one output element by index — the same shape `fft$`/`conv$` use, and
+        // for the same reason: a flattened document has no vector values, only
+        // one equation per output element.
+        //
+        // detrend$<const|linear>$<k>$<n>
+        "detrend" if parts.len() == 4 => {
+            let linear = parts[1] == "linear";
+            let k = synthetic_index(function, parts[2])?;
+            let n = synthetic_index(function, parts[3])?;
+            check_synthetic_args(function, args, n)?;
+            let x = eval_args(args, env)?;
+            pick_synthetic(function, k, crate::signal::detrend(&x, linear)?)
+        }
+        // smooth$<width>$<k>$<n>: centred moving average.
+        "smooth" if parts.len() == 4 => {
+            let width = synthetic_index(function, parts[1])?;
+            let k = synthetic_index(function, parts[2])?;
+            let n = synthetic_index(function, parts[3])?;
+            check_synthetic_args(function, args, n)?;
+            let x = eval_args(args, env)?;
+            pick_synthetic(function, k, crate::signal::moving_average(&x, width)?)
+        }
+        // window$<kind>$<k>$<n>: the symmetric taper, already multiplied in.
+        "window" if parts.len() == 4 => {
+            let kind = crate::signal::Window::from_name(parts[1])
+                .ok_or_else(|| unsupported_synthetic(function))?;
+            let k = synthetic_index(function, parts[2])?;
+            let n = synthetic_index(function, parts[3])?;
+            check_synthetic_args(function, args, n)?;
+            let x = eval_args(args, env)?;
+            pick_synthetic(function, k, crate::signal::apply_window(kind, &x))
+        }
+        // xcorr$<k>$<m>$<n>: full cross-correlation, m + n − 1 long.
+        "xcorr" if parts.len() == 4 => {
+            let k = synthetic_index(function, parts[1])?;
+            let m = synthetic_index(function, parts[2])?;
+            let n = synthetic_index(function, parts[3])?;
+            check_synthetic_args(function, args, m + n)?;
+            let a = eval_args(&args[..m], env)?;
+            let b = eval_args(&args[m..m + n], env)?;
+            pick_synthetic(function, k, crate::signal::xcorr(&a, &b)?)
+        }
+        // filter$<causal|zero>$<k>$<nb>$<na>$<n>: numerator, denominator and
+        // signal concatenated in that order.
+        "filter" if parts.len() == 6 => {
+            let zero_phase = parts[1] == "zero";
+            let k = synthetic_index(function, parts[2])?;
+            let nb = synthetic_index(function, parts[3])?;
+            let na = synthetic_index(function, parts[4])?;
+            let n = synthetic_index(function, parts[5])?;
+            check_synthetic_args(function, args, nb + na + n)?;
+            let b = eval_args(&args[..nb], env)?;
+            let a = eval_args(&args[nb..nb + na], env)?;
+            let x = eval_args(&args[nb + na..nb + na + n], env)?;
+            let out = if zero_phase {
+                crate::signal::filtfilt(&b, &a, &x)?
+            } else {
+                crate::signal::lfilter(&b, &a, &x)?
+            };
+            pick_synthetic(function, k, out)
+        }
+        // welch$<f|pxx>$<k>$<nperseg>$<n>: the sample rate is argument 0, the
+        // n samples follow it.
+        "welch" if parts.len() == 5 => {
+            let want_freq = parts[1] == "f";
+            let k = synthetic_index(function, parts[2])?;
+            let nperseg = synthetic_index(function, parts[3])?;
+            let n = synthetic_index(function, parts[4])?;
+            check_synthetic_args(function, args, n + 1)?;
+            let fs = eval_in(&args[0], env)?;
+            let x = eval_args(&args[1..], env)?;
+            let (freqs, pxx) = crate::signal::welch(&x, fs, nperseg)?;
+            pick_synthetic(function, k, if want_freq { freqs } else { pxx })
+        }
         // linfit$slope|intercept|r2$<n>: OLS line fit over (x, y).
         "linfit" if parts.len() == 3 => {
             let which = parts[1];
@@ -2812,6 +2903,26 @@ fn eval_args<'a>(args: &'a [Expr], env: &'a Env<'a>) -> Result<Vec<f64>> {
     Ok(values)
 }
 
+/// `peak_indices` over a `(minheight, mindistance, series…)` argument list.
+fn peaks_of(a: &[f64]) -> Vec<usize> {
+    let min_distance = if a[1].is_finite() && a[1] > 0.0 {
+        a[1] as usize
+    } else {
+        0
+    };
+    crate::signal::peak_indices(&a[2..], a[0], min_distance)
+}
+
+/// A 1-based ordinal argument, rejected rather than silently truncated.
+fn require_positive_index(name: &str, value: f64) -> Result<usize> {
+    if !value.is_finite() || value < 1.0 || value.fract() != 0.0 {
+        return Err(FreesError::evaluation(format!(
+            "{name}: the ordinal must be a positive whole number, got {value}"
+        )));
+    }
+    Ok(value as usize)
+}
+
 fn synthetic_index(function: &str, part: &str) -> Result<usize> {
     part.parse::<usize>()
         .map_err(|_| FreesError::evaluation(format!("malformed synthetic call: {function}")))
@@ -2825,6 +2936,13 @@ fn check_synthetic_args(function: &str, args: &[Expr], expected: usize) -> Resul
         )));
     }
     Ok(())
+}
+
+/// The `k`-th element of a kernel's output vector, or the out-of-range error.
+fn pick_synthetic(function: &str, k: usize, out: Vec<f64>) -> Result<f64> {
+    out.get(k)
+        .copied()
+        .ok_or_else(|| synthetic_bounds(function, k, out.len()))
 }
 
 fn synthetic_bounds(function: &str, k: usize, len: usize) -> FreesError {
@@ -3115,7 +3233,7 @@ fn java_int(x: f64) -> i64 {
 /// Inverse error function — exact port of Apache `Erf.erfInv` (the Giles
 /// rational approximations, including the `w = ∞` branch Apache added for
 /// `x = ±1`).
-fn erf_inv(x: f64) -> f64 {
+pub(crate) fn erf_inv(x: f64) -> f64 {
     // The logarithm argument must stay (1-x)(1+x): simplifying to 1-x² loses
     // accuracy near ±1 (Apache's own comment).
     let mut w = -libm::log((1.0 - x) * (1.0 + x));
