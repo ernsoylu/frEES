@@ -55,6 +55,7 @@
 //! this module complete and testable today, and turns the wiring into an
 //! adapter from whatever `crate::ode` settles on to [`OdeTableView`].
 
+use super::curvefit::Loss;
 use crate::analysis::montecarlo::apply_overrides;
 use crate::diag::{FreesError, Result};
 
@@ -103,12 +104,41 @@ pub struct Outcome {
     pub truncated: bool,
     /// The fitted model resampled onto the measured raster, for overlay.
     pub fitted_series: Series,
+    /// Phase 4.2: 1-sigma standard error per parameter, or `NaN` where the data
+    /// cannot separate it. Never a plausible-looking number for an
+    /// unidentifiable parameter.
+    pub std_errors: Vec<f64>,
+    /// Full parameter covariance, or empty when it could not be formed.
+    pub covariance: Vec<Vec<f64>>,
+    /// Residual degrees of freedom: compared pairs minus fitted parameters.
+    pub residual_dof: usize,
+    /// Numerical rank of the Jacobian at the optimum. Below the parameter count
+    /// means the parameters are not separately identifiable from this data.
+    pub rank: usize,
+    /// Condition number of that Jacobian.
+    pub condition_number: f64,
+    /// True when the rank is deficient — the diagnostics above are then `NaN`.
+    pub unidentifiable: bool,
+    /// Reduced chi-square, only meaningful for a weighted fit (it is `NaN`
+    /// otherwise: without σ there is nothing to compare the scatter against).
+    pub reduced_chi_square: f64,
+    /// Per parameter, whether the fit came to rest on one of its own bounds. A
+    /// parameter at a bound has not been estimated by the data, and its standard
+    /// error describes the wrong thing.
+    pub at_bound: Vec<bool>,
+    /// Weighted chi-square at the optimum, `Σ ((model − measured)/σ)²`. Equals
+    /// the plain SSE when no σ was supplied.
+    pub chi_square: f64,
 }
 
 /// Everything a fit needs about the problem. Bundled because the Java's `run`
 /// takes fourteen arguments and a Rust function with that many is unreadable
 /// (and trips `clippy::too_many_arguments`).
-#[derive(Debug, Clone)]
+///
+/// [`Default`] so a caller names only the fields it uses — Phase 4.2 added
+/// three optional ones and every existing call site should keep reading as it
+/// did. The default is the historical fit: unweighted, ordinary least squares.
+#[derive(Debug, Clone, Default)]
 pub struct FitRequest<'a> {
     /// The document exactly as the solve endpoints receive it.
     pub text: &'a str,
@@ -124,6 +154,17 @@ pub struct FitRequest<'a> {
     pub measured_t: &'a [f64],
     pub measured_v: &'a [f64],
     pub max_evaluations: usize,
+    /// Phase 4.2: per-measurement standard deviations. Empty means unweighted —
+    /// every point counted equally, which is what this fit always did. A σ of
+    /// zero or non-finite is rejected rather than silently treated as 1.
+    pub sigma: &'a [f64],
+    /// Robust loss applied to the scaled squared residual, exactly as in
+    /// [`crate::analysis::curvefit`]. [`Loss::Linear`] is the historical
+    /// behaviour and costs nothing.
+    pub loss: Loss,
+    /// The residual scale beyond which a robust loss starts discounting a
+    /// point. Ignored for [`Loss::Linear`]; non-positive falls back to 1.
+    pub f_scale: f64,
 }
 
 /// Why the search stopped early. Both are caught inside [`run`], exactly as the
@@ -136,11 +177,23 @@ enum Stop {
     Evaluations,
 }
 
-/// One objective evaluation's result. Port of `ParameterFit.SseResult`.
+/// One objective evaluation's result. Port of `ParameterFit.SseResult`,
+/// extended in Phase 4.2 with the weighted and robust sums and with the record
+/// of *which* measured points actually took part — the Jacobian at the optimum
+/// has to be built over exactly those rows and no others.
 struct SseResult {
+    /// Unweighted `Σ (model − measured)²`, which is what `rmse` reports.
     sse: f64,
+    /// `Σ ((model − measured)/σ)²`.
+    chi_square: f64,
+    /// What the minimiser actually descends: the robust loss applied to the
+    /// scaled residuals, `Σ f_scale²·ρ(z)`. Identical to `chi_square` for
+    /// [`Loss::Linear`].
+    objective: f64,
     pairs: usize,
     model: SampledSeries,
+    /// Indices into `measured_t` that produced a comparison, ascending.
+    used: Vec<usize>,
 }
 
 /// Calibrates `request.parameters` so the model column matches the measurement.
@@ -174,7 +227,19 @@ where
         measured_t,
         measured_v,
         max_evaluations,
+        sigma,
+        loss,
+        f_scale,
     } = *request;
+    let weighting = Weighting {
+        sigma,
+        loss,
+        f_scale: if f_scale.is_finite() && f_scale > 0.0 {
+            f_scale
+        } else {
+            1.0
+        },
+    };
 
     let n = parameters.len();
     if n == 0 || initial.len() != n || lower.len() != n || upper.len() != n {
@@ -202,19 +267,38 @@ where
             "The measured series needs at least two (t, y) samples.",
         ));
     }
+    if !sigma.is_empty() {
+        if sigma.len() != measured_t.len() {
+            return Err(FreesError::solver(
+                "One measurement standard deviation is needed per measured sample.",
+            ));
+        }
+        if let Some(bad) = sigma.iter().find(|s| !(s.is_finite() && **s > 0.0)) {
+            return Err(FreesError::solver(format!(
+                "Measurement standard deviations must be finite and positive (got {bad})."
+            )));
+        }
+    }
 
     let mut evaluations = 0usize;
     let mut best_point = initial.to_vec();
+    // The tracked best is by the **minimised** objective, which is the weighted
+    // and robustly-discounted sum — not the raw SSE. Tracking the raw sum here
+    // would let a run report a point the optimiser never preferred.
     let mut best_sse = f64::INFINITY;
     let mut best_pairs = 0usize;
 
     // The normalized objective, closing over the trackers exactly as the Java's
     // `MultivariateFunction normalized` closes over its one-element arrays.
+    // `raw_sse` carries the *unweighted* sum of the evaluation just made, so the
+    // initial RMSE can be read off the feasibility probe instead of paying for
+    // a second solve of the same point.
     let mut normalized = |unit: &[f64],
                           evaluations: &mut usize,
                           best_point: &mut Vec<f64>,
                           best_sse: &mut f64,
-                          best_pairs: &mut usize|
+                          best_pairs: &mut usize,
+                          raw_sse: &mut f64|
      -> std::result::Result<f64, Stop> {
         if expired() {
             return Err(Stop::Budget);
@@ -227,16 +311,20 @@ where
             .collect();
         *evaluations += 1;
         match evaluate(
-            text, parameters, &p, ode_block, column, measured_t, measured_v, &mut solve,
+            text, parameters, &p, ode_block, column, measured_t, measured_v, &weighting, &mut solve,
         ) {
-            None => Ok(PENALTY),
+            None => {
+                *raw_sse = f64::INFINITY;
+                Ok(PENALTY)
+            }
             Some(r) => {
-                if r.sse < *best_sse {
-                    *best_sse = r.sse;
+                *raw_sse = r.sse;
+                if r.objective < *best_sse {
+                    *best_sse = r.objective;
                     *best_pairs = r.pairs;
                     best_point.clone_from(&p);
                 }
-                Ok(r.sse)
+                Ok(r.objective)
             }
         }
     };
@@ -247,12 +335,14 @@ where
     let unit0: Vec<f64> = (0..n)
         .map(|i| (initial[i] - lower[i]) / (upper[i] - lower[i]))
         .collect();
+    let mut raw_sse = f64::INFINITY;
     let sse0 = normalized(
         &unit0,
         &mut evaluations,
         &mut best_point,
         &mut best_sse,
         &mut best_pairs,
+        &mut raw_sse,
     )
     .map_err(|_| {
         FreesError::solver(
@@ -266,7 +356,10 @@ where
              a fit cannot navigate out of an infeasible start.",
         ));
     }
-    let initial_rmse = (sse0 / best_pairs.max(1) as f64).sqrt();
+    // RMSE is reported unweighted — a physical residual in the column's own
+    // units — so it comes off the probe's raw SSE, not off the objective the
+    // optimiser saw. For an unweighted linear fit the two are the same number.
+    let initial_rmse = (raw_sse / best_pairs.max(1) as f64).sqrt();
 
     // `MaxEval` is the *optimizer's* budget in Java: the feasibility probe above
     // runs outside it (it is a direct `normalized.value(unit0)` call, not a
@@ -286,6 +379,7 @@ where
             &mut best_point,
             &mut best_sse,
             &mut best_pairs,
+            &mut raw_sse,
         )
     };
 
@@ -309,6 +403,7 @@ where
         column,
         measured_t,
         measured_v,
+        &weighting,
         &mut solve,
     )
     .ok_or_else(|| {
@@ -318,6 +413,55 @@ where
         )
     })?;
     let rmse = (confirm.sse / confirm.pairs.max(1) as f64).sqrt();
+
+    // Phase 4.2: the diagnostics. The Jacobian at the optimum costs one extra
+    // solve per parameter — the same price the fit paid for every simplex
+    // vertex, and the only way to say anything about identifiability.
+    // "At a bound" is judged against the optimiser's own resolution, not against
+    // exact equality: Brent and Nelder-Mead converge to a relative 1e-8 and stop
+    // a few ulps short of the box edge, so an exact test would report every
+    // pinned parameter as free.
+    let at_bound: Vec<bool> = (0..n)
+        .map(|i| {
+            let tol = 1e-6 * (upper[i] - lower[i]);
+            best_point[i] - lower[i] <= tol || upper[i] - best_point[i] <= tol
+        })
+        .collect();
+    // The scaled residual and its robust weight at each compared point, computed
+    // once: the Jacobian scales its rows by the weight and the residual sum
+    // squares the weighted residual, and the two must agree.
+    let scaled: Vec<(f64, f64)> = confirm
+        .used
+        .iter()
+        .map(|&k| {
+            let u = (confirm.model.at(measured_t[k]) - measured_v[k]) / weighting.sigma_at(k);
+            (u, weighting.jacobian_weight(u))
+        })
+        .collect();
+    let row_weights: Vec<f64> = scaled.iter().map(|(_, w)| *w).collect();
+    let robust_sum: f64 = scaled.iter().map(|(u, w)| (u * w) * (u * w)).sum();
+    let jacobian = optimum_jacobian(
+        text,
+        parameters,
+        &best_point,
+        lower,
+        upper,
+        ode_block,
+        column,
+        measured_t,
+        &confirm,
+        &weighting,
+        &row_weights,
+        &mut solve,
+    );
+    let uncertainty = super::curvefit::parameter_uncertainty(
+        &jacobian,
+        n,
+        confirm.pairs,
+        robust_sum,
+        weighting.is_weighted(),
+    );
+
     Ok(Outcome {
         parameters: parameters.to_vec(),
         fitted: best_point,
@@ -329,7 +473,93 @@ where
             t: measured_t.to_vec(),
             v: confirm.model.sample_on(measured_t),
         },
+        std_errors: uncertainty.std_errors,
+        covariance: uncertainty.covariance,
+        residual_dof: uncertainty.dof,
+        rank: uncertainty.rank,
+        condition_number: uncertainty.condition_number,
+        unidentifiable: uncertainty.unidentifiable,
+        reduced_chi_square: uncertainty.reduced_chi_square,
+        at_bound,
+        chi_square: confirm.chi_square,
     })
+}
+
+/// Forward-difference Jacobian of the σ-scaled model response at the optimum,
+/// one row per compared point and one column per parameter.
+///
+/// The step is relative to the parameter's own **bounded span**, not to its
+/// magnitude: a calibrated parameter is often near zero inside a wide range, and
+/// a magnitude-relative step there is either noise or nothing. A parameter whose
+/// perturbed solve fails leaves its column zero, which the rank test then
+/// reports as unidentifiable — the honest answer, since a model that will not
+/// solve one step away tells the fit nothing about that direction.
+#[allow(clippy::too_many_arguments)]
+fn optimum_jacobian<S>(
+    text: &str,
+    parameters: &[String],
+    point: &[f64],
+    lower: &[f64],
+    upper: &[f64],
+    ode_block: &str,
+    column: &str,
+    measured_t: &[f64],
+    base: &SseResult,
+    weighting: &Weighting<'_>,
+    row_weights: &[f64],
+    solve: &mut S,
+) -> Vec<Vec<f64>>
+where
+    S: FnMut(&str) -> Option<Vec<OdeTableView>>,
+{
+    let n = parameters.len();
+    let rows = base.used.len();
+    let mut jacobian = vec![vec![0.0; n]; rows];
+    for i in 0..n {
+        let span = upper[i] - lower[i];
+        let mut h = 1e-6 * span;
+        // Step inward when the optimum sits on the upper bound, so the probe
+        // stays inside the feasible box.
+        if point[i] + h > upper[i] {
+            h = -h;
+        }
+        if h == 0.0 {
+            continue;
+        }
+        let mut probe = point.to_vec();
+        probe[i] += h;
+        let overrides: Vec<String> = parameters
+            .iter()
+            .zip(&probe)
+            .map(|(name, value)| format!("{name} = {}", plain(*value)))
+            .collect();
+        let Some(tables) = solve(&apply_overrides(text, &overrides)) else {
+            continue;
+        };
+        let Some(series) = extract_column(&tables, ode_block, column) else {
+            continue;
+        };
+        let perturbed = SampledSeries::linear(series.t, series.v);
+        for (row, &k) in base.used.iter().enumerate() {
+            let t = measured_t[k];
+            let (a, b) = (base.model.at(t), perturbed.at(t));
+            if a.is_nan() || b.is_nan() {
+                continue;
+            }
+            let sigma = weighting.sigma_at(k);
+            jacobian[row][i] = (b - a) / (h * sigma);
+        }
+    }
+    // Fold the robust weights in, so a point the loss discounted contributes
+    // less to the parameter uncertainty than a fully trusted one.
+    for (row, &w) in row_weights.iter().enumerate().take(rows) {
+        if w != 1.0 {
+            for value in &mut jacobian[row] {
+                *value *= w;
+            }
+        }
+    }
+    jacobian
 }
 
 /// One objective evaluation; `None` = solve failed or no usable overlap. Port
@@ -343,6 +573,7 @@ fn evaluate<S>(
     column: &str,
     measured_t: &[f64],
     measured_v: &[f64],
+    weighting: &Weighting<'_>,
     solve: &mut S,
 ) -> Option<SseResult>
 where
@@ -358,8 +589,10 @@ where
     let model = SampledSeries::linear(series.t, series.v);
 
     let mut sse = 0.0;
-    let mut pairs = 0usize;
-    for (t, m) in measured_t.iter().zip(measured_v) {
+    let mut chi_square = 0.0;
+    let mut objective = 0.0;
+    let mut used = Vec::new();
+    for (k, (t, m)) in measured_t.iter().zip(measured_v).enumerate() {
         if m.is_nan() {
             continue;
         }
@@ -369,13 +602,66 @@ where
             continue;
         }
         let e = s - m;
+        let u = e / weighting.sigma_at(k);
         sse += e * e;
-        pairs += 1;
+        chi_square += u * u;
+        objective += weighting.penalty(u);
+        used.push(k);
     }
-    if pairs == 0 {
+    if used.is_empty() {
         return None;
     }
-    Some(SseResult { sse, pairs, model })
+    Some(SseResult {
+        sse,
+        chi_square,
+        objective,
+        pairs: used.len(),
+        model,
+        used,
+    })
+}
+
+/// The per-point σ and the robust loss, together, because every residual passes
+/// through both and separating them would mean two parallel lookups in the hot
+/// loop.
+#[derive(Debug, Clone, Copy)]
+struct Weighting<'a> {
+    sigma: &'a [f64],
+    loss: Loss,
+    f_scale: f64,
+}
+
+impl Weighting<'_> {
+    /// The σ for measurement `k`, or 1 when the fit is unweighted. An empty
+    /// `sigma` is the historical unweighted fit, bit for bit.
+    fn sigma_at(&self, k: usize) -> f64 {
+        self.sigma.get(k).copied().unwrap_or(1.0)
+    }
+
+    /// `f_scale²·ρ((u/f_scale)²)` — what the minimiser sums. For
+    /// [`Loss::Linear`] this is exactly `u²`, with no extra arithmetic, so the
+    /// unweighted linear fit descends the same surface it always did.
+    fn penalty(&self, u: f64) -> f64 {
+        if self.loss == Loss::Linear {
+            return u * u;
+        }
+        let scale = self.f_scale;
+        let z = (u / scale) * (u / scale);
+        scale * scale * self.loss.value(z)
+    }
+
+    /// The IRLS weight the covariance Jacobian folds in, so a point the robust
+    /// loss discounted also counts less towards the parameter uncertainty.
+    fn jacobian_weight(&self, u: f64) -> f64 {
+        if self.loss == Loss::Linear {
+            return 1.0;
+        }
+        self.loss.weight(u / self.f_scale).sqrt()
+    }
+
+    fn is_weighted(&self) -> bool {
+        !self.sigma.is_empty()
+    }
 }
 
 /// The named `DYNAMIC` table's column as `(t, v)`; `None` when the table or the
@@ -805,6 +1091,7 @@ mod tests {
             measured_t,
             measured_v,
             max_evaluations: 400,
+            ..FitRequest::default()
         }
     }
 
@@ -926,6 +1213,7 @@ mod tests {
                 measured_t: &times,
                 measured_v: &measured,
                 max_evaluations: 2000,
+                ..FitRequest::default()
             },
             |text| {
                 let k = overridden_k(text);
@@ -1135,6 +1423,7 @@ mod tests {
                 measured_t: &t,
                 measured_v: &v,
                 max_evaluations: 120,
+                ..FitRequest::default()
             },
             |text| Some(decay_table(text)),
             || false,
@@ -1175,6 +1464,7 @@ mod tests {
                 measured_t: &t,
                 measured_v: &v,
                 max_evaluations: 250,
+                ..FitRequest::default()
             },
             |text| Some(decay_table(text)),
             || false,
@@ -1212,6 +1502,7 @@ mod tests {
                 measured_t: &t,
                 measured_v: &v,
                 max_evaluations: 50,
+                ..FitRequest::default()
             },
             |text| Some(decay_table(text)),
             || false,
@@ -1415,5 +1706,225 @@ mod tests {
         assert!(!seen_outside);
         close(best[0], 0.0, 1e-4);
         close(best[1], 0.4, 1e-4);
+    }
+    // ── Phase 4.2: weighting, robust loss and diagnostics ───────────────────
+
+    /// The oracle run above must be untouched by the new fields — this is the
+    /// same document with an explicit all-default request, and the numbers have
+    /// to be identical, not merely close.
+    #[test]
+    fn the_default_request_reproduces_the_unweighted_fit_exactly() {
+        let (t, v) = synthetic_decay(0.7, 5.0);
+        let parameters = ["k".to_string()];
+        let base = FitRequest {
+            text: DECAY_MODEL,
+            parameters: &parameters,
+            initial: &[0.3],
+            lower: &[0.05],
+            upper: &[3.0],
+            ode_block: "decay",
+            column: "x",
+            measured_t: &t,
+            measured_v: &v,
+            max_evaluations: 120,
+            ..FitRequest::default()
+        };
+        let plain = run(&base, |text| Some(decay_table(text)), || false).expect("fit");
+        let explicit = run(
+            &FitRequest {
+                sigma: &[],
+                loss: Loss::Linear,
+                f_scale: 1.0,
+                ..base
+            },
+            |text| Some(decay_table(text)),
+            || false,
+        )
+        .expect("fit");
+        assert_eq!(plain.fitted, explicit.fitted);
+        assert_eq!(plain.rmse, explicit.rmse);
+        assert_eq!(plain.evaluations, explicit.evaluations);
+        // Chi-square with no sigma is the plain SSE, so it must square back to
+        // the reported RMSE.
+        let pairs = t.len() as f64;
+        close((plain.chi_square / pairs).sqrt(), plain.rmse, 1e-12);
+    }
+
+    #[test]
+    fn a_fit_reports_identifiability_diagnostics() {
+        let (t, v) = synthetic_decay(0.7, 5.0);
+        let parameters = ["k".to_string()];
+        let out = run(
+            &FitRequest {
+                text: DECAY_MODEL,
+                parameters: &parameters,
+                initial: &[0.3],
+                lower: &[0.05],
+                upper: &[3.0],
+                ode_block: "decay",
+                column: "x",
+                measured_t: &t,
+                measured_v: &v,
+                max_evaluations: 120,
+                ..FitRequest::default()
+            },
+            |text| Some(decay_table(text)),
+            || false,
+        )
+        .expect("fit");
+        assert_eq!(out.residual_dof, t.len() - 1);
+        assert_eq!(out.rank, 1);
+        assert!(!out.unidentifiable);
+        assert!(out.std_errors[0].is_finite() && out.std_errors[0] > 0.0);
+        assert_eq!(out.covariance.len(), 1);
+        assert!(out.condition_number.is_finite());
+        // Unweighted, so a reduced chi-square would be comparing the scatter
+        // against nothing.
+        assert!(out.reduced_chi_square.is_nan());
+        assert_eq!(out.at_bound, vec![false]);
+    }
+
+    #[test]
+    fn a_parameter_resting_on_its_bound_is_flagged() {
+        // Data generated at k = 0.7 but the upper bound pinned at 0.4: the fit
+        // can only go as far as the bound, and must say so.
+        let (t, v) = synthetic_decay(0.7, 5.0);
+        let parameters = ["k".to_string()];
+        let out = run(
+            &FitRequest {
+                text: DECAY_MODEL,
+                parameters: &parameters,
+                initial: &[0.3],
+                lower: &[0.05],
+                upper: &[0.4],
+                ode_block: "decay",
+                column: "x",
+                measured_t: &t,
+                measured_v: &v,
+                max_evaluations: 200,
+                ..FitRequest::default()
+            },
+            |text| Some(decay_table(text)),
+            || false,
+        )
+        .expect("fit");
+        close(out.fitted[0], 0.4, 1e-3);
+        assert_eq!(out.at_bound, vec![true], "fitted {}", out.fitted[0]);
+    }
+
+    #[test]
+    fn a_large_sigma_removes_a_point_from_the_fit() {
+        // Data at k = 0.7 with one sample corrupted. Given an honest sigma for
+        // the corrupted point, the fit must land where the clean data says.
+        let (t, mut v) = synthetic_decay(0.7, 5.0);
+        let bad = v.len() / 2;
+        v[bad] += 3.0;
+        let mut sigma = vec![0.01; v.len()];
+        sigma[bad] = 1.0e4;
+        let parameters = ["k".to_string()];
+        let fit = |sigma: &[f64]| {
+            run(
+                &FitRequest {
+                    text: DECAY_MODEL,
+                    parameters: &parameters,
+                    initial: &[0.3],
+                    lower: &[0.05],
+                    upper: &[3.0],
+                    ode_block: "decay",
+                    column: "x",
+                    measured_t: &t,
+                    measured_v: &v,
+                    max_evaluations: 300,
+                    sigma,
+                    ..FitRequest::default()
+                },
+                |text| Some(decay_table(text)),
+                || false,
+            )
+            .expect("fit")
+        };
+        let unweighted = fit(&[]);
+        let weighted = fit(&sigma);
+        // The corrupted point drags an unweighted fit away from 0.7…
+        assert!(
+            (unweighted.fitted[0] - 0.7).abs() > 0.02,
+            "unweighted landed at {} — the outlier was supposed to bite",
+            unweighted.fitted[0]
+        );
+        // …and discounting it brings the fit back.
+        close(weighted.fitted[0], 0.7, 5e-3);
+        // A weighted fit does have a reduced chi-square.
+        assert!(weighted.reduced_chi_square.is_finite());
+    }
+
+    #[test]
+    fn a_robust_loss_survives_an_outlier_without_being_told_where_it_is() {
+        let (t, mut v) = synthetic_decay(0.7, 5.0);
+        let bad = v.len() / 2;
+        v[bad] += 3.0;
+        let parameters = ["k".to_string()];
+        let fit = |loss: Loss| {
+            run(
+                &FitRequest {
+                    text: DECAY_MODEL,
+                    parameters: &parameters,
+                    initial: &[0.3],
+                    lower: &[0.05],
+                    upper: &[3.0],
+                    ode_block: "decay",
+                    column: "x",
+                    measured_t: &t,
+                    measured_v: &v,
+                    max_evaluations: 300,
+                    loss,
+                    f_scale: 0.05,
+                    ..FitRequest::default()
+                },
+                |text| Some(decay_table(text)),
+                || false,
+            )
+            .expect("fit")
+        };
+        let plain = fit(Loss::Linear);
+        let robust = fit(Loss::Cauchy);
+        assert!(
+            (robust.fitted[0] - 0.7).abs() < (plain.fitted[0] - 0.7).abs(),
+            "robust {} was no closer to 0.7 than plain {}",
+            robust.fitted[0],
+            plain.fitted[0]
+        );
+    }
+
+    #[test]
+    fn a_malformed_sigma_is_refused() {
+        let (t, v) = synthetic_decay(0.7, 5.0);
+        let parameters = ["k".to_string()];
+        let make = |sigma: &[f64]| {
+            run(
+                &FitRequest {
+                    text: DECAY_MODEL,
+                    parameters: &parameters,
+                    initial: &[0.3],
+                    lower: &[0.05],
+                    upper: &[3.0],
+                    ode_block: "decay",
+                    column: "x",
+                    measured_t: &t,
+                    measured_v: &v,
+                    max_evaluations: 50,
+                    sigma,
+                    ..FitRequest::default()
+                },
+                |text| Some(decay_table(text)),
+                || false,
+            )
+            .map(|_| ())
+            .unwrap_err()
+            .to_string()
+        };
+        assert!(make(&[1.0, 2.0]).contains("per measured sample"));
+        let mut zeroed = vec![1.0; v.len()];
+        zeroed[0] = 0.0;
+        assert!(make(&zeroed).contains("finite and positive"));
     }
 }

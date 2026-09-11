@@ -450,6 +450,16 @@ const EXPANDED_CALL_TARGETS: &[&str] = &[
     "convolve",
     "linfit",
     "polyfit",
+    // Phase 4.5: the sensor kernels, flattened by `expand::flatten_call_proc`
+    // into the `detrend$`/`smooth$`/`window$`/`filter$`/`xcorr$`/`welch$`
+    // synthetics `eval::eval_synthetic` decodes.
+    "detrend",
+    "smooth",
+    "window",
+    "filter",
+    "filtfilt",
+    "xcorr",
+    "welch",
     // Ledger item 34: the eigen pair, flattened by `expand::flatten_eigen`
     // into the `eigen$val|re|im|vec$…` synthetics `linalg::eval_intrinsic`
     // decodes.
@@ -1473,6 +1483,13 @@ mod tests {
             "polyfit",
             "ludecompose",
             "interp2",
+            "detrend",
+            "smooth",
+            "window",
+            "filter",
+            "filtfilt",
+            "xcorr",
+            "welch",
         ]
         .into_iter()
         // Phase 9 put the control-systems suite on the same route.

@@ -54,7 +54,7 @@ pub struct PreparedDocument {
     pub component_connections: Vec<crate::components::expander::Connection>,
     pub component_member_units: BTreeMap<String, String>,
     pub ordinary_equations: Vec<Equation>,
-    pub uncertainty_exprs: BTreeMap<String, Expr>,
+    pub declarations: crate::analysis::uncertainty::DeclarationSet,
     pub stepping_iterations: usize,
     pub ode_accessors: bool,
     pub unaugmented: Option<Vec<Equation>>,
@@ -127,7 +127,7 @@ impl PreparedDocument {
         let equations = crate::integral::hoist_nested(equations);
         let ext = crate::analysis::uncertainty::extract_uncertainty_equations(&equations);
         let equations = ext.active_equations;
-        let uncertainty_exprs = ext.uncertainty_exprs;
+        let declarations = ext.declarations;
 
         let base_ctx = EvalContext::with_defs(&doc.defs);
         let integrals = find_integrals(&equations, &doc.defs, settings.complex_mode)?;
@@ -202,7 +202,7 @@ impl PreparedDocument {
             component_connections: components.connections,
             component_member_units: components.member_units,
             ordinary_equations: equations,
-            uncertainty_exprs,
+            declarations,
             stepping_iterations,
             ode_accessors,
             unaugmented,
@@ -385,6 +385,8 @@ impl PreparedDocument {
                 ode_tables,
                 uncertainties: BTreeMap::new(),
                 uncertainty_contributions: BTreeMap::new(),
+                uncertainty_distributions: BTreeMap::new(),
+                uncertainty_correlations: Default::default(),
                 plots: self.doc.blocks.plots.clone(),
             });
         }
@@ -515,7 +517,7 @@ impl PreparedDocument {
             &self.doc,
             &self.settings,
             &self.overrides,
-            &self.uncertainty_exprs,
+            &self.declarations,
             &self.component_instances,
             &self.component_connections,
             prep,
@@ -533,7 +535,7 @@ impl PreparedDocument {
         doc: &Document,
         settings: &SolverSettings,
         overrides: &[VariableOverride],
-        uncertainty_exprs: &BTreeMap<String, Expr>,
+        declarations: &crate::analysis::uncertainty::DeclarationSet,
         component_instances: &[crate::components::metadata::ComponentInstMeta],
         component_connections: &[crate::components::expander::Connection],
         prep: &DocumentPrep,
@@ -571,7 +573,7 @@ impl PreparedDocument {
             &prep.subsystem,
             &mut scope_mut,
             &mut unc_specs,
-            uncertainty_exprs,
+            declarations,
             ctx,
             |eqs, warm| {
                 solve_equation_list(eqs, solve_settings, &prep.specs, ctx, Some(warm))
@@ -623,6 +625,8 @@ impl PreparedDocument {
             component_connections: component_connections.to_vec(),
             ode_tables,
             uncertainties: propagation.uncertainties,
+            uncertainty_distributions: propagation.distributions,
+            uncertainty_correlations: propagation.correlations,
             uncertainty_contributions: propagation.contributions,
             plots: doc.blocks.plots.clone(),
         })
@@ -711,7 +715,7 @@ impl PreparedDocument {
                 &self.doc,
                 &self.settings,
                 &self.overrides,
-                &self.uncertainty_exprs,
+                &self.declarations,
                 &self.component_instances,
                 &self.component_connections,
                 prep,

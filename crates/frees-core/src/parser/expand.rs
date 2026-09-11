@@ -1043,6 +1043,14 @@ impl Flattener<'_> {
             "fft" => self.flatten_fft(false, &inputs, &outputs, source, loop_vars),
             "ifft" => self.flatten_fft(true, &inputs, &outputs, source, loop_vars),
             "convolve" => self.flatten_convolve(&inputs, &outputs, source, loop_vars),
+            // Phase 4.5 sensor kernels.
+            "detrend" => self.flatten_detrend(&inputs, &outputs, source, loop_vars),
+            "smooth" => self.flatten_smooth(&inputs, &outputs, source, loop_vars),
+            "window" => self.flatten_window(&inputs, &outputs, source, loop_vars),
+            "filter" => self.flatten_filter(false, &inputs, &outputs, source, loop_vars),
+            "filtfilt" => self.flatten_filter(true, &inputs, &outputs, source, loop_vars),
+            "xcorr" => self.flatten_xcorr(&inputs, &outputs, source, loop_vars),
+            "welch" => self.flatten_welch(&inputs, &outputs, source, loop_vars),
             "linfit" => self.flatten_lin_fit(&inputs, &outputs, source, loop_vars),
             "polyfit" => self.flatten_poly_fit(&inputs, &outputs, source, loop_vars),
             _ if control::flatten::handles(&def_name) => {
@@ -1168,6 +1176,26 @@ impl Flattener<'_> {
                 let len = self.in_vec_len(inputs, 0, loop_vars)?
                     + self.in_vec_len(inputs, 1, loop_vars)?;
                 set_vec(outputs, 0, len - 1);
+            }
+            // Phase 4.5: same-length transforms of the leading series…
+            "detrend" | "smooth" | "window" => {
+                set_vec(outputs, 0, self.in_vec_len(inputs, 0, loop_vars)?);
+            }
+            // …the filters, whose series is the third input, after b and a…
+            "filter" | "filtfilt" => {
+                set_vec(outputs, 0, self.in_vec_len(inputs, 2, loop_vars)?);
+            }
+            "xcorr" => {
+                let len = self.in_vec_len(inputs, 0, loop_vars)?
+                    + self.in_vec_len(inputs, 1, loop_vars)?;
+                set_vec(outputs, 0, len - 1);
+            }
+            // …and Welch, whose two outputs are the one-sided bin count.
+            "welch" => {
+                let nperseg = self.in_scalar_int(inputs, 2, loop_vars)?;
+                let bins = usize::try_from(nperseg).map_or(0, |n| n / 2 + 1);
+                set_vec(outputs, 0, bins);
+                set_vec(outputs, 1, bins);
             }
             "polyfit" => {
                 let degree = self.in_scalar_int(inputs, 2, loop_vars)?;
@@ -1907,6 +1935,297 @@ impl Flattener<'_> {
             ))?;
         }
         Ok(())
+    }
+
+    // ── Phase 4.5 sensor kernels ────────────────────────────────────────────
+    //
+    // These have no Java counterpart — the Java `SignalProcessing` stops at the
+    // DFT and the convolution. They follow the same flattening shape as
+    // `flatten_fft`: one equation per output element, each carrying the whole
+    // input series in its argument list, because a flattened document has no
+    // vector values to pass.
+
+    /// The string literal an option argument carries, lowercased.
+    fn call_option(name: &str, inputs: &[Expr], idx: usize, allowed: &str) -> Result<String> {
+        match inputs.get(idx) {
+            Some(Expr::Str(text)) => Ok(text.to_ascii_lowercase()),
+            _ => Err(parse_err(format!(
+                "{name} option {} must be a quoted name, one of {allowed}.",
+                idx + 1
+            ))),
+        }
+    }
+
+    /// Emit one equation per element of `out`, each calling
+    /// `<prefix>$<k>$<suffix>` over the shared `entries`.
+    fn emit_elementwise(
+        &mut self,
+        out: &VectorInfo,
+        prefix: &str,
+        suffix: &str,
+        entries: &[Expr],
+        source: &str,
+    ) -> Result<()> {
+        self.reserve(out.size)?;
+        for k in 0..out.size {
+            self.push(Equation::new(
+                out.elements[k].clone(),
+                Expr::Call {
+                    function: format!("{prefix}${k}${suffix}"),
+                    args: entries.to_vec(),
+                },
+                source,
+            ))?;
+        }
+        Ok(())
+    }
+
+    /// `CALL Detrend(y : yd)` removes a least-squares straight line;
+    /// `CALL Detrend(y, 'constant' : yd)` removes only the mean.
+    fn flatten_detrend(
+        &mut self,
+        inputs: &[Expr],
+        outputs: &[Expr],
+        source: &str,
+        loop_vars: &Scope,
+    ) -> Result<()> {
+        if !(1..=2).contains(&inputs.len()) || outputs.len() != 1 {
+            return Err(parse_err(
+                "Detrend expects 1 input vector, an optional 'linear'/'constant' mode, \
+                 and 1 output vector, e.g. CALL Detrend(y[1:n] : yd[1:n])",
+            ));
+        }
+        let mode = if inputs.len() == 2 {
+            Self::call_option("Detrend", inputs, 1, "'linear' or 'constant'")?
+        } else {
+            "linear".to_string()
+        };
+        let linear = match mode.as_str() {
+            "linear" => true,
+            "constant" | "const" | "mean" => false,
+            other => {
+                return Err(parse_err(format!(
+                    "Detrend mode must be 'linear' or 'constant', got '{other}'."
+                )))
+            }
+        };
+        let y = self.parse_vector_info(&inputs[0], loop_vars)?;
+        let out = self.parse_vector_info(&outputs[0], loop_vars)?;
+        if out.size != y.size {
+            return Err(parse_err(
+                "Detrend requires the output vector to match the input length.",
+            ));
+        }
+        let n = y.size;
+        let tag = if linear { "linear" } else { "const" };
+        self.emit_elementwise(
+            &out,
+            &format!("detrend${tag}"),
+            &n.to_string(),
+            &y.elements,
+            source,
+        )
+    }
+
+    /// `CALL Smooth(x, k : y)` — centred moving average over an odd `k`.
+    fn flatten_smooth(
+        &mut self,
+        inputs: &[Expr],
+        outputs: &[Expr],
+        source: &str,
+        loop_vars: &Scope,
+    ) -> Result<()> {
+        if inputs.len() != 2 || outputs.len() != 1 {
+            return Err(parse_err(
+                "Smooth expects 1 input vector, an odd window length and 1 output \
+                 vector, e.g. CALL Smooth(x[1:n], 5 : y[1:n])",
+            ));
+        }
+        let x = self.parse_vector_info(&inputs[0], loop_vars)?;
+        let width = self.in_scalar_int(inputs, 1, loop_vars)?;
+        let out = self.parse_vector_info(&outputs[0], loop_vars)?;
+        if out.size != x.size {
+            return Err(parse_err(
+                "Smooth requires the output vector to match the input length.",
+            ));
+        }
+        if width < 1 || width % 2 == 0 {
+            return Err(parse_err(format!(
+                "Smooth requires an odd window length >= 1, got {width}."
+            )));
+        }
+        if width as usize > x.size {
+            return Err(parse_err(format!(
+                "Smooth window ({width}) is longer than the series ({}).",
+                x.size
+            )));
+        }
+        let suffix = format!("{}", x.size);
+        self.emit_elementwise(
+            &out,
+            &format!("smooth${width}"),
+            &suffix,
+            &x.elements,
+            source,
+        )
+    }
+
+    /// `CALL Window(x, 'hann' : y)` — the series tapered by a symmetric window.
+    fn flatten_window(
+        &mut self,
+        inputs: &[Expr],
+        outputs: &[Expr],
+        source: &str,
+        loop_vars: &Scope,
+    ) -> Result<()> {
+        if inputs.len() != 2 || outputs.len() != 1 {
+            return Err(parse_err(
+                "Window expects 1 input vector, a quoted window name and 1 output \
+                 vector, e.g. CALL Window(x[1:n], 'hann' : y[1:n])",
+            ));
+        }
+        let kind = Self::call_option(
+            "Window",
+            inputs,
+            1,
+            "'rect', 'hann', 'hamming', 'blackman' or 'bartlett'",
+        )?;
+        let Some(resolved) = crate::signal::Window::from_name(&kind) else {
+            return Err(parse_err(format!(
+                "Unknown window '{kind}'. Use 'rect', 'hann', 'hamming', \
+                 'blackman' or 'bartlett'."
+            )));
+        };
+        // Canonicalize the alias so the synthetic carries one spelling per kind.
+        let tag = match resolved {
+            crate::signal::Window::Rect => "rect",
+            crate::signal::Window::Hann => "hann",
+            crate::signal::Window::Hamming => "hamming",
+            crate::signal::Window::Blackman => "blackman",
+            crate::signal::Window::Bartlett => "bartlett",
+        };
+        let x = self.parse_vector_info(&inputs[0], loop_vars)?;
+        let out = self.parse_vector_info(&outputs[0], loop_vars)?;
+        if out.size != x.size {
+            return Err(parse_err(
+                "Window requires the output vector to match the input length.",
+            ));
+        }
+        let suffix = format!("{}", x.size);
+        self.emit_elementwise(&out, &format!("window${tag}"), &suffix, &x.elements, source)
+    }
+
+    /// `CALL Filter(b, a, x : y)` and `CALL FiltFilt(b, a, x : y)` — the causal
+    /// difference equation and its zero-phase forward/backward pair.
+    fn flatten_filter(
+        &mut self,
+        zero_phase: bool,
+        inputs: &[Expr],
+        outputs: &[Expr],
+        source: &str,
+        loop_vars: &Scope,
+    ) -> Result<()> {
+        let name = if zero_phase { "FiltFilt" } else { "Filter" };
+        if inputs.len() != 3 || outputs.len() != 1 {
+            return Err(parse_err(format!(
+                "{name} expects numerator, denominator and signal vectors plus 1 \
+                 output vector, e.g. CALL {name}(b[1:3], a[1:2], x[1:n] : y[1:n])"
+            )));
+        }
+        let b = self.parse_vector_info(&inputs[0], loop_vars)?;
+        let a = self.parse_vector_info(&inputs[1], loop_vars)?;
+        let x = self.parse_vector_info(&inputs[2], loop_vars)?;
+        let out = self.parse_vector_info(&outputs[0], loop_vars)?;
+        if out.size != x.size {
+            return Err(parse_err(format!(
+                "{name} requires the output vector to match the signal length."
+            )));
+        }
+        let mut entries = Vec::with_capacity(b.size + a.size + x.size);
+        entries.extend(b.elements);
+        entries.extend(a.elements);
+        entries.extend(x.elements);
+        let tag = if zero_phase { "zero" } else { "causal" };
+        let suffix = format!("{}${}${}", b.size, a.size, x.size);
+        self.emit_elementwise(&out, &format!("filter${tag}"), &suffix, &entries, source)
+    }
+
+    /// `CALL XCorr(a, b : c)` — full cross-correlation, `m + n - 1` long, with
+    /// zero lag at the centre element `c[n]`.
+    fn flatten_xcorr(
+        &mut self,
+        inputs: &[Expr],
+        outputs: &[Expr],
+        source: &str,
+        loop_vars: &Scope,
+    ) -> Result<()> {
+        if inputs.len() != 2 || outputs.len() != 1 {
+            return Err(parse_err(
+                "XCorr expects 2 input vectors and 1 output vector, \
+                 e.g. CALL XCorr(a[1:m], b[1:n] : c[1:m+n-1])",
+            ));
+        }
+        let a = self.parse_vector_info(&inputs[0], loop_vars)?;
+        let b = self.parse_vector_info(&inputs[1], loop_vars)?;
+        let c = self.parse_vector_info(&outputs[0], loop_vars)?;
+        let (m, n) = (a.size, b.size);
+        if c.size != m + n - 1 {
+            return Err(parse_err(format!(
+                "XCorr requires the output length to be m + n - 1 = {}.",
+                m + n - 1
+            )));
+        }
+        let mut entries = Vec::with_capacity(m + n);
+        entries.extend(a.elements);
+        entries.extend(b.elements);
+        self.emit_elementwise(&c, "xcorr", &format!("{m}${n}"), &entries, source)
+    }
+
+    /// `CALL Welch(x, fs, nperseg : f, pxx)` — the averaged-periodogram PSD.
+    /// Both outputs are `nperseg/2 + 1` long; `fs` stays an expression, so a
+    /// sample rate computed elsewhere in the document works.
+    fn flatten_welch(
+        &mut self,
+        inputs: &[Expr],
+        outputs: &[Expr],
+        source: &str,
+        loop_vars: &Scope,
+    ) -> Result<()> {
+        if inputs.len() != 3 || outputs.len() != 2 {
+            return Err(parse_err(
+                "Welch expects a signal vector, a sample rate and a segment length, \
+                 plus frequency and PSD output vectors, e.g. \
+                 CALL Welch(x[1:n], 1000, 256 : f[1:129], pxx[1:129])",
+            ));
+        }
+        let x = self.parse_vector_info(&inputs[0], loop_vars)?;
+        let nperseg = self.in_scalar_int(inputs, 2, loop_vars)?;
+        if nperseg < 2 {
+            return Err(parse_err(format!(
+                "Welch requires a segment length of at least 2, got {nperseg}."
+            )));
+        }
+        let nperseg = nperseg as usize;
+        if nperseg > x.size {
+            return Err(parse_err(format!(
+                "Welch segment length ({nperseg}) exceeds the series length ({}).",
+                x.size
+            )));
+        }
+        let bins = nperseg / 2 + 1;
+        let freq = self.parse_vector_info(&outputs[0], loop_vars)?;
+        let pxx = self.parse_vector_info(&outputs[1], loop_vars)?;
+        if freq.size != bins || pxx.size != bins {
+            return Err(parse_err(format!(
+                "Welch requires both output vectors to be nperseg/2 + 1 = {bins} long."
+            )));
+        }
+        let mut entries = Vec::with_capacity(x.size + 1);
+        entries.push(inputs[1].clone());
+        entries.extend(x.elements);
+        let suffix = format!("{nperseg}${}", x.size);
+        self.emit_elementwise(&freq, "welch$f", &suffix, &entries, source)?;
+        self.emit_elementwise(&pxx, "welch$pxx", &suffix, &entries, source)
     }
 
     /// Port of `EquationParser.flattenConvolve`: the linear convolution of two
@@ -3544,7 +3863,7 @@ const UNPORTED_CALL_INTRINSICS: [&str; 2] = ["eulerrotate", "eulerdecompose"];
 fn expected_output_count(def_name: &str, inputs: &[Expr]) -> i32 {
     match def_name {
         "eigenvalues" | "eulerrotate" => 1,
-        "eigen" | "ludecompose" | "qr" | "fft" | "ifft" => 2,
+        "eigen" | "ludecompose" | "qr" | "fft" | "ifft" | "welch" => 2,
         "eulerdecompose" | "ss2ss" | "svd" => 3,
         "ss2tf" | "ss2tfij" | "zp2tf" | "c2d" | "d2c" | "pade" | "pole" | "zero" | "bode"
         | "nyquist" | "nichols" => 2,
@@ -4864,6 +5183,13 @@ mod tests {
             "polyfit",
             "ludecompose",
             "interp2",
+            "detrend",
+            "smooth",
+            "window",
+            "filter",
+            "filtfilt",
+            "xcorr",
+            "welch",
         ];
         for name in kernels
             .into_iter()

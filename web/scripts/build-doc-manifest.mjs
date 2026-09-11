@@ -206,8 +206,129 @@ function authoredPages() {
   return names;
 }
 
+// ── The Rust registries (this port's own truth) ──────────────────────────────
+//
+// The Java sources above are the *reference* implementation. They are also, on
+// a normal checkout, absent — and until Phase 4.7 this script silently reused
+// whatever function list happened to be committed when someone last had the
+// sibling repo. That is how 73 live intrinsics ended up undocumented while
+// `npm run check-docs` reported 655/655.
+//
+// So the documentable surface is now reconciled against the **shipping engine**
+// too, whether or not the Java repo is present: `eval::INTRINSICS` is a static
+// table of `strict!("name", …)` / `lazy!("name", …)` rows, and the CALL targets
+// are a static list in `procedures.rs`. Both are read straight out of the Rust
+// source, because a build step that needs the engine compiled would not run in
+// the same place this one does.
+
+const EVAL_RS = path.join(WASM_REPO, 'crates/frees-core/src/eval.rs');
+const PROCEDURES_RS = path.join(WASM_REPO, 'crates/frees-core/src/procedures.rs');
+
+/** Every name in `eval::INTRINSICS`, lowercase, sorted. */
+function rustIntrinsics() {
+  if (!fs.existsSync(EVAL_RS)) return [];
+  const src = read(EVAL_RS);
+  const names = new Set();
+  for (const m of src.matchAll(/(?:strict|lazy)!\(\s*"([^"]+)"/g)) {
+    names.add(m[1].toLowerCase());
+  }
+  return [...names].sort();
+}
+
+/** Every name in `procedures::EXPANDED_CALL_TARGETS`, lowercase, sorted. */
+function rustCallTargets() {
+  if (!fs.existsSync(PROCEDURES_RS)) return [];
+  const src = read(PROCEDURES_RS);
+  const block = src.match(/const EXPANDED_CALL_TARGETS: &\[&str\] = &\[([\s\S]*?)\n\];/);
+  if (!block) return [];
+  const names = new Set();
+  for (const m of block[1].matchAll(/"([^"]+)"/g)) names.add(m[1].toLowerCase());
+  return [...names].sort();
+}
+
+/**
+ * Fold the Rust registries into a manifest built from (or cached from) the Java
+ * side, and report what only one of them knows about.
+ *
+ * A **union**, deliberately, not a replacement. Dropping a name the Java
+ * registry has would orphan its authored page and fail the coverage gate for a
+ * reason that has nothing to do with the engine; adding a name the Rust table
+ * has is exactly the drift this exists to surface. Rust-only entries carry
+ * `source: "rust"` so a reader can see which half they came from.
+ */
+function mergeRustRegistries(manifest) {
+  const pages = authoredPages();
+  const report = { functionsAdded: [], callsAdded: [] };
+
+  const known = new Set((manifest.functions || []).map((f) => f.name.toLowerCase()));
+  for (const f of manifest.functions || []) {
+    for (const a of f.aliases || []) known.add(a.toLowerCase());
+  }
+  for (const d of manifest.dispatchOnly || []) known.add(String(d.name || d).toLowerCase());
+
+  const intrinsics = rustIntrinsics();
+  for (const name of intrinsics) {
+    if (known.has(name)) continue;
+    report.functionsAdded.push(name);
+    manifest.functions.push({
+      name,
+      signature: `${name}(…)`,
+      description: '',
+      category: 'Built-in',
+      aliases: [],
+      source: 'rust',
+      documented: pages.has(name),
+    });
+  }
+  // The reverse check — "a documented function the engine no longer dispatches"
+  // — is deliberately NOT made here. `eval::INTRINSICS` is only one of the
+  // port's dispatch paths: the dense linear algebra goes through
+  // `linalg::eval_intrinsic`, the control suite through `control::eval`, and
+  // both are reached by synthetic `$` names this regex cannot see. Comparing
+  // against the intrinsic table alone reported 45 live functions as dead.
+
+  const callNames = new Set((manifest.callProcedures || []).map((p) => p.name.toLowerCase()));
+  for (const name of rustCallTargets()) {
+    if (callNames.has(name)) continue;
+    report.callsAdded.push(name);
+    manifest.callProcedures.push({
+      name,
+      signature: `CALL ${name}(…)`,
+      description: '',
+      source: 'rust',
+      documented: pages.has(name),
+    });
+  }
+
+  manifest.functions.sort((a, b) => a.name.localeCompare(b.name));
+  manifest.callProcedures.sort((a, b) => a.name.localeCompare(b.name));
+  return report;
+}
+
+function reportMerge(report, reference) {
+  if (report.functionsAdded.length) {
+    console.warn(
+      `build-doc-manifest: ${report.functionsAdded.length} intrinsic(s) live in ` +
+        `eval::INTRINSICS but not in the ${reference ? 'Java registry' : 'committed manifest'}: ` +
+        report.functionsAdded.join(', '),
+    );
+  }
+  if (report.callsAdded.length) {
+    console.warn(
+      `build-doc-manifest: ${report.callsAdded.length} CALL target(s) added from ` +
+        `procedures::EXPANDED_CALL_TARGETS: ${report.callsAdded.join(', ')}`,
+    );
+  }
+}
+
 function writeManifest(manifest) {
-  fs.mkdirSync(REF_DIR, { recursive: true });
+  // The Java repo is present, so every family above is live — but the port has
+// its own dispatch table, and this is the one place the two can be compared.
+const mergeReport = mergeRustRegistries(manifest);
+manifest.derivedFrom = 'java+rust';
+recountCoverage(manifest);
+
+fs.mkdirSync(REF_DIR, { recursive: true });
   const rendered = JSON.stringify(manifest, null, 2) + '\n';
   const stripDate = (s) => s.replace(/^\s*"generatedAt":.*$/m, '');
   const previous = fs.existsSync(OUT) ? read(OUT) : null;
@@ -251,13 +372,37 @@ function refreshComponentsOnly() {
     ...c,
     documented: pages.has(c.name.toLowerCase()),
   }));
-  manifest.note = 'GENERATED by scripts/build-doc-manifest.mjs from the backend registries + this port\'s std-lib. Do not edit by hand.';
+  // Without the Java repo the Rust registries are the ONLY live source of truth
+  // for the function surface. If they cannot be read there is nothing left
+  // reconciling the manifest against the shipping engine, and a coverage number
+  // computed from a cached list is a claim this script has no basis for — so it
+  // fails rather than printing one.
+  if (!rustIntrinsics().length) {
+    console.error(
+      `build-doc-manifest: no Java reference repo AND eval::INTRINSICS could not be read ` +
+        `from ${path.relative(WASM_REPO, EVAL_RS)}. Refusing to report coverage from a ` +
+        `cached list — there would be nothing checking it against the engine.`,
+    );
+    process.exit(1);
+  }
+  const report = mergeRustRegistries(manifest);
+  manifest.note =
+    "GENERATED by scripts/build-doc-manifest.mjs. Function and CALL families are " +
+    "reconciled against the Rust registries (eval::INTRINSICS, " +
+    "procedures::EXPANDED_CALL_TARGETS); the remaining families are the last " +
+    "generation from the Java reference repo. Do not edit by hand.";
+  manifest.derivedFrom = 'rust';
+  // Named so a reader knows exactly which counts are live and which are cached.
+  manifest.staleFamilies = ['matrixFunctions', 'propertyFunctions', 'materials', 'replCasOps'];
   recountCoverage(manifest);
   writeManifest(manifest);
+  reportMerge(report, false);
   const cov = manifest.coverage;
   console.log(
-    `doc-manifest: no Java reference repo — refreshed ${cov.components} components from this ` +
-      `port's library (${cov.documentableSurfaceTotal} documentable, ${cov.documented} documented) → ` +
+    `doc-manifest: no Java reference repo — functions and CALL targets reconciled against ` +
+      `the Rust registries, ${cov.components} components refreshed from this port's library ` +
+      `(${cov.documentableSurfaceTotal} documentable, ${cov.documented} documented). ` +
+      `Cached from the last Java generation: ${manifest.staleFamilies.join(', ')} → ` +
       `${path.relative(WASM_REPO, OUT)}`,
   );
 }
@@ -379,6 +524,7 @@ if (previous !== null && stripDate(previous) === stripDate(rendered)) {
   fs.writeFileSync(OUT, rendered);
 }
 
+reportMerge(mergeReport, true);
 const cov = manifest.coverage;
 console.log(`doc-manifest: ${cov.documentableSurfaceTotal} documentable symbols ` +
   `(${cov.documented} documented) — ${functions.length} functions, ${matrixFunctions.length} matrix fns, ` +

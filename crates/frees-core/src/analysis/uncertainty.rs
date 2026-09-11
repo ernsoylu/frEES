@@ -68,6 +68,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use super::distributions::Distribution;
+use super::sampling::{Correlation, CorrelationEntries};
 use crate::ast::{Equation, Expr};
 use crate::diag::Result;
 use crate::eval::{eval_with, EvalContext, Scope};
@@ -146,6 +148,13 @@ pub struct UncertaintyContribution {
 pub struct UncPropagation {
     pub uncertainties: BTreeMap<String, f64>,
     pub contributions: BTreeMap<String, Vec<UncertaintyContribution>>,
+    /// Phase 4.3: the input shape each source declared, for the samplers that
+    /// need more than a sigma. Empty when every source is the historical
+    /// bare-`±` normal.
+    pub distributions: BTreeMap<String, Distribution>,
+    /// Phase 4.3: the resolved `Correlation(A, B)` coefficients, already
+    /// validated against the source list.
+    pub correlations: CorrelationEntries,
 }
 
 /// The equations that stay in the system, plus the `UncertaintyOf(X) = expr`
@@ -154,8 +163,24 @@ pub struct UncPropagation {
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct ExtractedUncertainties {
     pub active_equations: Vec<Equation>,
+    pub declarations: DeclarationSet,
+}
+
+/// The declaration families lifted out of the equation system: statements about
+/// a variable rather than equations to solve, so counting them would unbalance
+/// the document.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct DeclarationSet {
     /// Lowercase variable name → the RHS expression stating its uncertainty.
     pub uncertainty_exprs: BTreeMap<String, Expr>,
+    /// Phase 4.3: lowercase variable name → the `Name(args…)` shape declared by
+    /// `DistributionOf(X) = Uniform(0.9, 1.1)`. The call is kept unevaluated
+    /// because its arguments may reference solved values.
+    pub distribution_exprs: BTreeMap<String, (String, Vec<Expr>)>,
+    /// Phase 4.3: lowercase ordered name pair → the RHS of
+    /// `Correlation(A, B) = 0.6`. The pair is stored as written; assembling and
+    /// validating the matrix belongs to [`super::sampling::Correlation`].
+    pub correlation_exprs: BTreeMap<(String, String), Expr>,
 }
 
 // ---------------------------------------------------------------------------
@@ -170,18 +195,66 @@ pub struct ExtractedUncertainties {
 pub fn extract_uncertainty_equations(equations: &[Equation]) -> ExtractedUncertainties {
     let mut active = Vec::with_capacity(equations.len());
     let mut uncertainty_exprs = BTreeMap::new();
+    let mut distribution_exprs = BTreeMap::new();
+    let mut correlation_exprs = BTreeMap::new();
     for eq in equations {
-        match uncertainty_target(&eq.lhs) {
-            Some(var) => {
-                uncertainty_exprs.insert(var.to_ascii_lowercase(), eq.rhs.clone());
-            }
-            None => active.push(eq.clone()),
+        if let Some(var) = uncertainty_target(&eq.lhs) {
+            uncertainty_exprs.insert(var.to_ascii_lowercase(), eq.rhs.clone());
+            continue;
         }
+        // Phase 4.3 declarations, lifted at the same position and for the same
+        // reason: they state a *property* of a variable, so counting them as
+        // equations would unbalance the system.
+        if let Some(var) = declaration_target(&eq.lhs, "distributionof", 1) {
+            if let Expr::Call { function, args } = &eq.rhs {
+                distribution_exprs.insert(
+                    var[0].to_ascii_lowercase(),
+                    (function.clone(), args.clone()),
+                );
+                continue;
+            }
+            // A malformed right-hand side stays in the system so the solver
+            // reports it against the user's own text rather than vanishing.
+        } else if let Some(pair) = declaration_target(&eq.lhs, "correlation", 2) {
+            correlation_exprs.insert(
+                (pair[0].to_ascii_lowercase(), pair[1].to_ascii_lowercase()),
+                eq.rhs.clone(),
+            );
+            continue;
+        }
+        active.push(eq.clone());
     }
     ExtractedUncertainties {
         active_equations: active,
-        uncertainty_exprs,
+        declarations: DeclarationSet {
+            uncertainty_exprs,
+            distribution_exprs,
+            correlation_exprs,
+        },
     }
+}
+
+/// The variable names a declaration call like `DistributionOf(X)` or
+/// `Correlation(A, B)` addresses, when it has exactly `arity` arguments and
+/// every one of them names a variable (or quotes one).
+///
+/// Same argument rule as [`uncertainty_target`]: a bare identifier or a string
+/// literal, nothing else, so `Correlation(a + b, c)` is not mistaken for a
+/// declaration and stays an ordinary equation.
+fn declaration_target<'a>(expr: &'a Expr, name: &str, arity: usize) -> Option<Vec<&'a str>> {
+    let Expr::Call { function, args } = expr else {
+        return None;
+    };
+    if function != name || args.len() != arity {
+        return None;
+    }
+    args.iter()
+        .map(|arg| match arg {
+            Expr::Var(name) => Some(name.as_str()),
+            Expr::Str(value) => Some(value.as_str()),
+            _ => None,
+        })
+        .collect()
 }
 
 /// The variable an `UncertaintyOf(...)` call names, or `None` for any other
@@ -345,17 +418,31 @@ pub fn propagate(
     values: &Scope,
     specs: &BTreeMap<String, UncertaintySpec>,
     ctx: EvalContext<'_>,
+    correlations: &CorrelationEntries,
 ) -> Result<UncPropagation> {
     let var_list = collect_variables(equations);
     let part = partition_variables(&var_list, specs);
     if part.unc_vars.is_empty() {
+        if !correlations.is_empty() {
+            return Err(crate::diag::FreesError::solver(
+                "Correlation(...) was declared but the document has no uncertainty \
+                 sources to correlate.",
+            ));
+        }
         return Ok(UncPropagation {
             uncertainties: part.uncertainties,
-            contributions: BTreeMap::new(),
+            ..UncPropagation::default()
         });
     }
+    // Built here, not by the caller: the matrix is indexed by source order, and
+    // this is the only place that order (`unc_vars`) is decided.
+    let correlation = if correlations.is_empty() {
+        None
+    } else {
+        Some(Correlation::build(&part.unc_vars, correlations)?)
+    };
     let jacobian = numerical_jacobian(equations, values, ctx, &var_list)?;
-    solve_rss_uncertainties(&jacobian, &var_list, part, specs)
+    solve_rss_uncertainties(&jacobian, &var_list, part, specs, correlation.as_ref())
 }
 
 /// Port of `partitionVariables`.
@@ -460,6 +547,7 @@ fn solve_rss_uncertainties(
     var_list: &[String],
     part: UncPartition,
     specs: &BTreeMap<String, UncertaintySpec>,
+    correlation: Option<&Correlation>,
 ) -> Result<UncPropagation> {
     let UncPartition {
         unc_vars,
@@ -476,14 +564,14 @@ fn solve_rss_uncertainties(
         set_source_uncertainties(&mut uncertainties, &unc_vars, specs);
         return Ok(UncPropagation {
             uncertainties,
-            contributions: BTreeMap::new(),
+            ..UncPropagation::default()
         });
     }
 
     let jy_prime: Mat = non_zero_rows.iter().map(|&i| jy[i].clone()).collect();
     let jx_prime: Mat = non_zero_rows.iter().map(|&i| jx[i].clone()).collect();
 
-    let variances = dependent_variances(&jy_prime, &jx_prime, &unc_vars, specs, q, p)?;
+    let variances = dependent_variances(&jy_prime, &jx_prime, &unc_vars, specs, q, p, correlation)?;
     let mut contributions = BTreeMap::new();
     for (j, dep) in dep_vars.iter().enumerate() {
         let sigma = variances.sum_sq[j].sqrt();
@@ -514,6 +602,7 @@ fn solve_rss_uncertainties(
     Ok(UncPropagation {
         uncertainties,
         contributions,
+        ..UncPropagation::default()
     })
 }
 
@@ -565,6 +654,7 @@ fn dependent_variances(
     specs: &BTreeMap<String, UncertaintySpec>,
     q: usize,
     p: usize,
+    correlation: Option<&Correlation>,
 ) -> Result<DependentVariances> {
     let solver = SvdSolver::new(jy_prime)?;
     let m_prime = jy_prime.len();
@@ -577,6 +667,28 @@ fn dependent_variances(
         for j in 0..q {
             sum_sq[j] += dy[j] * dy[j];
             per_source[j][i] = dy[j];
+        }
+    }
+
+    // Phase 4.3: with declared correlations the total is the full quadratic
+    // form `Σᵢₖ dyᵢ · R[i][k] · dyₖ`, of which the RSS above is the `R = I`
+    // case. The independent path is left computing its own sum in its own
+    // order — the numbers it produced are pinned by 1,308 golden fixtures, and
+    // re-deriving them through a matrix product would move their last bits.
+    if let Some(r) = correlation.filter(|c| !c.is_identity()) {
+        // The correlation matrix is indexed by the *source* order the caller
+        // built it in, which is `unc_vars` — assert rather than assume.
+        debug_assert_eq!(r.sources.len(), p);
+        for (j, total) in sum_sq.iter_mut().enumerate() {
+            let mut acc = 0.0;
+            for i in 0..p {
+                for k in 0..p {
+                    acc += per_source[j][i] * r.matrix[i][k] * per_source[j][k];
+                }
+            }
+            // A quadratic form on a positive semidefinite matrix cannot be
+            // negative; rounding can still land a hair below zero.
+            *total = acc.max(0.0);
         }
     }
     Ok(DependentVariances { sum_sq, per_source })
@@ -630,6 +742,7 @@ pub struct UncertaintyPass {
 /// # Errors
 ///
 /// Whatever `resolve` returns, or a propagation failure.
+#[allow(clippy::too_many_arguments)]
 pub fn resolve_second_pass<F>(
     equations: &[Equation],
     values: &Scope,
@@ -637,6 +750,7 @@ pub fn resolve_second_pass<F>(
     uncertainty_exprs: &BTreeMap<String, Expr>,
     specs: &mut BTreeMap<String, UncertaintySpec>,
     ctx: EvalContext<'_>,
+    correlations: &CorrelationEntries,
     resolve: F,
 ) -> Result<UncertaintyPass>
 where
@@ -646,7 +760,8 @@ where
     inject_uncertainty_values(&mut warm, &first_pass.uncertainties);
     let mut resolved = resolve(equations, &warm)?;
     apply_uncertainty_specs(uncertainty_exprs, &resolved, specs, ctx);
-    let propagation = propagate(equations, &resolved, specs, ctx)?;
+    let mut propagation = propagate(equations, &resolved, specs, ctx, correlations)?;
+    propagation.correlations = correlations.clone();
     inject_uncertainty_values(&mut resolved, &propagation.uncertainties);
     Ok(UncertaintyPass {
         values: resolved,
@@ -654,14 +769,88 @@ where
     })
 }
 
+/// Evaluate each `DistributionOf(X) = Name(args…)` at the solved state, pin the
+/// distribution's own standard deviation as `X`'s uncertainty, and hand the
+/// shapes back for the samplers.
+///
+/// Unlike [`apply_uncertainty_specs`], a declaration that will not evaluate is
+/// an **error** here rather than a silent skip. That asymmetry is deliberate:
+/// the skip exists for Java parity on a construct that predates this engine, and
+/// carrying it into new syntax would mean a typo'd distribution quietly reverts
+/// to a normal.
+///
+/// # Errors
+///
+/// [`FreesError::Solver`] when an argument will not evaluate, the shape is
+/// unknown or ill-parameterized, or the same variable also carries an
+/// `UncertaintyOf` declaration — two different statements of one variable's
+/// spread, with no defensible precedence between them.
+fn apply_distribution_specs(
+    declarations: &DeclarationSet,
+    values: &Scope,
+    specs: &mut BTreeMap<String, UncertaintySpec>,
+    ctx: EvalContext<'_>,
+) -> Result<BTreeMap<String, Distribution>> {
+    let mut out = BTreeMap::new();
+    for (name, (function, args)) in &declarations.distribution_exprs {
+        if declarations.uncertainty_exprs.contains_key(name.as_str()) {
+            return Err(crate::diag::FreesError::solver(format!(
+                "`{name}` declares both UncertaintyOf and DistributionOf. State the \
+                 spread once: a distribution already carries its own standard deviation."
+            )));
+        }
+        let mut evaluated = Vec::with_capacity(args.len());
+        for arg in args {
+            evaluated.push(eval_with(arg, values, ctx).map_err(|e| {
+                crate::diag::FreesError::solver(format!(
+                    "DistributionOf({name}): {}",
+                    e.to_string_message()
+                ))
+            })?);
+        }
+        let distribution = Distribution::from_call(function.as_str(), &evaluated)?;
+        let entry = specs.entry(name.clone()).or_default();
+        entry.uncertainty = distribution.std_dev();
+        out.insert(name.clone(), distribution);
+    }
+    Ok(out)
+}
+
+/// Evaluate each `Correlation(A, B) = expr` at the solved state.
+///
+/// # Errors
+///
+/// [`FreesError::Solver`] when a coefficient will not evaluate. Range and
+/// definiteness are checked later, by [`Correlation::build`], which is the only
+/// place that knows the full source set.
+fn evaluate_correlations(
+    declarations: &DeclarationSet,
+    values: &Scope,
+    ctx: EvalContext<'_>,
+) -> Result<CorrelationEntries> {
+    let mut out = CorrelationEntries::new();
+    for ((a, b), expr) in &declarations.correlation_exprs {
+        let rho = eval_with(expr, values, ctx).map_err(|e| {
+            crate::diag::FreesError::solver(format!(
+                "Correlation({a}, {b}): {}",
+                e.to_string_message()
+            ))
+        })?;
+        out.insert((a.clone(), b.clone()), rho);
+    }
+    Ok(out)
+}
+
 /// The whole mechanism, in the Java `EquationSystemSolver.solve` order.
 ///
-/// Given the **active** equations (`UncertaintyOf(X) = expr` already lifted out
-/// by [`extract_uncertainty_equations`]) and the first solve's values, this
+/// Given the **active** equations (the declarations already lifted out by
+/// [`extract_uncertainty_equations`]) and the first solve's values, this
 ///
 /// 1. pins each `UncertaintyOf(X) = expr` into `specs`
-///    ([`apply_uncertainty_specs`]),
-/// 2. propagates ([`propagate`]),
+///    ([`apply_uncertainty_specs`]) and each `DistributionOf(X) = …` alongside
+///    it ([`apply_distribution_specs`]),
+/// 2. propagates ([`propagate`]) — with the declared correlations folded into
+///    the quadratic form when there are any,
 /// 3. and, when an active equation *queries* `UncertaintyOf(...)`, runs the
 ///    second pass ([`resolve_second_pass`]) and returns its state and
 ///    propagation instead.
@@ -670,34 +859,43 @@ where
 ///
 /// # Errors
 ///
-/// Whatever `resolve` returns, or a propagation failure.
+/// Whatever `resolve` returns, a malformed declaration, or a propagation
+/// failure.
 pub fn analyze<F>(
     equations: &[Equation],
     values: &mut Scope,
     specs: &mut BTreeMap<String, UncertaintySpec>,
-    uncertainty_exprs: &BTreeMap<String, Expr>,
+    declarations: &DeclarationSet,
     ctx: EvalContext<'_>,
     resolve: F,
 ) -> Result<UncPropagation>
 where
     F: FnOnce(&[Equation], &Scope) -> Result<Scope>,
 {
-    apply_uncertainty_specs(uncertainty_exprs, values, specs, ctx);
-    let propagation = propagate(equations, values, specs, ctx)?;
+    apply_uncertainty_specs(&declarations.uncertainty_exprs, values, specs, ctx);
+    let distributions = apply_distribution_specs(declarations, values, specs, ctx)?;
+    let correlations = evaluate_correlations(declarations, values, ctx)?;
+    let mut propagation = propagate(equations, values, specs, ctx, &correlations)?;
     if !mentions_uncertainty_of(equations) {
+        propagation.distributions = distributions;
+        propagation.correlations = correlations;
         return Ok(propagation);
     }
     let pass = resolve_second_pass(
         equations,
         values,
         &propagation,
-        uncertainty_exprs,
+        &declarations.uncertainty_exprs,
         specs,
         ctx,
+        &correlations,
         resolve,
     )?;
     *values = pass.values;
-    Ok(pass.propagation)
+    let mut propagation = pass.propagation;
+    propagation.distributions = distributions;
+    propagation.correlations = correlations;
+    Ok(propagation)
 }
 
 #[cfg(test)]
@@ -746,8 +944,8 @@ mod tests {
     fn uncertainty_declarations_leave_the_system() {
         let (ext, _) = split("UncertaintyOf(x) = 0.1\nx = 2\ny = x^2\n");
         assert_eq!(ext.active_equations.len(), 2);
-        assert_eq!(ext.uncertainty_exprs.len(), 1);
-        assert!(ext.uncertainty_exprs.contains_key("x"));
+        assert_eq!(ext.declarations.uncertainty_exprs.len(), 1);
+        assert!(ext.declarations.uncertainty_exprs.contains_key("x"));
         assert!(!mentions_uncertainty_of(&ext.active_equations));
     }
 
@@ -788,7 +986,7 @@ mod tests {
         let values = solved_values(&ext.active_equations);
         let mut specs = BTreeMap::new();
         apply_uncertainty_specs(
-            &ext.uncertainty_exprs,
+            &ext.declarations.uncertainty_exprs,
             &values,
             &mut specs,
             EvalContext::with_defs(&defs),
@@ -800,6 +998,7 @@ mod tests {
             &values,
             &specs,
             EvalContext::with_defs(&defs),
+            &CorrelationEntries::new(),
         )
         .expect("propagate");
         assert_eq!(unc.uncertainties["x"], 0.1);
@@ -822,7 +1021,7 @@ mod tests {
         let values = solved_values(&ext.active_equations);
         let mut specs = BTreeMap::new();
         apply_uncertainty_specs(
-            &ext.uncertainty_exprs,
+            &ext.declarations.uncertainty_exprs,
             &values,
             &mut specs,
             EvalContext::with_defs(&defs),
@@ -832,6 +1031,7 @@ mod tests {
             &values,
             &specs,
             EvalContext::with_defs(&defs),
+            &CorrelationEntries::new(),
         )
         .expect("propagate");
 
@@ -862,7 +1062,7 @@ mod tests {
         let values = solved_values(&ext.active_equations);
         let mut specs = BTreeMap::new();
         apply_uncertainty_specs(
-            &ext.uncertainty_exprs,
+            &ext.declarations.uncertainty_exprs,
             &values,
             &mut specs,
             EvalContext::with_defs(&defs),
@@ -872,6 +1072,7 @@ mod tests {
             &values,
             &specs,
             EvalContext::with_defs(&defs),
+            &CorrelationEntries::new(),
         )
         .expect("propagate");
 
@@ -899,6 +1100,7 @@ mod tests {
             &values,
             &specs,
             EvalContext::with_defs(&defs),
+            &CorrelationEntries::new(),
         )
         .expect("propagate");
         assert_eq!(unc.uncertainties["x"], 0.1);
@@ -915,6 +1117,7 @@ mod tests {
             &values,
             &BTreeMap::new(),
             EvalContext::with_defs(&defs),
+            &CorrelationEntries::new(),
         )
         .expect("propagate");
         assert_eq!(unc.uncertainties["x"], 0.0);
@@ -945,7 +1148,7 @@ mod tests {
             &ext.active_equations,
             &mut values,
             &mut specs,
-            &ext.uncertainty_exprs,
+            &ext.declarations,
             EvalContext::with_defs(&defs),
             // The second-pass re-solve. `engine::solve_equation_list` goes here
             // once this is wired into `engine::solve_with` — but it is private

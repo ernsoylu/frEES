@@ -122,9 +122,27 @@ pub enum Loss {
 }
 
 impl Loss {
+    /// The loss itself, `ρ(z)` for a squared scaled residual `z`. This is what
+    /// a derivative-free minimiser sums directly (see
+    /// [`crate::analysis::paramfit`]); the IRLS path below uses `ρ'` instead.
+    pub(crate) fn value(self, z: f64) -> f64 {
+        match self {
+            Loss::Linear => z,
+            Loss::SoftL1 => 2.0 * ((1.0 + z).sqrt() - 1.0),
+            Loss::Huber => {
+                if z <= 1.0 {
+                    z
+                } else {
+                    2.0 * z.sqrt() - 1.0
+                }
+            }
+            Loss::Cauchy => libm::log1p(z),
+        }
+    }
+
     /// The IRLS weight `ρ'(u²)` for a scaled residual `u`, i.e. the factor the
     /// squared residual is multiplied by to imitate this loss.
-    fn weight(self, u: f64) -> f64 {
+    pub(crate) fn weight(self, u: f64) -> f64 {
         let z = u * u;
         match self {
             Loss::Linear => 1.0,
@@ -658,18 +676,18 @@ fn box_constraints(
 }
 
 /// What [`parameter_uncertainty`] reads off the Jacobian at the optimum.
-struct Uncertainty {
-    dof: usize,
+pub(crate) struct Uncertainty {
+    pub(crate) dof: usize,
     /// The residual variance a new observation carries: `SSres / dof` for an
     /// unweighted fit, and `1` for a weighted one, where the σ that scaled the
     /// residuals already carries it.
-    residual_variance: f64,
-    std_errors: Vec<f64>,
-    covariance: Mat,
-    rank: usize,
-    condition_number: f64,
-    unidentifiable: bool,
-    reduced_chi_square: f64,
+    pub(crate) residual_variance: f64,
+    pub(crate) std_errors: Vec<f64>,
+    pub(crate) covariance: Mat,
+    pub(crate) rank: usize,
+    pub(crate) condition_number: f64,
+    pub(crate) unidentifiable: bool,
+    pub(crate) reduced_chi_square: f64,
 }
 
 /// Parameter covariance from an SVD of the Jacobian at the optimum.
@@ -687,7 +705,7 @@ struct Uncertainty {
 /// When the fit is rank-deficient or has no residual degrees of freedom, the
 /// standard errors come back `NaN` and the covariance empty. A finite standard
 /// error on a parameter the data cannot separate is worse than no number.
-fn parameter_uncertainty(
+pub(crate) fn parameter_uncertainty(
     jacobian: &Mat,
     p: usize,
     n: usize,

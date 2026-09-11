@@ -52,6 +52,10 @@
 
 use std::collections::BTreeMap;
 
+use crate::analysis::distributions::Distribution;
+use crate::analysis::sampling::{
+    draw_row, uniform_design, Correlation, CorrelationEntries, Design, SampleDiagnostics,
+};
 use crate::analysis::uncertainty::UncertaintySpec;
 use crate::diag::{FreesError, Result};
 use crate::engine::{solve_with_tables, VariableOverride};
@@ -77,6 +81,13 @@ pub struct VariableStats {
     pub p50: f64,
     pub p95: f64,
     pub first_order_sigma: f64,
+    /// Phase 4.3: `(q, value)` for each requested output quantile, in the order
+    /// requested. Empty unless [`SamplingOptions::quantiles`] asked for some.
+    ///
+    /// These are quantiles **of the output distribution**, not a confidence
+    /// interval on any estimate of it: `p95` says 5 % of samples came out
+    /// higher, and says nothing about how well `mean` is pinned down.
+    pub quantiles: Vec<(f64, f64)>,
 }
 
 /// One sample: the solved values, or the failure that discarded it. Port of
@@ -97,6 +108,40 @@ pub struct Outcome {
     pub failed_samples: usize,
     pub truncated: bool,
     pub base_values: BTreeMap<String, f64>,
+    /// Phase 4.3/4.6: what design ran, how much of it completed, and whether an
+    /// i.i.d. standard error is a legitimate description of its error.
+    pub diagnostics: SampleDiagnostics,
+}
+
+/// Phase 4.3/4.6 sampling controls.
+///
+/// Absent (`None` at the call), the run is byte-for-byte what it always was:
+/// i.i.d. `java.util.Random` normals centred on the base solve and **clamped**
+/// into the declared bounds. That legacy path is kept intact on purpose — its
+/// draw sequence is pinned against the Java oracle, and clamping is not
+/// truncation, so replacing it silently would move every existing result.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct SamplingOptions {
+    /// How the deviates are laid out.
+    pub design: Design,
+    /// Per-source input shapes. A source absent from this map keeps the normal
+    /// centred on its base value with its declared sigma.
+    pub distributions: BTreeMap<String, Distribution>,
+    /// Declared input correlations, validated against the source list.
+    pub correlations: CorrelationEntries,
+    /// Output quantiles to report, each in `(0, 1)`. Empty means the historical
+    /// 5 / 50 / 95.
+    pub quantiles: Vec<f64>,
+}
+
+impl SamplingOptions {
+    /// True when nothing here changes the legacy behaviour, so the legacy path
+    /// can be taken and its numbers preserved exactly.
+    fn is_legacy(&self) -> bool {
+        self.design == Design::Random
+            && self.distributions.is_empty()
+            && self.correlations.is_empty()
+    }
 }
 
 /// Runs the sampling loop. Port of `MonteCarlo.run`.
@@ -170,6 +215,7 @@ where
         expired,
         extra_tables,
         None,
+        None,
     )
 }
 
@@ -187,6 +233,7 @@ pub fn run_with_tables_and_base<F>(
     mut expired: F,
     extra_tables: &[FunctionTableDef],
     precomputed_base: Option<&BTreeMap<String, f64>>,
+    options: Option<&SamplingOptions>,
 ) -> Result<Outcome>
 where
     F: FnMut() -> bool,
@@ -217,6 +264,58 @@ where
     // uncertainty is automatic here — `VariableOverride` has no such field.
     let sample_specs = overrides_from(specs);
 
+    let legacy = options.is_none_or(SamplingOptions::is_legacy);
+    let default_options = SamplingOptions::default();
+    let opts = options.unwrap_or(&default_options);
+
+    // The non-legacy path lays out the whole design up front: LHS and Sobol are
+    // defined for a fixed n and cannot be produced one row at a time.
+    let (marginals, bounds, correlation, design_rows) = if legacy {
+        (Vec::new(), Vec::new(), None, Vec::new())
+    } else {
+        let marginals: Vec<Distribution> = sources
+            .iter()
+            .map(|v| {
+                opts.distributions
+                    .get(v)
+                    .copied()
+                    .unwrap_or(Distribution::Normal {
+                        mean: base_values[v],
+                        sigma: specs[v].uncertainty,
+                    })
+            })
+            .collect();
+        for d in &marginals {
+            d.validate()?;
+        }
+        let bounds: Vec<(f64, f64)> = sources
+            .iter()
+            .map(|v| (specs[v].lower, specs[v].upper))
+            .collect();
+        let correlation = if opts.correlations.is_empty() {
+            None
+        } else {
+            Some(Correlation::build(&sources, &opts.correlations)?)
+        };
+        // A stratified design is defined for a *fixed* n and has to exist in
+        // full before its first row can be drawn — there is no amortised-growth
+        // escape here, which is exactly the protection `MAX_PREALLOCATED_SAMPLES`
+        // documents for the legacy path. So an out-of-range count is refused
+        // rather than allowed to allocate `n × p` doubles; at 1e9 samples that
+        // was measured at tens of gigabytes, and the `panic = "abort"` wasm
+        // profile cannot unwind an allocation failure.
+        if sample_count > MAX_PREALLOCATED_SAMPLES {
+            return Err(FreesError::solver(format!(
+                "A {} design must be generated in full before sampling starts, so it is \
+                 capped at {MAX_PREALLOCATED_SAMPLES} samples (got {sample_count}). Use the \
+                 'random' design for a larger run.",
+                opts.design.label()
+            )));
+        }
+        let rows = uniform_design(opts.design, sample_count, sources.len(), seed)?;
+        (marginals, bounds, correlation, rows)
+    };
+
     let mut random = JavaRandom::new(seed);
     // `new ArrayList<>(sampleCount)` in the Java — but `sampleCount` is
     // untrusted here in a way it never is there. `SolveController` clamps the
@@ -233,17 +332,30 @@ where
     let mut failed = 0usize;
     let mut truncated = false;
 
-    for _ in 0..sample_count {
+    #[allow(clippy::needless_range_loop)]
+    for index in 0..sample_count {
         if expired() {
             truncated = true;
             break;
         }
         let mut overrides = Vec::with_capacity(sources.len());
-        for v in &sources {
-            let spec = &specs[v];
-            let draw = base_values[v] + spec.uncertainty * random.next_gaussian();
-            let draw = clamp(draw, spec.lower, spec.upper);
-            overrides.push(format!("{v} = {}", to_plain_string(draw)));
+        if legacy {
+            for v in &sources {
+                let spec = &specs[v];
+                let draw = base_values[v] + spec.uncertainty * random.next_gaussian();
+                let draw = clamp(draw, spec.lower, spec.upper);
+                overrides.push(format!("{v} = {}", to_plain_string(draw)));
+            }
+        } else {
+            let drawn = draw_row(
+                &design_rows[index],
+                &marginals,
+                &bounds,
+                correlation.as_ref(),
+            )?;
+            for (v, value) in sources.iter().zip(&drawn) {
+                overrides.push(format!("{v} = {}", to_plain_string(*value)));
+            }
         }
         // Warm start: the previous sample's values ride in as guesses.
         let mut info = sample_specs.clone();
@@ -274,7 +386,16 @@ where
         }
     }
 
-    let stats = aggregate(&base_values, &samples, first_order_sigma);
+    let completed = samples.len();
+    let stats = aggregate(&base_values, &samples, first_order_sigma, &opts.quantiles);
+    let diagnostics = SampleDiagnostics {
+        design: opts.design.label(),
+        requested: sample_count,
+        completed,
+        failed,
+        design_complete: opts.design.completed(sample_count, completed),
+        iid_standard_error_applies: opts.design.supports_iid_error(),
+    };
     Ok(Outcome {
         stats,
         samples,
@@ -282,6 +403,7 @@ where
         failed_samples: failed,
         truncated,
         base_values,
+        diagnostics,
     })
 }
 
@@ -291,6 +413,7 @@ fn aggregate(
     base_values: &BTreeMap<String, f64>,
     samples: &[Sample],
     first_order_sigma: &BTreeMap<String, f64>,
+    extra_quantiles: &[f64],
 ) -> Vec<VariableStats> {
     let mut stats = Vec::new();
     for variable in base_values.keys() {
@@ -316,6 +439,11 @@ fn aggregate(
             p50: percentile(&values, 0.50),
             p95: percentile(&values, 0.95),
             first_order_sigma: first_order_sigma.get(variable).copied().unwrap_or(0.0),
+            quantiles: extra_quantiles
+                .iter()
+                .filter(|q| q.is_finite() && (0.0..=1.0).contains(*q))
+                .map(|&q| (q, percentile(&values, q)))
+                .collect(),
         });
     }
     stats
@@ -491,7 +619,7 @@ fn java_split_semicolons(line: &str) -> Vec<&str> {
 /// for `f64` is the same shortest-round-trip rendering and never uses an
 /// exponent, so the two agree on the value even where they differ on trailing
 /// zeros (`"2"` here versus `"2.0"` there — the same double either way).
-fn to_plain_string(value: f64) -> String {
+pub(crate) fn to_plain_string(value: f64) -> String {
     format!("{value}")
 }
 
@@ -540,6 +668,13 @@ impl JavaRandom {
         let hi = self.next(26) << 27;
         let lo = self.next(27);
         (hi + lo) as f64 * (1.0 / (1u64 << 53) as f64)
+    }
+
+    /// `nextInt()`'s 32 raw bits — the scrambling word a digital-shift Sobol
+    /// sequence needs (see [`super::sampling`]). Same stream as every other
+    /// draw, so a seed still reproduces a whole design.
+    pub fn next_u32(&mut self) -> u32 {
+        self.next(32) as u32
     }
 
     /// `nextGaussian()` — Marsaglia polar, returning the first deviate and
@@ -924,7 +1059,7 @@ mod tests {
             values: BTreeMap::from([("x".to_string(), 1.0), ("y".to_string(), 2.0)]),
             error: None,
         }];
-        assert!(aggregate(&base, &samples, &BTreeMap::new()).is_empty());
+        assert!(aggregate(&base, &samples, &BTreeMap::new(), &[]).is_empty());
     }
 
     #[test]
